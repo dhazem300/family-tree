@@ -53,6 +53,28 @@ app.use(async (req, res, next) => {
 
 app.use(express.static(path.join(__dirname, "public")));
 
+// Fallback for older uploaded image paths where Arabic filenames were encoded
+// differently between the database value and the actual file on disk.
+// If /uploads/<timestamp>-name.ext is not found exactly, serve the first file
+// with the same timestamp prefix. This keeps legacy photos visible on Railway.
+app.get("/uploads/:filename", (req, res, next) => {
+  try {
+    const requested = path.basename(req.params.filename || "");
+    const direct = path.join(__dirname, "public", "uploads", requested);
+    if (fs.existsSync(direct)) return res.sendFile(direct);
+
+    const prefixMatch = requested.match(/^(\d{10,})-/);
+    if (!prefixMatch) return next();
+
+    const uploadsRoot = path.join(__dirname, "public", "uploads");
+    const found = fs.readdirSync(uploadsRoot).find((name) => name.startsWith(prefixMatch[1] + "-"));
+    if (found) return res.sendFile(path.join(uploadsRoot, found));
+    return next();
+  } catch (e) {
+    return next();
+  }
+});
+
 function parsePermissions(value) {
   if (Array.isArray(value)) return value;
   try {

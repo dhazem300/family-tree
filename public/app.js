@@ -568,6 +568,15 @@ function getCurrentTheme() {
   return isDark ? "dark" : "light";
 }
 
+function normalizeImageUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "/images/default.png";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const normalized = raw.startsWith("/") ? raw : "/" + raw;
+  // Keep slashes readable while safely encoding Arabic/spaces for SVG image hrefs.
+  return encodeURI(normalized);
+}
+
 // أضفنا خصائص `person-node` و `data-id` هنا
 function buildNodeHtml({ id, photo, name, sub, isDeceased }, theme, nodeW, nodeH) {
   const safePhoto = String(photo || "/images/default.png").replace(/"/g, "%22");
@@ -656,9 +665,7 @@ function nodeVisualStyle(data, theme) {
 
 function renderNodeSvg(g, d, theme) {
   const id = d.data.id;
-  const photo = (d.data.photo_url && String(d.data.photo_url).trim())
-    ? String(d.data.photo_url).trim()
-    : "/images/default.png";
+  const photo = normalizeImageUrl(d.data.photo_url);
   const name = (d.data.name || "").toString();
   const sub = d.data.birth_date ? String(d.data.birth_date) : "";
   const isDeceased = Number(d.data.is_deceased || 0) === 1;
@@ -705,6 +712,16 @@ function renderNodeSvg(g, d, theme) {
     .attr("stroke", st.portraitStroke)
     .attr("stroke-width", 3);
 
+  card.append("text")
+    .attr("class", "node-svg-placeholder")
+    .attr("x", 0)
+    .attr("y", -10)
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .attr("font-size", 46)
+    .attr("fill", theme === "dark" ? "rgba(229,184,105,0.35)" : "rgba(0,90,43,0.25)")
+    .text("شخص");
+
   card.append("image")
     .attr("class", "node-svg-photo")
     .attr("href", photo)
@@ -714,7 +731,16 @@ function renderNodeSvg(g, d, theme) {
     .attr("width", 132)
     .attr("height", 116)
     .attr("preserveAspectRatio", "xMidYMid slice")
-    .attr("clip-path", `url(#${clipId})`);
+    .attr("clip-path", `url(#${clipId})`)
+    .on("error", function () {
+      const img = d3.select(this);
+      const current = img.attr("href") || "";
+      if (!current.includes("/images/default.png")) {
+        img.attr("href", "/images/default.png").attr("xlink:href", "/images/default.png");
+      } else {
+        img.remove();
+      }
+    });
 
   if (isDeceased) {
     card.append("line")
@@ -848,22 +874,32 @@ function renderTree(rootData) {
     renderNodeSvg(d3.select(this), d, getCurrentTheme());
   });
 
-  nodes.on("pointerdown", (event) => {
-    event.preventDefault?.();
-    event.stopPropagation();
-  });
+  let lastNodeActivationAt = 0;
+  async function activateNode(event, d) {
+    event?.stopPropagation?.();
+    if (event?.type === "touchend") event.preventDefault?.();
 
-  nodes.on("click", async (event, d) => {
-    event.stopPropagation();
+    const now = Date.now();
+    if (now - lastNodeActivationAt < 320) return;
+    lastNodeActivationAt = now;
 
-    const p = await fetchPerson(d.data.id);
-    showDetailsInSide(p);
-    openDrawer();
+    try {
+      const p = await fetchPerson(d.data.id);
+      showDetailsInSide(p);
+      openDrawer();
 
-    resetFocus(nodes, links);
-    nodes.classed("nodeSelected", (n) => n === d);
-    focusOnNode(d, nodes, links);
-  });
+      resetFocus(nodes, links);
+      nodes.classed("nodeSelected", (n) => n === d);
+      focusOnNode(d, nodes, links);
+    } catch (err) {
+      console.error("node details error:", err);
+    }
+  }
+
+  nodes
+    .style("pointer-events", "all")
+    .on("click", activateNode)
+    .on("touchend", activateNode);
 
   function focusTreePersonById(personId, options = {}) {
     if (!personId) return false;
