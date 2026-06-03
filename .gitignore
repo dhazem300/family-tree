@@ -1,5 +1,4 @@
 node_modules
-.DS_Store
 .env
-sessions.db
-npm-debug.log
+.DS_Store
+draft/.DS_Store

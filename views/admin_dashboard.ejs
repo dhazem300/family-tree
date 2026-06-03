@@ -43,7 +43,90 @@
       .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       .glass-panel { @apply backdrop-blur-2xl shadow-xl; }
     }
-  </style>
+  
+
+    /* ===== Responsive admin layout: mobile + tablet ===== */
+    @media (max-width: 1279px) {
+      body {
+        height: auto !important;
+        min-height: 100dvh !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        display: block !important;
+      }
+      main {
+        width: 100% !important;
+        min-height: 100dvh !important;
+        display: block !important;
+      }
+      main > header {
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 60 !important;
+        padding: 12px !important;
+        gap: 10px !important;
+        flex-wrap: wrap !important;
+        align-items: flex-start !important;
+        background: rgba(245, 243, 247, 0.88) !important;
+        backdrop-filter: blur(18px) !important;
+        border-bottom: 1px solid rgba(0, 90, 43, 0.08) !important;
+      }
+      html.dark main > header {
+        background: rgba(5, 5, 5, 0.86) !important;
+        border-bottom-color: rgba(229, 184, 105, 0.12) !important;
+      }
+      main > header h2 {
+        font-size: 1.35rem !important;
+        line-height: 1.25 !important;
+      }
+      main > header > div:first-child {
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
+      }
+      main > header > div:last-child {
+        width: 100% !important;
+        justify-content: flex-start !important;
+        overflow-x: auto !important;
+        padding-bottom: 2px !important;
+      }
+      main > header > div:last-child a,
+      main > header > div:last-child button {
+        flex: 0 0 auto !important;
+      }
+      .flex-1.overflow-y-auto {
+        overflow: visible !important;
+        padding-inline: 12px !important;
+        padding-bottom: 28px !important;
+      }
+      .max-w-\[100rem\], .max-w-7xl, .max-w-5xl {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+      .grid {
+        gap: 12px !important;
+      }
+      .rounded-\[2rem\], .rounded-3xl {
+        border-radius: 1.25rem !important;
+      }
+      #mobileNavDrawer {
+        right: auto !important;
+        left: 0 !important;
+        width: min(340px, 88vw) !important;
+        transform: translateX(-115%) !important;
+      }
+      #mobileNavDrawer.isOpen {
+        transform: translateX(0) !important;
+      }
+    }
+
+    @media (max-width: 640px) {
+      main > header { padding: 10px !important; }
+      main > header h2 { font-size: 1.18rem !important; }
+      main > header .uppercase { display: none !important; }
+      .w-12.h-12 { width: 44px !important; height: 44px !important; }
+      table { font-size: 12px !important; }
+    }
+</style>
 
   <style>
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -93,7 +176,7 @@
   <canvas id="nexusCanvas"></canvas>
   <div class="fixed inset-0 bg-gradient-to-b from-white/40 to-white/80 dark:from-black/40 dark:to-[#050505]/90 pointer-events-none z-[1]"></div>
 
-  <aside class="relative z-20 hidden lg:flex flex-col w-[280px] h-[calc(100vh-2rem)] my-4 mx-4 bg-card-light dark:bg-card-dark glass-panel rounded-3xl border border-border-light dark:border-border-dark overflow-hidden shrink-0">
+  <aside class="relative z-20 hidden xl:flex flex-col w-[280px] h-[calc(100vh-2rem)] my-4 mx-4 bg-card-light dark:bg-card-dark glass-panel rounded-3xl border border-border-light dark:border-border-dark overflow-hidden shrink-0">
     <div class="flex items-center gap-3 p-6 border-b border-border-light dark:border-border-dark shrink-0">
       <div class="w-12 h-12 flex items-center justify-center rounded-2xl bg-primary dark:bg-accent text-white dark:text-black shadow-lg">
         <span class="material-symbols-outlined text-[28px]">shield_person</span>
@@ -170,7 +253,7 @@
   <main class="flex-1 flex flex-col min-w-0 h-full relative z-10">
     <header class="flex items-center justify-between p-4 lg:p-8 shrink-0">
       <div class="flex items-center gap-3">
-        <button id="mobileNavBtn" class="lg:hidden flex items-center justify-center w-12 h-12 rounded-2xl bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm" type="button">
+        <button id="mobileNavBtn" class="xl:hidden flex items-center justify-center w-12 h-12 rounded-2xl bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm" type="button">
           <span class="material-symbols-outlined text-[24px]">menu</span>
         </button>
         <div>

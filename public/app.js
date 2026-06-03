@@ -597,7 +597,12 @@ function normalizeImageUrl(value) {
   if (!raw) return "/images/default.png";
   if (/^https?:\/\//i.test(raw)) return raw;
   const normalized = raw.startsWith("/") ? raw : "/" + raw;
-  // Keep slashes readable while safely encoding Arabic/spaces for SVG image hrefs.
+
+  // Tree cards need small images only. Route uploaded photos through the
+  // thumbnail endpoint to avoid loading heavy originals on mobile.
+  const uploadMatch = normalized.match(/^\/uploads\/([^/?#]+)$/);
+  if (uploadMatch) return "/image-thumb/" + encodeURIComponent(uploadMatch[1]);
+
   return encodeURI(normalized);
 }
 
@@ -615,6 +620,9 @@ function buildNodeHtml({ id, photo, name, sub, isDeceased }, theme, nodeW, nodeH
         <div class="node-portrait" style="position:relative;overflow:hidden;">
           ${ribbon}
           <img class="w-full h-full object-cover"
+               loading="lazy"
+               decoding="async"
+               fetchpriority="low"
                src="${safePhoto}"
                alt="${safeName}"
                onerror="this.src='/images/default.png'"/>
@@ -639,6 +647,9 @@ function buildNodeHtml({ id, photo, name, sub, isDeceased }, theme, nodeW, nodeH
       <div class="node-portrait" style="position:relative;overflow:hidden;background:${photoBg}; border-color:${photoBd};">
         ${ribbon}
         <img
+          loading="lazy"
+          decoding="async"
+          fetchpriority="low"
           style="width:100%;height:100%;object-fit:contain;display:block;padding:6px;background:${photoBg};"
           src="${safePhoto}"
           alt="${safeName}"

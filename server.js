@@ -32,7 +32,7 @@ app.set("views", path.join(__dirname, "views"));
 app.use(async (req, res, next) => {
   try {
     const isAdminArea = req.path.startsWith("/admin");
-    const isAllowedAsset = req.path === "/theme.js" || req.path.startsWith("/assets/") || req.path.startsWith("/uploads/");
+    const isAllowedAsset = req.path === "/theme.js" || req.path.startsWith("/assets/") || req.path.startsWith("/uploads/") || req.path.startsWith("/image-thumb/");
     if (isAdminArea || isAllowedAsset) return next();
 
     db.get(`SELECT value FROM site_settings WHERE key = 'maintenance_enabled'`, [], (err, row) => {
@@ -52,6 +52,43 @@ app.use(async (req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname, "public")));
+
+
+function findUploadedImageByName(filename) {
+  const requested = path.basename(filename || "");
+  if (!requested || requested.includes("..")) return null;
+  const direct = path.join(uploadsDir, requested);
+  if (fs.existsSync(direct) && fs.statSync(direct).isFile()) return direct;
+
+  const prefixMatch = requested.match(/^(\d{10,})-/);
+  if (!prefixMatch) return null;
+  try {
+    const found = fs.readdirSync(uploadsDir).find((name) => name.startsWith(prefixMatch[1] + "-"));
+    if (found) return path.join(uploadsDir, found);
+  } catch (e) {}
+  return null;
+}
+
+// Fast thumbnails for tree cards. Existing uploaded photos are pre-generated
+// into public/uploads/thumbs as small WebP files. If a thumbnail is missing,
+// the original image is served as a safe fallback.
+app.get("/image-thumb/:filename", (req, res, next) => {
+  try {
+    const requested = path.basename(req.params.filename || "");
+    const source = findUploadedImageByName(requested);
+    if (!source) return next();
+
+    res.set("Cache-Control", "public, max-age=31536000, immutable");
+
+    const safeName = requested.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.[^.]+$/, "") || "thumb";
+    const thumbPath = path.join(thumbsDir, safeName + ".webp");
+    if (fs.existsSync(thumbPath)) return res.type("webp").sendFile(thumbPath);
+
+    return res.sendFile(source);
+  } catch (e) {
+    return next();
+  }
+});
 
 // Fallback for older uploaded image paths where Arabic filenames were encoded
 // differently between the database value and the actual file on disk.
@@ -156,6 +193,8 @@ function requireSuperAdmin(req, res, next) {
    ========================= */
 const uploadsDir = path.join(__dirname, "public", "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
+const thumbsDir = path.join(__dirname, "public", "uploads", "thumbs");
+fs.mkdirSync(thumbsDir, { recursive: true });
 
 const pdfUploadsDir = path.join(__dirname, "public", "uploads", "pdfs");
 fs.mkdirSync(pdfUploadsDir, { recursive: true });
