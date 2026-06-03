@@ -96,11 +96,41 @@
     html.dark .dark-toggle-icon-moon { display: none; }
     html:not(.dark) .dark-toggle-icon-sun { display: none; }
 
-    /* Mobile Nav */
-    #mobileNavOverlay.hidden { display: none; }
-    #mobileNavOverlay { display: block; }
-    #mobileNavDrawer { transform: translateX(110%); transition: transform .4s cubic-bezier(0.16, 1, 0.3, 1); }
-    #mobileNavDrawer.isOpen { transform: translateX(0); }
+    /* Mobile Nav - hard fixed */
+    #mobileNavBtn {
+      position: relative !important;
+      z-index: 10002 !important;
+      pointer-events: auto !important;
+      touch-action: manipulation !important;
+    }
+    #mobileNavOverlay.hidden { display: none !important; }
+    #mobileNavOverlay {
+      display: block;
+      z-index: 10000 !important;
+    }
+    #mobileNavDrawer {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: auto !important;
+      height: 100vh !important;
+      max-height: 100vh !important;
+      transform: translateX(-115%) !important;
+      transition: transform .32s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      z-index: 10001 !important;
+      pointer-events: none !important;
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+    #mobileNavDrawer.isOpen,
+    #mobileNavDrawer.mobile-menu-open {
+      transform: translateX(0) !important;
+      pointer-events: auto !important;
+    }
+    @media (max-width: 1023px) {
+      #nexusCanvas { pointer-events: none !important; }
+    }
   </style>
 
   <script>
@@ -235,7 +265,7 @@
     <header class="flex items-center justify-between p-4 lg:p-8 shrink-0">
       
       <div class="flex items-center gap-3">
-        <button id="mobileNavBtn" class="lg:hidden flex items-center justify-center w-12 h-12 rounded-2xl bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm" type="button">
+        <button id="mobileNavBtn" onclick="window.openAdminMobileMenu && window.openAdminMobileMenu(event)" class="lg:hidden flex items-center justify-center w-12 h-12 rounded-2xl bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm" type="button" aria-controls="mobileNavDrawer" aria-expanded="false">
           <span class="material-symbols-outlined text-[24px]">menu</span>
         </button>
 
@@ -409,7 +439,7 @@
   </main>
 </div>
 
-<aside id="mobileNavDrawer" class="fixed top-0 right-0 h-full w-[320px] max-w-[85vw] bg-card-light dark:bg-card-dark glass-panel border-l border-border-light dark:border-border-dark z-[90] flex flex-col">
+<aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-card-light dark:bg-card-dark glass-panel border-r border-border-light dark:border-border-dark z-[90] flex flex-col">
   <div class="h-1.5 w-full bg-primary"></div>
   <div class="flex items-center justify-between p-6 border-b border-border-light dark:border-border-dark shrink-0">
     <div>
@@ -483,21 +513,57 @@
     });
   })();
 
-  // Mobile Drawer
+  // Mobile Drawer - hard fixed for إدارة الأفراد
   (function mobileNavInit(){
     const btn = document.getElementById("mobileNavBtn");
     const navDrawer = document.getElementById("mobileNavDrawer");
     const overlay = document.getElementById("mobileNavOverlay");
     const closeBtn = document.getElementById("mobileNavClose");
 
-    function toggleNav() {
-      navDrawer?.classList.toggle("isOpen");
-      overlay?.classList.toggle("hidden");
+    function setOpenState(isOpen) {
+      if (!navDrawer || !overlay) return;
+
+      navDrawer.classList.toggle("isOpen", isOpen);
+      navDrawer.classList.toggle("mobile-menu-open", isOpen);
+      navDrawer.style.setProperty("transform", isOpen ? "translateX(0)" : "translateX(-115%)", "important");
+      navDrawer.style.setProperty("pointer-events", isOpen ? "auto" : "none", "important");
+      navDrawer.style.setProperty("display", "flex", "important");
+      navDrawer.style.setProperty("visibility", "visible", "important");
+      navDrawer.style.setProperty("opacity", "1", "important");
+
+      overlay.classList.toggle("hidden", !isOpen);
+      overlay.style.setProperty("display", isOpen ? "block" : "none", "important");
+      document.body.style.overflow = isOpen ? "hidden" : "";
+      btn?.setAttribute("aria-expanded", isOpen ? "true" : "false");
     }
-    
-    btn?.addEventListener("click", toggleNav);
-    closeBtn?.addEventListener("click", toggleNav);
-    overlay?.addEventListener("click", toggleNav);
+
+    window.openAdminMobileMenu = function(event) {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      setOpenState(true);
+    };
+
+    window.closeAdminMobileMenu = function(event) {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      setOpenState(false);
+    };
+
+    btn?.addEventListener("click", window.openAdminMobileMenu, true);
+    closeBtn?.addEventListener("click", window.closeAdminMobileMenu, true);
+    overlay?.addEventListener("click", window.closeAdminMobileMenu, true);
+
+    navDrawer?.querySelectorAll("a").forEach(function(link) {
+      link.addEventListener("click", function() {
+        setOpenState(false);
+      }, false);
+    });
+
+    document.addEventListener("keydown", function(event) {
+      if (event.key === "Escape") setOpenState(false);
+    });
+
+    setOpenState(false);
   })();
 
   // ==========================================
