@@ -170,6 +170,48 @@
       document.documentElement.classList.toggle("dark", saved === "dark");
     })();
   </script>
+
+
+  <style>
+    /* ===== Hard fix for admin mobile/tablet drawer ===== */
+    @media (max-width: 1279px) {
+      #mobileNavDrawer.admin-drawer-force {
+        position: fixed !important;
+        top: 0 !important;
+        right: auto !important;
+        left: 0 !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        width: min(340px, 88vw) !important;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        transform: translateX(-115%) !important;
+        transition: transform .35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        z-index: 9999 !important;
+      }
+      #mobileNavDrawer.admin-drawer-force.isOpen,
+      #mobileNavDrawer.admin-drawer-force.mobile-menu-open {
+        transform: translateX(0) !important;
+      }
+      #mobileNavOverlay.admin-overlay-force {
+        position: fixed !important;
+        inset: 0 !important;
+        background: rgba(0,0,0,.62) !important;
+        backdrop-filter: blur(8px) !important;
+        z-index: 9998 !important;
+      }
+      #mobileNavOverlay.admin-overlay-force.hidden {
+        display: none !important;
+      }
+      body.admin-menu-lock {
+        overflow: hidden !important;
+        touch-action: none !important;
+      }
+    }
+  </style>
+
 </head>
 
 <body class="bg-bg-light dark:bg-bg-dark text-gray-800 dark:text-gray-200 font-sans h-screen flex overflow-hidden selection:bg-accent selection:text-primaryDark">
@@ -479,18 +521,49 @@
       });
     })();
 
-    (function mobileNavInit(){
+    (function adminMobileMenuHardFix(){
       const btn = document.getElementById("mobileNavBtn");
-      const navDrawer = document.getElementById("mobileNavDrawer");
+      const drawer = document.getElementById("mobileNavDrawer");
       const overlay = document.getElementById("mobileNavOverlay");
       const closeBtn = document.getElementById("mobileNavClose");
-      function toggleNav() {
-        navDrawer?.classList.toggle("isOpen");
-        overlay?.classList.toggle("hidden");
+      if (!btn || !drawer || !overlay) return;
+
+      drawer.classList.add("admin-drawer-force");
+      overlay.classList.add("admin-overlay-force");
+
+      function openMenu(event) {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        drawer.classList.add("isOpen", "mobile-menu-open");
+        overlay.classList.remove("hidden");
+        document.body.classList.add("admin-menu-lock");
+        drawer.style.setProperty("transform", "translateX(0)", "important");
+        drawer.style.setProperty("pointer-events", "auto", "important");
       }
-      btn?.addEventListener("click", toggleNav);
-      closeBtn?.addEventListener("click", toggleNav);
-      overlay?.addEventListener("click", toggleNav);
+
+      function closeMenu(event) {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        drawer.classList.remove("isOpen", "mobile-menu-open");
+        overlay.classList.add("hidden");
+        document.body.classList.remove("admin-menu-lock");
+        drawer.style.setProperty("transform", "translateX(-115%)", "important");
+      }
+
+      btn.addEventListener("click", openMenu, true);
+      btn.addEventListener("touchend", openMenu, { passive: false, capture: true });
+      closeBtn?.addEventListener("click", closeMenu, true);
+      closeBtn?.addEventListener("touchend", closeMenu, { passive: false, capture: true });
+      overlay.addEventListener("click", closeMenu, true);
+      overlay.addEventListener("touchend", closeMenu, { passive: false, capture: true });
+
+      drawer.querySelectorAll("a").forEach((link) => {
+        link.addEventListener("click", () => {
+          drawer.classList.remove("isOpen", "mobile-menu-open");
+          overlay.classList.add("hidden");
+          document.body.classList.remove("admin-menu-lock");
+        });
+      });
     })();
 
     (function() {

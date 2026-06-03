@@ -122,6 +122,48 @@
       document.documentElement.classList.toggle("dark", saved === "dark");
     })();
   </script>
+
+
+  <style>
+    /* ===== Hard fix for admin mobile/tablet drawer ===== */
+    @media (max-width: 1279px) {
+      #mobileNavDrawer.admin-drawer-force {
+        position: fixed !important;
+        top: 0 !important;
+        right: auto !important;
+        left: 0 !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        width: min(340px, 88vw) !important;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        transform: translateX(-115%) !important;
+        transition: transform .35s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        z-index: 9999 !important;
+      }
+      #mobileNavDrawer.admin-drawer-force.isOpen,
+      #mobileNavDrawer.admin-drawer-force.mobile-menu-open {
+        transform: translateX(0) !important;
+      }
+      #mobileNavOverlay.admin-overlay-force {
+        position: fixed !important;
+        inset: 0 !important;
+        background: rgba(0,0,0,.62) !important;
+        backdrop-filter: blur(8px) !important;
+        z-index: 9998 !important;
+      }
+      #mobileNavOverlay.admin-overlay-force.hidden {
+        display: none !important;
+      }
+      body.admin-menu-lock {
+        overflow: hidden !important;
+        touch-action: none !important;
+      }
+    }
+  </style>
+
 </head>
 <body class="bg-bg-light dark:bg-bg-dark text-gray-800 dark:text-gray-200 font-sans h-screen flex overflow-hidden selection:bg-accent selection:text-primaryDark">
   <canvas id="nexusCanvas"></canvas>
@@ -242,7 +284,50 @@
 
   <script>
     (function () { const btn = document.getElementById("themeBtn"); function setTheme(next) { document.documentElement.setAttribute("data-theme", next); document.documentElement.classList.toggle("dark", next === "dark"); localStorage.setItem("theme", next); if (window.initNexus) window.initNexus(); } btn?.addEventListener("click", () => { const cur = document.documentElement.getAttribute("data-theme") || "dark"; setTheme(cur === "dark" ? "light" : "dark"); }); })();
-    (function mobileNavInit(){ const btn = document.getElementById("mobileNavBtn"); const navDrawer = document.getElementById("mobileNavDrawer"); const overlay = document.getElementById("mobileNavOverlay"); const closeBtn = document.getElementById("mobileNavClose"); function toggleNav() { navDrawer?.classList.toggle("isOpen"); overlay?.classList.toggle("hidden"); } btn?.addEventListener("click", toggleNav); closeBtn?.addEventListener("click", toggleNav); overlay?.addEventListener("click", toggleNav); })();
+    (function adminMobileMenuHardFix(){
+      const btn = document.getElementById("mobileNavBtn");
+      const drawer = document.getElementById("mobileNavDrawer");
+      const overlay = document.getElementById("mobileNavOverlay");
+      const closeBtn = document.getElementById("mobileNavClose");
+      if (!btn || !drawer || !overlay) return;
+
+      drawer.classList.add("admin-drawer-force");
+      overlay.classList.add("admin-overlay-force");
+
+      function openMenu(event) {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        drawer.classList.add("isOpen", "mobile-menu-open");
+        overlay.classList.remove("hidden");
+        document.body.classList.add("admin-menu-lock");
+        drawer.style.setProperty("transform", "translateX(0)", "important");
+        drawer.style.setProperty("pointer-events", "auto", "important");
+      }
+
+      function closeMenu(event) {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        drawer.classList.remove("isOpen", "mobile-menu-open");
+        overlay.classList.add("hidden");
+        document.body.classList.remove("admin-menu-lock");
+        drawer.style.setProperty("transform", "translateX(-115%)", "important");
+      }
+
+      btn.addEventListener("click", openMenu, true);
+      btn.addEventListener("touchend", openMenu, { passive: false, capture: true });
+      closeBtn?.addEventListener("click", closeMenu, true);
+      closeBtn?.addEventListener("touchend", closeMenu, { passive: false, capture: true });
+      overlay.addEventListener("click", closeMenu, true);
+      overlay.addEventListener("touchend", closeMenu, { passive: false, capture: true });
+
+      drawer.querySelectorAll("a").forEach((link) => {
+        link.addEventListener("click", () => {
+          drawer.classList.remove("isOpen", "mobile-menu-open");
+          overlay.classList.add("hidden");
+          document.body.classList.remove("admin-menu-lock");
+        });
+      });
+    })();
     (function() { const canvas = document.getElementById('nexusCanvas'); if(!canvas) return; const ctx = canvas.getContext('2d'); let width, height, particles = []; const numParticles = window.innerWidth > 1024 ? 110 : 60; let mouseX = -1000, mouseY = -1000; let dotColor, lineColor, connectionColor; function setColors() { const isDark = document.documentElement.classList.contains('dark'); dotColor = isDark ? 'rgba(229, 184, 105, 0.35)' : 'rgba(0, 90, 43, 0.28)'; lineColor = isDark ? 'rgba(229, 184, 105, 0.08)' : 'rgba(0, 90, 43, 0.08)'; connectionColor = isDark ? 'rgba(229, 184, 105, 0.18)' : 'rgba(0, 90, 43, 0.16)'; } function resize() { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; } function initParticles() { particles = []; for (let i=0;i<numParticles;i++) particles.push({ x: Math.random()*width, y: Math.random()*height, vx:(Math.random()-0.5)*0.45, vy:(Math.random()-0.5)*0.45, radius: Math.random()*1.8+1.2 }); } function animate() { ctx.clearRect(0,0,width,height); particles.forEach((p,i)=>{ p.x+=p.vx; p.y+=p.vy; if(p.x<0||p.x>width) p.vx*=-1; if(p.y<0||p.y>height) p.vy*=-1; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius,0,Math.PI*2); ctx.fillStyle=dotColor; ctx.fill(); for(let j=i+1;j<particles.length;j++){ const p2=particles[j]; const dist=Math.hypot(p.x-p2.x,p.y-p2.y); if(dist<110){ ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p2.x,p2.y); ctx.strokeStyle=lineColor; ctx.lineWidth=1; ctx.stroke(); } } const mouseDist = Math.hypot(p.x-mouseX,p.y-mouseY); if(mouseDist<140){ ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(mouseX,mouseY); ctx.strokeStyle=connectionColor; ctx.lineWidth=1.2; ctx.stroke(); } }); requestAnimationFrame(animate); } window.initNexus = function() { setColors(); }; resize(); setColors(); initParticles(); animate(); window.addEventListener('resize',()=>{ resize(); initParticles(); }); window.addEventListener('mousemove', e => { mouseX=e.clientX; mouseY=e.clientY; }); window.addEventListener('mouseleave',()=>{ mouseX=-1000; mouseY=-1000; }); })();
   </script>
 </body>
