@@ -550,7 +550,13 @@ function initialRootAndChildrenView(containerEl, rootHierarchy, padding = 120) {
   const fullW = bw + padding * 2;
   const fullH = bh + padding * 2;
 
-  const scale = clamp(Math.min(w / fullW, h / fullH) * 1.06, ZOOM_MIN, ZOOM_MAX);
+  const isSmallScreen = window.matchMedia ? window.matchMedia("(max-width: 700px)").matches : window.innerWidth <= 700;
+
+  // على الهاتف نمنع الزووم الابتدائي العالي، لأن بعض المتصفحات كانت تعرض الصور والبراويز مقصوصة.
+  // نعرض جذر الشجرة وأول مستوى بشكل أهدأ ومنظم، ثم يستطيع المستخدم التكبير بيده.
+  const rawScale = Math.min(w / fullW, h / fullH) * (isSmallScreen ? 0.92 : 1.06);
+  const maxInitialScale = isSmallScreen ? 0.82 : ZOOM_MAX;
+  const scale = clamp(rawScale, ZOOM_MIN, maxInitialScale);
   const tx = (w - bw * scale) / 2 - minX * scale;
   const ty = (h - bh * scale) / 2 - minY * scale;
 
