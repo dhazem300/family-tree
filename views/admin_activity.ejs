@@ -99,6 +99,57 @@
       .w-12.h-12 { width: 44px !important; height: 44px !important; }
       table { font-size: 12px !important; }
     }
+
+
+    /* ===== FINAL mobile/tablet admin drawer fix ===== */
+    @media (max-width: 1279px) {
+      #mobileNavBtn {
+        position: relative !important;
+        z-index: 100002 !important;
+        pointer-events: auto !important;
+        cursor: pointer !important;
+        touch-action: manipulation !important;
+      }
+      #mobileNavDrawer {
+        display: flex !important;
+        position: fixed !important;
+        top: 0 !important;
+        bottom: auto !important;
+        left: 0 !important;
+        right: auto !important;
+        width: min(360px, 88vw) !important;
+        max-width: 88vw !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        z-index: 100001 !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        pointer-events: none !important;
+        transform: translate3d(-120%, 0, 0) !important;
+        transition: transform .32s cubic-bezier(.2,.8,.2,1) !important;
+        border-left: 0 !important;
+        border-right: 1px solid rgba(229,184,105,.22) !important;
+      }
+      #mobileNavDrawer.admin-menu-open {
+        transform: translate3d(0, 0, 0) !important;
+        pointer-events: auto !important;
+      }
+      #mobileNavOverlay {
+        display: none !important;
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 100000 !important;
+        background: rgba(0,0,0,.62) !important;
+        backdrop-filter: blur(7px) !important;
+      }
+      #mobileNavOverlay.admin-menu-open {
+        display: block !important;
+      }
+      body.admin-menu-lock {
+        overflow: hidden !important;
+        touch-action: none !important;
+      }
+    }
 </style>
   <style>
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -123,48 +174,6 @@
       document.documentElement.classList.toggle("dark", saved === "dark");
     })();
   </script>
-
-
-  <style>
-    /* ===== Hard fix for admin mobile/tablet drawer ===== */
-    @media (max-width: 1279px) {
-      #mobileNavDrawer.admin-drawer-force {
-        position: fixed !important;
-        top: 0 !important;
-        right: auto !important;
-        left: 0 !important;
-        height: 100dvh !important;
-        max-height: 100dvh !important;
-        width: min(340px, 88vw) !important;
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        pointer-events: auto !important;
-        transform: translateX(-115%) !important;
-        transition: transform .35s cubic-bezier(0.16, 1, 0.3, 1) !important;
-        z-index: 9999 !important;
-      }
-      #mobileNavDrawer.admin-drawer-force.isOpen,
-      #mobileNavDrawer.admin-drawer-force.mobile-menu-open {
-        transform: translateX(0) !important;
-      }
-      #mobileNavOverlay.admin-overlay-force {
-        position: fixed !important;
-        inset: 0 !important;
-        background: rgba(0,0,0,.62) !important;
-        backdrop-filter: blur(8px) !important;
-        z-index: 9998 !important;
-      }
-      #mobileNavOverlay.admin-overlay-force.hidden {
-        display: none !important;
-      }
-      body.admin-menu-lock {
-        overflow: hidden !important;
-        touch-action: none !important;
-      }
-    }
-  </style>
-
 </head>
 <body class="bg-bg-light dark:bg-bg-dark text-gray-800 dark:text-gray-200 font-sans h-screen flex overflow-hidden selection:bg-accent selection:text-primaryDark">
   <canvas id="nexusCanvas"></canvas>
@@ -200,7 +209,7 @@
   <main class="flex-1 flex flex-col min-w-0 h-full relative z-10">
     <header class="flex items-center justify-between p-4 lg:p-8 shrink-0">
       <div class="flex items-center gap-3">
-        <button id="mobileNavBtn" class="xl:hidden flex items-center justify-center w-12 h-12 rounded-2xl bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm" type="button"><span class="material-symbols-outlined text-[24px]">menu</span></button>
+        <button id="mobileNavBtn" onclick="return window.openAdminMobileMenu ? window.openAdminMobileMenu(event) : false" class="xl:hidden flex items-center justify-center w-12 h-12 rounded-2xl bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm" type="button"><span class="material-symbols-outlined text-[24px]">menu</span></button>
         <div><h2 class="text-2xl md:text-3xl font-display font-bold text-primary dark:text-white tracking-tight leading-none mb-1.5">سجل النشاطات</h2><div class="flex items-center gap-1.5 text-gray-500 text-[11px] font-bold uppercase tracking-widest"><span>لوحة الإدارة</span><span class="material-symbols-outlined text-[14px]">chevron_left</span><span>النظام والموقع</span><span class="material-symbols-outlined text-[14px]">chevron_left</span><span class="text-accent">سجل النشاطات</span></div></div>
       </div>
       <div class="flex items-center gap-3 shrink-0">
@@ -284,51 +293,101 @@
 
   <script>
     (function () { const btn = document.getElementById("themeBtn"); function setTheme(next) { document.documentElement.setAttribute("data-theme", next); document.documentElement.classList.toggle("dark", next === "dark"); localStorage.setItem("theme", next); if (window.initNexus) window.initNexus(); } btn?.addEventListener("click", () => { const cur = document.documentElement.getAttribute("data-theme") || "dark"; setTheme(cur === "dark" ? "light" : "dark"); }); })();
-    (function adminMobileMenuHardFix(){
-      const btn = document.getElementById("mobileNavBtn");
-      const drawer = document.getElementById("mobileNavDrawer");
-      const overlay = document.getElementById("mobileNavOverlay");
-      const closeBtn = document.getElementById("mobileNavClose");
-      if (!btn || !drawer || !overlay) return;
-
-      drawer.classList.add("admin-drawer-force");
-      overlay.classList.add("admin-overlay-force");
-
-      function openMenu(event) {
-        event?.preventDefault?.();
-        event?.stopPropagation?.();
-        drawer.classList.add("isOpen", "mobile-menu-open");
-        overlay.classList.remove("hidden");
-        document.body.classList.add("admin-menu-lock");
-        drawer.style.setProperty("transform", "translateX(0)", "important");
-        drawer.style.setProperty("pointer-events", "auto", "important");
-      }
-
-      function closeMenu(event) {
-        event?.preventDefault?.();
-        event?.stopPropagation?.();
-        drawer.classList.remove("isOpen", "mobile-menu-open");
-        overlay.classList.add("hidden");
-        document.body.classList.remove("admin-menu-lock");
-        drawer.style.setProperty("transform", "translateX(-115%)", "important");
-      }
-
-      btn.addEventListener("click", openMenu, true);
-      btn.addEventListener("touchend", openMenu, { passive: false, capture: true });
-      closeBtn?.addEventListener("click", closeMenu, true);
-      closeBtn?.addEventListener("touchend", closeMenu, { passive: false, capture: true });
-      overlay.addEventListener("click", closeMenu, true);
-      overlay.addEventListener("touchend", closeMenu, { passive: false, capture: true });
-
-      drawer.querySelectorAll("a").forEach((link) => {
-        link.addEventListener("click", () => {
-          drawer.classList.remove("isOpen", "mobile-menu-open");
-          overlay.classList.add("hidden");
-          document.body.classList.remove("admin-menu-lock");
-        });
-      });
-    })();
     (function() { const canvas = document.getElementById('nexusCanvas'); if(!canvas) return; const ctx = canvas.getContext('2d'); let width, height, particles = []; const numParticles = window.innerWidth > 1024 ? 110 : 60; let mouseX = -1000, mouseY = -1000; let dotColor, lineColor, connectionColor; function setColors() { const isDark = document.documentElement.classList.contains('dark'); dotColor = isDark ? 'rgba(229, 184, 105, 0.35)' : 'rgba(0, 90, 43, 0.28)'; lineColor = isDark ? 'rgba(229, 184, 105, 0.08)' : 'rgba(0, 90, 43, 0.08)'; connectionColor = isDark ? 'rgba(229, 184, 105, 0.18)' : 'rgba(0, 90, 43, 0.16)'; } function resize() { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; } function initParticles() { particles = []; for (let i=0;i<numParticles;i++) particles.push({ x: Math.random()*width, y: Math.random()*height, vx:(Math.random()-0.5)*0.45, vy:(Math.random()-0.5)*0.45, radius: Math.random()*1.8+1.2 }); } function animate() { ctx.clearRect(0,0,width,height); particles.forEach((p,i)=>{ p.x+=p.vx; p.y+=p.vy; if(p.x<0||p.x>width) p.vx*=-1; if(p.y<0||p.y>height) p.vy*=-1; ctx.beginPath(); ctx.arc(p.x,p.y,p.radius,0,Math.PI*2); ctx.fillStyle=dotColor; ctx.fill(); for(let j=i+1;j<particles.length;j++){ const p2=particles[j]; const dist=Math.hypot(p.x-p2.x,p.y-p2.y); if(dist<110){ ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p2.x,p2.y); ctx.strokeStyle=lineColor; ctx.lineWidth=1; ctx.stroke(); } } const mouseDist = Math.hypot(p.x-mouseX,p.y-mouseY); if(mouseDist<140){ ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(mouseX,mouseY); ctx.strokeStyle=connectionColor; ctx.lineWidth=1.2; ctx.stroke(); } }); requestAnimationFrame(animate); } window.initNexus = function() { setColors(); }; resize(); setColors(); initParticles(); animate(); window.addEventListener('resize',()=>{ resize(); initParticles(); }); window.addEventListener('mousemove', e => { mouseX=e.clientX; mouseY=e.clientY; }); window.addEventListener('mouseleave',()=>{ mouseX=-1000; mouseY=-1000; }); })();
   </script>
+
+<script>
+  (function finalAdminMenuFix() {
+    function ready(fn) {
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn);
+      else fn();
+    }
+
+    function getParts() {
+      return {
+        btn: document.getElementById("mobileNavBtn"),
+        drawer: document.getElementById("mobileNavDrawer"),
+        overlay: document.getElementById("mobileNavOverlay"),
+        closeBtn: document.getElementById("mobileNavClose")
+      };
+    }
+
+    window.openAdminMobileMenu = function (event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      const { drawer, overlay } = getParts();
+      if (!drawer || !overlay) return false;
+
+      drawer.classList.add("admin-menu-open", "isOpen", "mobile-menu-open");
+      overlay.classList.add("admin-menu-open");
+      overlay.classList.remove("hidden");
+      document.body.classList.add("admin-menu-lock");
+
+      drawer.style.setProperty("left", "0", "important");
+      drawer.style.setProperty("right", "auto", "important");
+      drawer.style.setProperty("display", "flex", "important");
+      drawer.style.setProperty("visibility", "visible", "important");
+      drawer.style.setProperty("opacity", "1", "important");
+      drawer.style.setProperty("pointer-events", "auto", "important");
+      drawer.style.setProperty("transform", "translate3d(0,0,0)", "important");
+
+      overlay.style.setProperty("display", "block", "important");
+      return false;
+    };
+
+    window.closeAdminMobileMenu = function (event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      const { drawer, overlay } = getParts();
+      if (!drawer || !overlay) return false;
+
+      drawer.classList.remove("admin-menu-open", "isOpen", "mobile-menu-open");
+      overlay.classList.remove("admin-menu-open");
+      overlay.classList.add("hidden");
+      document.body.classList.remove("admin-menu-lock");
+
+      drawer.style.setProperty("transform", "translate3d(-120%,0,0)", "important");
+      drawer.style.setProperty("pointer-events", "none", "important");
+      overlay.style.setProperty("display", "none", "important");
+      return false;
+    };
+
+    ready(function () {
+      const { btn, drawer, overlay, closeBtn } = getParts();
+      if (!btn || !drawer || !overlay) return;
+
+      btn.setAttribute("onclick", "return window.openAdminMobileMenu(event)");
+      btn.style.setProperty("pointer-events", "auto", "important");
+      btn.style.setProperty("z-index", "100002", "important");
+
+      drawer.style.setProperty("left", "0", "important");
+      drawer.style.setProperty("right", "auto", "important");
+      drawer.style.setProperty("transform", "translate3d(-120%,0,0)", "important");
+      drawer.style.setProperty("pointer-events", "none", "important");
+      overlay.style.setProperty("display", "none", "important");
+
+      ["click", "pointerup", "touchend"].forEach(function (evt) {
+        btn.addEventListener(evt, window.openAdminMobileMenu, { capture: true, passive: false });
+        closeBtn && closeBtn.addEventListener(evt, window.closeAdminMobileMenu, { capture: true, passive: false });
+        overlay.addEventListener(evt, window.closeAdminMobileMenu, { capture: true, passive: false });
+      });
+
+      drawer.querySelectorAll("a").forEach(function (link) {
+        link.addEventListener("click", function () {
+          const { drawer, overlay } = getParts();
+          drawer && drawer.classList.remove("admin-menu-open", "isOpen", "mobile-menu-open");
+          overlay && overlay.classList.remove("admin-menu-open");
+          overlay && overlay.classList.add("hidden");
+          document.body.classList.remove("admin-menu-lock");
+        }, { capture: false });
+      });
+    });
+  })();
+</script>
+
 </body>
 </html>
