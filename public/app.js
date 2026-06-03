@@ -385,8 +385,8 @@ function focusOnNode(clickedNode, allNodesSel, allLinksSel) {
   const visible = new Set([clickedNode, ...getAncestors(clickedNode), ...getChildren(clickedNode)]);
 
   allNodesSel
-    .attr("opacity", (d) => visible.has(d) ? 1 : 0.07)
-    .attr("pointer-events", (d) => visible.has(d) ? "auto" : "none");
+    .style("opacity", (d) => visible.has(d) ? 1 : 0.07)
+    .style("pointer-events", (d) => visible.has(d) ? "auto" : "none");
 
   allLinksSel
     .attr("opacity", (d) => (visible.has(d.source) && visible.has(d.target)) ? 1 : 0.04);
@@ -395,19 +395,21 @@ function focusOnNode(clickedNode, allNodesSel, allLinksSel) {
 }
 
 function resetFocus(allNodesSel, allLinksSel) {
-  allNodesSel.attr("opacity", 1).attr("pointer-events", "auto");
+  allNodesSel.style("opacity", 1).style("pointer-events", "auto");
   allLinksSel.attr("opacity", 1);
   allNodesSel.classed("nodeSelected", false);
 }
 
 /* ===== Pan/Zoom + Fit ===== */
-let svg, mainG, zoomBehavior;
+let svg, mainG, zoomBehavior, htmlLayer;
 
 const __treeState = {
   rootData: null,
   nodesSel: null,
   linksSel: null,
   containerEl: null,
+  layoutRoot: null,
+  currentTransform: null,
   didInitialView: false,
 };
 
@@ -430,17 +432,50 @@ function syncSvgSize(containerEl) {
   svg.attr("width", width).attr("height", height).attr("viewBox", [0, 0, width, height]);
 }
 
-function fitToScreen(containerEl, padding = 110) {
-  if (!containerEl || !mainG || !svg || !zoomBehavior) return;
+function getTreeBounds(rootHierarchy, padding = 0) {
+  if (!rootHierarchy) {
+    return { x: 0, y: 0, width: 1, height: 1 };
+  }
 
-  const bounds = mainG.node().getBBox();
+  const nodes = rootHierarchy.descendants();
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+
+  nodes.forEach((n) => {
+    const x0 = n.x - NODE_W / 2;
+    const x1 = n.x + NODE_W / 2;
+    const y0 = n.y - 70;
+    const y1 = n.y - 70 + NODE_H;
+    minX = Math.min(minX, x0);
+    maxX = Math.max(maxX, x1);
+    minY = Math.min(minY, y0);
+    maxY = Math.max(maxY, y1);
+  });
+
+  return {
+    x: minX - padding,
+    y: minY - padding,
+    width: Math.max(1, (maxX - minX) + padding * 2),
+    height: Math.max(1, (maxY - minY) + padding * 2),
+  };
+}
+
+function applyTreeTransform(transform) {
+  __treeState.currentTransform = transform;
+  if (mainG) mainG.attr("transform", transform);
+  if (htmlLayer) {
+    htmlLayer.style.transformOrigin = "0 0";
+    htmlLayer.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`;
+  }
+}
+
+function fitToScreen(containerEl, padding = 110) {
+  if (!containerEl || !svg || !zoomBehavior) return;
+
+  const bounds = getTreeBounds(__treeState.layoutRoot, padding);
   const w = containerEl.clientWidth || 1;
   const h = containerEl.clientHeight || 1;
 
-  const fullW = Math.max(1, bounds.width + padding * 2);
-  const fullH = Math.max(1, bounds.height + padding * 2);
-
-  const scale = clamp(Math.min(w / fullW, h / fullH), ZOOM_MIN, ZOOM_MAX);
+  const scale = clamp(Math.min(w / bounds.width, h / bounds.height), ZOOM_MIN, ZOOM_MAX);
   const tx = (w - bounds.width * scale) / 2 - bounds.x * scale;
   const ty = (h - bounds.height * scale) / 2 - bounds.y * scale;
 
@@ -474,21 +509,10 @@ function flashTreeNode(targetNode) {
   const domNode = __treeState.nodesSel.filter(n => n === targetNode).node();
   if (!domNode) return;
 
-  const card = d3.select(domNode).select(".svg-node-card");
-  if (card.empty()) return;
-
-  card.select(".node-svg-namebox")
-    .transition().duration(180)
-    .attr("fill", "#FFF5D6")
-    .attr("stroke", "#E5B869")
-    .attr("stroke-width", 3);
-
-  card.select(".node-svg-portrait-bg")
-    .transition().duration(180)
-    .attr("stroke", "#E5B869")
-    .attr("stroke-width", 4);
-
-  setTimeout(() => updateNodesTheme(), 1400);
+  domNode.classList.remove("nodeFlash");
+  void domNode.offsetWidth;
+  domNode.classList.add("nodeFlash");
+  setTimeout(() => domNode.classList.remove("nodeFlash"), 1400);
 }
 
 function normalizeSearchText(value) {
@@ -641,24 +665,14 @@ function updateNodesTheme() {
   const theme = getCurrentTheme();
 
   __treeState.nodesSel.each(function (d) {
-    const g = d3.select(this);
-    const fo = g.select("foreignObject");
-    if (fo.empty()) return;
-
+    const nodeEl = d3.select(this);
     const id = d.data.id;
     const photo = normalizeImageUrl(d.data.photo_url);
     const name = (d.data.name || "").toString();
     const sub = d.data.birth_date ? String(d.data.birth_date) : "";
     const isDeceased = Number(d.data.is_deceased || 0) === 1;
 
-    const div = fo.select("div");
-    const html = buildNodeHtml({ id, photo, name, sub, isDeceased }, theme, NODE_W, NODE_H);
-
-    if (!div.empty()) {
-      div.html(html);
-    } else {
-      fo.append("xhtml:div").html(html);
-    }
+    nodeEl.html(buildNodeHtml({ id, photo, name, sub, isDeceased }, theme, NODE_W, NODE_H));
   });
 }
 
@@ -682,20 +696,40 @@ function renderTree(rootData) {
   if (!container) return;
 
   container.innerHTML = "";
+  container.style.position = "relative";
+  container.style.overflow = "hidden";
 
   const width = container.clientWidth || 1;
   const height = container.clientHeight || 1;
 
-  svg = d3.select(container).append("svg")
+  const stage = d3.select(container)
+    .append("div")
+    .attr("class", "tree-html-stage")
+    .style("position", "absolute")
+    .style("inset", "0")
+    .style("overflow", "hidden");
+
+  svg = stage.append("svg")
     .attr("width", width)
     .attr("height", height)
-    .attr("viewBox", [0, 0, width, height]);
+    .attr("viewBox", [0, 0, width, height])
+    .style("position", "absolute")
+    .style("inset", "0")
+    .style("z-index", "1");
+
+  htmlLayer = stage.append("div")
+    .attr("class", "tree-html-layer")
+    .style("position", "absolute")
+    .style("inset", "0")
+    .style("z-index", "2")
+    .style("pointer-events", "none")
+    .node();
 
   mainG = svg.append("g").attr("class", "mainG");
 
   zoomBehavior = d3.zoom()
     .scaleExtent([ZOOM_MIN, ZOOM_MAX])
-    .on("zoom", (event) => mainG.attr("transform", event.transform));
+    .on("zoom", (event) => applyTreeTransform(event.transform));
 
   svg.call(zoomBehavior);
 
@@ -706,6 +740,7 @@ function renderTree(rootData) {
     .separation((a, b) => (a.parent === b.parent ? 1.0 : 1.15));
 
   treeLayout(root);
+  __treeState.layoutRoot = root;
 
   function curvedLink(d) {
     const sx = d.source.x;
@@ -728,35 +763,27 @@ function renderTree(rootData) {
     .attr("stroke-linecap", "round")
     .attr("opacity", 0.85);
 
-  const nodes = mainG.append("g")
-    .selectAll("g")
+  const nodes = d3.select(htmlLayer)
+    .selectAll("div.tree-html-node")
     .data(root.descendants())
-    .join("g")
-    .attr("class", "nodeCard")
-    .attr("transform", (d) => `translate(${d.x},${d.y})`);
+    .join("div")
+    .attr("class", "tree-html-node nodeCard")
+    .style("position", "absolute")
+    .style("width", `${NODE_W}px`)
+    .style("height", `${NODE_H}px`)
+    .style("left", (d) => `${d.x - NODE_W / 2}px`)
+    .style("top", (d) => `${d.y - 70}px`)
+    .style("pointer-events", "auto")
+    .html((d) => {
+      const id = d.data.id;
+      const photo = normalizeImageUrl(d.data.photo_url);
+      const name = (d.data.name || "").toString();
+      const sub = d.data.birth_date ? String(d.data.birth_date) : "";
+      const isDeceased = Number(d.data.is_deceased || 0) === 1;
+      return buildNodeHtml({ id, photo, name, sub, isDeceased }, getCurrentTheme(), NODE_W, NODE_H);
+    });
 
-  nodes.each(function (d) {
-    const g = d3.select(this);
-
-    const id = d.data.id;
-    const photo = normalizeImageUrl(d.data.photo_url);
-    const name = (d.data.name || "").toString();
-    const sub = d.data.birth_date ? String(d.data.birth_date) : "";
-    const isDeceased = Number(d.data.is_deceased || 0) === 1;
-
-    const fo = g.append("foreignObject")
-      .attr("x", -NODE_W / 2)
-      .attr("y", -70)
-      .attr("width", NODE_W)
-      .attr("height", NODE_H)
-      .style("overflow", "visible")
-      .style("pointer-events", "all");
-
-    const theme = getCurrentTheme();
-    fo.append("xhtml:div").html(
-      buildNodeHtml({ id, photo, name, sub, isDeceased }, theme, NODE_W, NODE_H)
-    );
-  });
+  applyTreeTransform(d3.zoomIdentity);
 
   let lastNodeActivationAt = 0;
   async function activateNode(event, d) {
@@ -830,7 +857,7 @@ function renderTree(rootData) {
   svg.on("click", (event) => {
     const target = event?.target;
     if (!target) return;
-    if (target.closest?.(".nodeCard")) return;
+    if (target.closest?.(".nodeCard") || target.closest?.(".tree-html-node")) return;
     resetFocus(nodes, links);
   });
 
@@ -890,8 +917,8 @@ function renderTree(rootData) {
     const applySearchHighlight = (matchedNodes, targetNode) => {
       const matchedSet = new Set(matchedNodes);
       nodes
-        .attr("opacity", (d) => matchedSet.has(d) ? 1 : 0.12)
-        .attr("pointer-events", (d) => matchedSet.has(d) ? "auto" : "none")
+        .style("opacity", (d) => matchedSet.has(d) ? 1 : 0.12)
+        .style("pointer-events", (d) => matchedSet.has(d) ? "auto" : "none")
         .classed("nodeSelected", (d) => d === targetNode);
       links.attr("opacity", 0.08);
     };
@@ -962,7 +989,7 @@ function renderTree(rootData) {
 
       if (!matchedNodes.length) {
         lastMatchedId = null;
-        nodes.attr("opacity", 0.18).attr("pointer-events", "auto").classed("nodeSelected", false);
+        nodes.style("opacity", 0.18).style("pointer-events", "auto").classed("nodeSelected", false);
         links.attr("opacity", 0.08);
         showSearchEmptyMessage();
         return;

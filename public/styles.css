@@ -1141,3 +1141,36 @@ html[data-theme="dark"] .search-empty-message{
     max-height:45vh;
   }
 }
+
+
+/* ===== HTML overlay tree nodes for mobile Safari stability ===== */
+.tree-html-stage { position: absolute; inset: 0; overflow: hidden; }
+.tree-html-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.tree-html-node {
+  position: absolute;
+  pointer-events: auto;
+  transform-origin: center top;
+  will-change: transform, opacity;
+}
+.tree-html-node.nodeSelected .name-box {
+  border-color: #E5B869 !important;
+  box-shadow: 0 0 0 3px rgba(229,184,105,.18), 0 12px 28px rgba(229,184,105,.26) !important;
+}
+html.dark .tree-html-node.nodeSelected .name-box {
+  box-shadow: 0 0 0 3px rgba(229,184,105,.15), 0 0 22px rgba(229,184,105,.24) !important;
+}
+.tree-html-node.nodeFlash .node-portrait,
+.tree-html-node.nodeFlash .name-box {
+  animation: treeNodeFlash 1.2s ease;
+}
+@keyframes treeNodeFlash {
+  0% { transform: scale(1); box-shadow: 0 0 0 rgba(229,184,105,0); }
+  25% { transform: scale(1.03); box-shadow: 0 0 0 5px rgba(229,184,105,.18); }
+  100% { transform: scale(1); box-shadow: inherit; }
+}
