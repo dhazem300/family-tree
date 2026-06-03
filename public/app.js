@@ -635,165 +635,30 @@ function truncateNodeText(value, max = 16) {
   return txt.slice(0, max - 1) + "…";
 }
 
-function nodeVisualStyle(data, theme) {
-  const gender = String(data.gender || "").trim();
-  const isMale = gender === "male" || gender === "ذكر" || gender === "M";
-  const isFemale = gender === "female" || gender === "أنثى" || gender === "انثى" || gender === "F";
-
-  if (theme === "dark") {
-    return {
-      portraitFill: "#050505",
-      portraitStroke: isMale ? "#005A2B" : isFemale ? "#E5B869" : "#E5B869",
-      nameFill: "rgba(5,5,5,0.96)",
-      nameStroke: "rgba(229,184,105,0.85)",
-      textFill: "#FAFAFA",
-      subFill: "#E5B869",
-      shadowFill: "rgba(0,0,0,0.22)",
-    };
-  }
-
-  return {
-    portraitFill: "#FFFFFF",
-    portraitStroke: isMale ? "#005A2B" : isFemale ? "#E5B869" : "#005A2B",
-    nameFill: "#FFFFFF",
-    nameStroke: isMale ? "#005A2B" : "#E5B869",
-    textFill: "#005A2B",
-    subFill: "#8B5E3C",
-    shadowFill: "rgba(0,0,0,0.12)",
-  };
-}
-
-function renderNodeSvg(g, d, theme) {
-  const id = d.data.id;
-  const photo = normalizeImageUrl(d.data.photo_url);
-  const name = (d.data.name || "").toString();
-  const sub = d.data.birth_date ? String(d.data.birth_date) : "";
-  const isDeceased = Number(d.data.is_deceased || 0) === 1;
-  const st = nodeVisualStyle(d.data, theme);
-
-  const clipSafe = String(id || "x").replace(/[^a-zA-Z0-9_-]/g, "_");
-  const clipId = `nodeClip_${clipSafe}`;
-  let defs = svg.select("defs");
-  if (defs.empty()) defs = svg.append("defs");
-  defs.select(`#${clipId}`).remove();
-  defs.append("clipPath")
-    .attr("id", clipId)
-    .append("rect")
-    .attr("x", -66)
-    .attr("y", -68)
-    .attr("width", 132)
-    .attr("height", 116)
-    .attr("rx", 18)
-    .attr("ry", 18);
-
-  g.selectAll("*").remove();
-  const card = g.append("g")
-    .attr("class", "svg-node-card")
-    .attr("data-id", id)
-    .style("cursor", "pointer");
-
-  card.append("rect")
-    .attr("class", "node-svg-shadow")
-    .attr("x", -73)
-    .attr("y", -62)
-    .attr("width", 146)
-    .attr("height", 168)
-    .attr("rx", 24)
-    .attr("fill", st.shadowFill);
-
-  card.append("rect")
-    .attr("class", "node-svg-portrait-bg")
-    .attr("x", -72)
-    .attr("y", -74)
-    .attr("width", 144)
-    .attr("height", 132)
-    .attr("rx", 22)
-    .attr("fill", st.portraitFill)
-    .attr("stroke", st.portraitStroke)
-    .attr("stroke-width", 3);
-
-  card.append("text")
-    .attr("class", "node-svg-placeholder")
-    .attr("x", 0)
-    .attr("y", -10)
-    .attr("text-anchor", "middle")
-    .attr("dominant-baseline", "middle")
-    .attr("font-size", 46)
-    .attr("fill", theme === "dark" ? "rgba(229,184,105,0.35)" : "rgba(0,90,43,0.25)")
-    .text("شخص");
-
-  card.append("image")
-    .attr("class", "node-svg-photo")
-    .attr("href", photo)
-    .attr("xlink:href", photo)
-    .attr("x", -66)
-    .attr("y", -68)
-    .attr("width", 132)
-    .attr("height", 116)
-    .attr("preserveAspectRatio", "xMidYMid slice")
-    .attr("clip-path", `url(#${clipId})`)
-    .on("error", function () {
-      const img = d3.select(this);
-      const current = img.attr("href") || "";
-      if (!current.includes("/images/default.png")) {
-        img.attr("href", "/images/default.png").attr("xlink:href", "/images/default.png");
-      } else {
-        img.remove();
-      }
-    });
-
-  if (isDeceased) {
-    card.append("line")
-      .attr("x1", -62).attr("y1", -62)
-      .attr("x2", 62).attr("y2", 42)
-      .attr("stroke", "rgba(0,0,0,0.82)")
-      .attr("stroke-width", 6)
-      .attr("stroke-linecap", "round");
-  }
-
-  card.append("rect")
-    .attr("class", "node-svg-namebox")
-    .attr("x", -76)
-    .attr("y", 54)
-    .attr("width", 152)
-    .attr("height", sub ? 48 : 42)
-    .attr("rx", 14)
-    .attr("fill", st.nameFill)
-    .attr("stroke", st.nameStroke)
-    .attr("stroke-width", 2.5);
-
-  card.append("text")
-    .attr("class", "node-svg-name")
-    .attr("x", 0)
-    .attr("y", sub ? 78 : 82)
-    .attr("text-anchor", "middle")
-    .attr("dominant-baseline", "middle")
-    .attr("fill", st.textFill)
-    .attr("font-family", "Tajawal, Arial, sans-serif")
-    .attr("font-weight", 900)
-    .attr("font-size", 18)
-    .text(truncateNodeText(name, 15));
-
-  if (sub) {
-    card.append("text")
-      .attr("class", "node-svg-sub")
-      .attr("x", 0)
-      .attr("y", 96)
-      .attr("text-anchor", "middle")
-      .attr("dominant-baseline", "middle")
-      .attr("fill", st.subFill)
-      .attr("font-family", "Tajawal, Arial, sans-serif")
-      .attr("font-weight", 800)
-      .attr("font-size", 10)
-      .text(truncateNodeText(sub, 18));
-  }
-}
-
 function updateNodesTheme() {
   if (!__treeState.nodesSel) return;
+
   const theme = getCurrentTheme();
+
   __treeState.nodesSel.each(function (d) {
-    renderNodeSvg(d3.select(this), d, theme);
+    const g = d3.select(this);
+    const fo = g.select("foreignObject");
+    if (fo.empty()) return;
+
+    const id = d.data.id;
+    const photo = normalizeImageUrl(d.data.photo_url);
+    const name = (d.data.name || "").toString();
+    const sub = d.data.birth_date ? String(d.data.birth_date) : "";
+    const isDeceased = Number(d.data.is_deceased || 0) === 1;
+
+    const div = fo.select("div");
+    const html = buildNodeHtml({ id, photo, name, sub, isDeceased }, theme, NODE_W, NODE_H);
+
+    if (!div.empty()) {
+      div.html(html);
+    } else {
+      fo.append("xhtml:div").html(html);
+    }
   });
 }
 
@@ -871,7 +736,26 @@ function renderTree(rootData) {
     .attr("transform", (d) => `translate(${d.x},${d.y})`);
 
   nodes.each(function (d) {
-    renderNodeSvg(d3.select(this), d, getCurrentTheme());
+    const g = d3.select(this);
+
+    const id = d.data.id;
+    const photo = normalizeImageUrl(d.data.photo_url);
+    const name = (d.data.name || "").toString();
+    const sub = d.data.birth_date ? String(d.data.birth_date) : "";
+    const isDeceased = Number(d.data.is_deceased || 0) === 1;
+
+    const fo = g.append("foreignObject")
+      .attr("x", -NODE_W / 2)
+      .attr("y", -70)
+      .attr("width", NODE_W)
+      .attr("height", NODE_H)
+      .style("overflow", "visible")
+      .style("pointer-events", "all");
+
+    const theme = getCurrentTheme();
+    fo.append("xhtml:div").html(
+      buildNodeHtml({ id, photo, name, sub, isDeceased }, theme, NODE_W, NODE_H)
+    );
   });
 
   let lastNodeActivationAt = 0;
