@@ -373,6 +373,27 @@
               <%= post.content || post.summary || '' %>
             </div>
 
+            <% if (post.publisher_name || post.publisher_phone) { %>
+              <div class="mt-10 rounded-3xl border border-accent/25 bg-white/70 dark:bg-black/25 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <p class="text-xs font-black text-gray-500 dark:text-gray-400 mb-2">بيانات الناشر</p>
+                  <% if (post.publisher_name) { %>
+                    <div class="inline-flex items-center gap-2 text-primary dark:text-accent font-black text-base">
+                      <span class="material-symbols-outlined text-[19px]">edit_note</span>
+                      <span>الناشر: <%= post.publisher_name %></span>
+                    </div>
+                  <% } %>
+                </div>
+                <% if (post.publisher_phone) { %>
+                  <a href="tel:<%= String(post.publisher_phone || '').replace(/[^0-9+]/g, '') %>"
+                     class="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent border border-primary/15 dark:border-accent/20 font-black hover:-translate-y-1 transition-transform">
+                    <span class="material-symbols-outlined text-[18px]">call</span>
+                    <span dir="ltr"><%= post.publisher_phone %></span>
+                  </a>
+                <% } %>
+              </div>
+            <% } %>
+
             <div class="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-5">
               <div class="soft-card rounded-3xl p-5">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

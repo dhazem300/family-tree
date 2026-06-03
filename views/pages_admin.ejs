@@ -165,6 +165,12 @@
       <div class="space-y-2">
         <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والموقع</p>
         
+        <% if (typeof userCan === "function" && userCan("roles")) { %>
+        <a href="/admin/roles" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">manage_accounts</span> وظائف الأفراد
+        </a>
+        <% } %>
+        
         <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
           <span class="material-symbols-outlined text-[22px]">mail</span> رسائل الدعم
         </a>

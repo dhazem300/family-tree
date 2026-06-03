@@ -99,54 +99,6 @@
       transform: translateY(-2px);
     }
 
-    /* تصميم بطاقة البنك VIP (Black Card Style) */
-    .vip-bank-card {
-      background: linear-gradient(135deg, #1A1A1A 0%, #0A0A0A 100%);
-      border: 1px solid rgba(229,184,105,0.2);
-      box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.05);
-      position: relative;
-      overflow: hidden;
-      isolation: isolate;
-    }
-    .vip-bank-card::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.02) 2px, rgba(255,255,255,0.02) 4px);
-      z-index: 1;
-      pointer-events: none;
-    }
-    /* لمعة البطاقة */
-    .vip-bank-card::after {
-      content: '';
-      position: absolute;
-      top: -50%; left: -50%;
-      width: 200%; height: 200%;
-      background: linear-gradient(to bottom right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0) 100%);
-      transform: rotate(45deg);
-      transition: transform 0.8s ease;
-      z-index: 2;
-      pointer-events: none;
-    }
-    .vip-bank-card:hover::after {
-      transform: rotate(45deg) translate(50%, 50%);
-    }
-
-    /* الشريحة الذكية (Chip) */
-    .card-chip {
-      width: 45px; height: 35px;
-      background: linear-gradient(135deg, #E5B869, #D4AF37, #B8860B);
-      border-radius: 6px;
-      position: relative;
-      box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
-      z-index: 3;
-    }
-    .card-chip::after {
-      content: ''; position: absolute; inset: 4px;
-      border: 1px solid rgba(0,0,0,0.2); border-radius: 2px;
-      background: linear-gradient(90deg, transparent 48%, rgba(0,0,0,0.1) 48%, rgba(0,0,0,0.1) 52%, transparent 52%);
-    }
-
     /* Mobile Nav */
     #mobileNavOverlay.hidden { display: none; }
     #mobileNavOverlay { display: block; }
@@ -343,39 +295,8 @@
 
         <div class="w-full lg:w-[400px] shrink-0 flex flex-col gap-8">
 
-          <% const fundName = (page?.fund_name || "").trim(); %>
-          <% const bankName = (page?.bank_name || "").trim(); %>
-          <% const accNum = (page?.account_number || "").trim(); %>
-
-          <div class="vip-bank-card rounded-2xl p-8 flex flex-col gap-8">
-            <div class="relative z-10 flex justify-between items-start mb-2">
-              <div>
-                <h3 class="text-2xl font-display font-bold text-white tracking-wide mb-1">صندوق العائلة</h3>
-                <p class="text-[10px] text-accent uppercase tracking-widest font-bold"><%= bankName ? ("البنك: " + bankName) : "مساهمتكم دعم لمستقبلنا" %></p>
-              </div>
-              <span class="material-symbols-outlined text-white/50 text-[32px]">contactless</span>
-            </div>
-
-            <div class="relative z-10 mt-2">
-              <div class="card-chip"></div>
-            </div>
-
-            <div class="relative z-10 flex flex-col gap-1 mt-4">
-              <p class="text-[10px] text-accent uppercase tracking-widest font-bold mb-1">رقم الحساب / IBAN</p>
-              <button type="button" id="ibanCopy" class="text-right w-full flex items-center justify-between group/copy focus:outline-none">
-                <p id="ibanText" class="font-mono text-[22px] tracking-widest text-white drop-shadow-md dir-ltr flex-grow"><%= accNum || "—" %></p>
-                <div class="bg-white/10 p-2 rounded-lg border border-white/20 group-hover/copy:bg-accent group-hover/copy:text-black transition-all flex flex-col items-center justify-center">
-                   <span class="material-symbols-outlined text-[18px]">content_copy</span>
-                </div>
-              </button>
-              <span id="ibanHint" class="text-xs text-accent font-bold opacity-0 transition-opacity mt-1">تم النسخ للذاكرة ✓</span>
-            </div>
-
-            <div class="relative z-10 mt-2 border-t border-white/10 pt-4">
-              <p class="text-[9px] text-white/50 uppercase tracking-[0.2em] mb-1">الاسم المعتمد</p>
-              <p class="font-display font-bold text-xl text-white tracking-wide"><%= fundName || "صندوق العائلة" %></p>
-            </div>
-          </div>
+          <!-- تم إخفاء قسم الدعم المادي من الصفحة العامة حفاظاً على خصوصية بيانات الحساب البنكي.
+               بيانات الدعم المادي ما زالت محفوظة داخل إدارة الصفحات فقط ويمكن إعادة تفعيلها لاحقاً عند الحاجة. -->
 
           <%
             const waRaw = (page?.whatsapp || "").trim();
@@ -474,37 +395,8 @@
       setOpenState(false);
     })();
 
-    // سكريبت نسخ الآيبان (مُصان بالكامل)
-    (function(){
-      const btn = document.getElementById("ibanCopy");
-      const textEl = document.getElementById("ibanText");
-      const hint = document.getElementById("ibanHint");
+    // تم إيقاف سكريبت نسخ الآيبان لأن قسم الدعم المادي لم يعد معروضاً للعامة.
 
-      btn?.addEventListener("click", async () => {
-        const t = (textEl?.textContent || "").trim();
-        if (!t || t === "—") return;
-
-        const showHint = () => {
-          if (hint) {
-            hint.style.opacity = "1";
-            setTimeout(() => { hint.style.opacity = "0"; }, 2000);
-          }
-        };
-
-        try {
-          await navigator.clipboard.writeText(t);
-          showHint();
-        } catch(e){
-          const ta = document.createElement("textarea");
-          ta.value = t;
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand("copy");
-          document.body.removeChild(ta);
-          showHint();
-        }
-      });
-    })();
   </script>
 </body>
 </html>

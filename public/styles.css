@@ -1030,3 +1030,180 @@ html.dark #details span[title="متوفى"] {
   display: block !important;
   height: 120px !important;
 }
+
+/* =================================================================================
+   MOBILE TREE READABILITY + DIRECT FOCUS FIXES
+   يمنع تداخل أسماء الشجرة على الهاتف ويحافظ على وضوح الكروت عند الزووم.
+   ================================================================================= */
+.person-node,
+.person-node * {
+  box-sizing: border-box !important;
+}
+
+.person-node .name-box,
+.name-box {
+  width: min(160px, 100%) !important;
+  max-width: 160px !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.node-label-text {
+  white-space: normal !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  display: -webkit-box !important;
+  -webkit-box-orient: vertical !important;
+  -webkit-line-clamp: 2 !important;
+  line-clamp: 2 !important;
+  line-height: 1.18 !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+  text-align: center !important;
+}
+
+@media (max-width: 700px) {
+  .tree-viewport {
+    height: min(78dvh, 760px) !important;
+    min-height: 560px !important;
+  }
+
+  #tree {
+    min-height: 560px !important;
+  }
+
+  .nodeCard {
+    filter: drop-shadow(0 8px 16px rgba(0,0,0,.30)) !important;
+  }
+
+  .person-node .node-portrait,
+  foreignObject .node-portrait {
+    width: 92px !important;
+    height: 92px !important;
+  }
+
+  .person-node .name-box,
+  foreignObject .name-box {
+    width: 150px !important;
+    max-width: 150px !important;
+    padding: 5px 10px !important;
+    margin-top: 6px !important;
+  }
+
+  .person-node .node-label-text,
+  foreignObject .node-label-text {
+    font-size: 14px !important;
+    line-height: 1.2 !important;
+  }
+}
+
+/* ===== Search UX improvements ===== */
+.search-clear-btn{
+  position:absolute;
+  inset-inline-end:12px;
+  top:50%;
+  transform:translateY(-50%);
+  width:30px;
+  height:30px;
+  border:0;
+  border-radius:999px;
+  background:rgba(17,24,39,.08);
+  color:rgba(17,24,39,.65);
+  font-size:22px;
+  line-height:28px;
+  font-weight:800;
+  cursor:pointer;
+  display:none;
+  z-index:25;
+}
+html.dark .search-clear-btn,
+html[data-theme="dark"] .search-clear-btn{
+  background:rgba(255,255,255,.10);
+  color:rgba(255,255,255,.78);
+}
+.search-clear-btn.is-visible{display:flex;align-items:center;justify-content:center;}
+.search-clear-btn:hover{background:rgba(199,162,75,.22);color:#c7a24b;}
+
+.search-suggestions,
+.search-empty-message{
+  position:absolute;
+  inset-inline-start:0;
+  inset-inline-end:0;
+  top:calc(100% + 8px);
+  z-index:80;
+  border-radius:18px;
+  border:1px solid rgba(199,162,75,.28);
+  box-shadow:0 18px 45px rgba(0,0,0,.18);
+  overflow:hidden;
+  backdrop-filter:blur(18px);
+}
+.search-suggestions{
+  background:rgba(255,255,255,.96);
+  max-height:310px;
+  overflow-y:auto;
+  padding:6px;
+}
+html.dark .search-suggestions,
+html[data-theme="dark"] .search-suggestions{
+  background:rgba(17,24,39,.96);
+  border-color:rgba(227,196,106,.24);
+}
+.search-suggestion-item{
+  width:100%;
+  border:0;
+  background:transparent;
+  color:#111827;
+  text-align:right;
+  padding:12px 14px;
+  border-radius:14px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  font-weight:800;
+}
+html.dark .search-suggestion-item,
+html[data-theme="dark"] .search-suggestion-item{color:#f8f1df;}
+.search-suggestion-item:hover,
+.search-suggestion-item.is-active{
+  background:rgba(199,162,75,.15);
+  color:#9a741d;
+}
+html.dark .search-suggestion-item:hover,
+html[data-theme="dark"] .search-suggestion-item:hover,
+html.dark .search-suggestion-item.is-active,
+html[data-theme="dark"] .search-suggestion-item.is-active{
+  color:#e3c46a;
+  background:rgba(227,196,106,.12);
+}
+.search-suggestion-count{
+  opacity:.58;
+  font-size:12px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.search-empty-message{
+  background:rgba(255,255,255,.97);
+  color:#7f1d1d;
+  padding:13px 16px;
+  font-weight:800;
+  text-align:center;
+}
+html.dark .search-empty-message,
+html[data-theme="dark"] .search-empty-message{
+  background:rgba(17,24,39,.97);
+  color:#fecaca;
+}
+/* لا نعيد تعريف .hidden هنا حتى لا نكسر Tailwind responsive classes مثل hidden md:flex في الهيدر. */
+
+@media (max-width:700px){
+  .search-suggestions,
+  .search-empty-message{
+    position:fixed;
+    inset-inline-start:14px;
+    inset-inline-end:14px;
+    top:150px;
+    max-height:45vh;
+  }
+}

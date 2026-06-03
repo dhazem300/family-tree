@@ -135,6 +135,12 @@
 
       <div class="space-y-2">
         <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والموقع</p>
+        <% if (typeof userCan === "function" && userCan("roles")) { %>
+        <a href="/admin/roles" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">manage_accounts</span> وظائف الأفراد
+        </a>
+        <% } %>
+        
         <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
           <span class="material-symbols-outlined text-[22px]">mail</span> رسائل الدعم
         </a>
@@ -249,6 +255,34 @@
                 <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-2 block">العمل</label>
                 <input name="job" value="<%= person?.job || '' %>" placeholder="مثال: مهندس / طبيب / ..."
                        class="form-input w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0"/>
+              </div>
+
+              <div class="md:col-span-2 rounded-2xl border border-amber-300/50 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-400/20 p-4">
+                <div class="flex items-start gap-3">
+                  <span class="material-symbols-outlined text-amber-600 dark:text-amber-300">admin_panel_settings</span>
+                  <div>
+                    <div class="font-black text-primary dark:text-white mb-1">بيانات خاصة بالإدارة فقط</div>
+                    <p class="text-sm font-bold text-gray-600 dark:text-gray-300 leading-7">رقم الجوال والبريد الإلكتروني والعنوان الوطني لا تظهر للعامة في الشجرة أو صفحة النبذة، وتستخدم داخل لوحة الإدارة فقط.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-2 block">رقم الجوال</label>
+                <input name="mobile_phone" value="<%= person?.mobile_phone || '' %>" placeholder="مثال: 05xxxxxxxx" autocomplete="off"
+                       class="form-input w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0"/>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-2 block">البريد الإلكتروني</label>
+                <input name="personal_email" type="email" value="<%= person?.personal_email || '' %>" placeholder="example@email.com" autocomplete="off"
+                       class="form-input w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0"/>
+              </div>
+
+              <div class="md:col-span-2">
+                <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-2 block">العنوان الوطني</label>
+                <textarea name="national_address" rows="2" placeholder="اكتب العنوان الوطني أو العنوان التفصيلي"
+                          class="form-textarea w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0 resize-none"><%= person?.national_address || '' %></textarea>
               </div>
 
               <div>

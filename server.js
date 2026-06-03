@@ -26,11 +26,107 @@ app.use(
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
+
+// Maintenance mode middleware. It is placed before static files so the public
+// homepage cannot bypass maintenance mode by being served directly as index.html.
+app.use(async (req, res, next) => {
+  try {
+    const isAdminArea = req.path.startsWith("/admin");
+    const isAllowedAsset = req.path === "/theme.js" || req.path.startsWith("/assets/") || req.path.startsWith("/uploads/");
+    if (isAdminArea || isAllowedAsset) return next();
+
+    db.get(`SELECT value FROM site_settings WHERE key = 'maintenance_enabled'`, [], (err, row) => {
+      if (err) return next();
+      const enabled = String(row?.value || "0") === "1";
+      if (!enabled) return next();
+
+      db.get(`SELECT value FROM site_settings WHERE key = 'maintenance_message'`, [], (msgErr, msgRow) => {
+        const message = msgRow?.value || "الموقع تحت الصيانة حاليًا، يرجى المحاولة لاحقًا.";
+        if (req.path.startsWith("/api/")) return res.status(503).json({ ok: false, maintenance: true, message });
+        return res.status(503).render("maintenance_public", { message });
+      });
+    });
+  } catch (e) {
+    return next();
+  }
+});
+
 app.use(express.static(path.join(__dirname, "public")));
 
+function parsePermissions(value) {
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+const PERMISSION_GROUPS = [
+  { key: "persons", label: "إدارة الأفراد", description: "إضافة وتعديل وحذف أفراد شجرة العائلة" },
+  { key: "pages", label: "إدارة الصفحات", description: "تعديل صفحات النبذة، الدعم، وملفات PDF والخط الزمني" },
+  { key: "honor", label: "السير الذاتية", description: "إضافة وتعديل وحذف كروت السير الذاتية" },
+  { key: "news", label: "الأخبار والمناسبات", description: "كتابة وتعديل وحذف ونشر الأخبار" },
+  { key: "comments", label: "تعليقات الأخبار", description: "متابعة وحذف تعليقات الأخبار" },
+  { key: "subscribers", label: "مشتركو الأخبار", description: "إدارة وتصدير المشتركين في النشرة" },
+  { key: "support", label: "رسائل الدعم", description: "عرض وحذف وتصدير رسائل الدعم" },
+  { key: "roles", label: "وظائف وصلاحيات الأفراد", description: "تعيين أفراد العائلة كمستخدمين في الإدارة" },
+];
+
+function userCan(admin, permission) {
+  if (!admin) return false;
+  if (Number(admin.is_super_admin) === 1) return true;
+  const permissions = parsePermissions(admin.permissions);
+  return permissions.includes("all") || permissions.includes(permission);
+}
+
+function firstAllowedAdminPath(admin) {
+  const map = {
+    persons: "/admin",
+    pages: "/admin/pages",
+    honor: "/admin/honor",
+    news: "/admin/news",
+    comments: "/admin/news/comments",
+    subscribers: "/admin/news/subscribers",
+    support: "/admin/support-messages",
+    roles: "/admin/roles",
+  };
+  if (!admin) return "/admin/login";
+  if (Number(admin.is_super_admin) === 1) return "/admin";
+  const permissions = parsePermissions(admin.permissions);
+  const first = permissions.find((p) => map[p]);
+  return first ? map[first] : "/admin/no-access";
+}
+
 function isAuthed(req, res, next) {
-  if (req.session?.admin) return next();
+  if (req.session?.admin) {
+    res.locals.admin = req.session.admin;
+    res.locals.userCan = (permission) => userCan(req.session.admin, permission);
+    res.locals.permissionGroups = PERMISSION_GROUPS;
+    return next();
+  }
   return res.redirect("/admin/login");
+}
+
+function requirePermission(permission) {
+  return function (req, res, next) {
+    if (userCan(req.session?.admin, permission)) return next();
+    return res.status(403).render("admin_no_access", {
+      admin: req.session.admin,
+      permissionGroups: PERMISSION_GROUPS,
+      userCan: (perm) => userCan(req.session.admin, perm),
+    });
+  };
+}
+
+function requireSuperAdmin(req, res, next) {
+  if (Number(req.session?.admin?.is_super_admin) === 1) return next();
+  return res.status(403).render("admin_no_access", {
+    admin: req.session.admin,
+    permissionGroups: PERMISSION_GROUPS,
+    userCan: (perm) => userCan(req.session.admin, perm),
+  });
 }
 
 /* =========================
@@ -97,10 +193,76 @@ function run(sql, params = []) {
   });
 }
 
+
+async function ensureAdminRoleSchema() {
+  const columns = await all(`PRAGMA table_info(admins)`);
+  const existing = new Set(columns.map((c) => c.name));
+  const needed = [
+    ["person_id", "INTEGER NULL"],
+    ["display_name", "TEXT NULL"],
+    ["role_title", "TEXT DEFAULT 'مدير النظام'"],
+    ["permissions", "TEXT DEFAULT '[\"all\"]'"],
+    ["is_super_admin", "INTEGER DEFAULT 0"],
+    ["is_active", "INTEGER DEFAULT 1"],
+    ["created_at", "TEXT NULL"],
+  ];
+
+  for (const [name, definition] of needed) {
+    if (!existing.has(name)) {
+      await run(`ALTER TABLE admins ADD COLUMN ${name} ${definition}`);
+    }
+  }
+
+  const firstAdmin = await get(`SELECT id FROM admins ORDER BY id ASC LIMIT 1`);
+  if (firstAdmin) {
+    await run(
+      `UPDATE admins
+       SET is_super_admin = 1,
+           is_active = COALESCE(is_active, 1),
+           permissions = CASE WHEN permissions IS NULL OR permissions = '' THEN '["all"]' ELSE permissions END,
+           role_title = CASE WHEN role_title IS NULL OR role_title = '' THEN 'مدير النظام' ELSE role_title END
+       WHERE id = ?`,
+      [firstAdmin.id]
+    );
+  }
+
+  await run(`UPDATE admins SET is_active = 1 WHERE is_active IS NULL`);
+  await run(`UPDATE admins SET permissions = '["all"]' WHERE is_super_admin = 1 AND (permissions IS NULL OR permissions = '')`);
+  await run(`UPDATE admins SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL OR created_at = ''`);
+}
+
 function normalizeMulti(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value;
   return [value];
+}
+
+async function logAdminAction(req, action, entityType = "", entityId = "", details = {}) {
+  try {
+    await ensureAdminEnhancements();
+    const admin = req.session?.admin || null;
+    await run(
+      `INSERT INTO admin_activity_logs
+       (admin_id, admin_username, action, entity_type, entity_id, details, ip_address, user_agent, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [
+        admin?.id || null,
+        admin?.username || req.body?.username || "غير معروف",
+        action,
+        entityType || "",
+        entityId != null ? String(entityId) : "",
+        JSON.stringify(details || {}),
+        getClientIp(req),
+        String(req.headers["user-agent"] || "").slice(0, 300),
+      ]
+    );
+  } catch (e) {
+    console.error("admin activity log error:", e.message || e);
+  }
+}
+
+function parseLogDetails(details) {
+  try { return JSON.parse(details || "{}"); } catch (e) { return {}; }
 }
 
 /* =========================
@@ -160,6 +322,9 @@ async function ensurePersonsColumns() {
     await ensureColumn("persons", "death_place", "TEXT");
     await ensureColumn("persons", "is_deceased", "INTEGER DEFAULT 0");
     await ensureColumn("persons", "short_bio", "TEXT");
+    await ensureColumn("persons", "mobile_phone", "TEXT");
+    await ensureColumn("persons", "personal_email", "TEXT");
+    await ensureColumn("persons", "national_address", "TEXT");
 
     await ensureColumn("persons", "photo_url", "TEXT");
     await ensureColumn("persons", "notes", "TEXT");
@@ -239,7 +404,9 @@ async function ensureCmsTables() {
       is_active INTEGER DEFAULT 1,
       is_pinned INTEGER DEFAULT 0,
       views_count INTEGER DEFAULT 0,
-      notify_enabled INTEGER DEFAULT 0
+      notify_enabled INTEGER DEFAULT 0,
+      publisher_name TEXT,
+      publisher_phone TEXT
     )
   `);
 
@@ -251,6 +418,8 @@ async function ensureCmsTables() {
     await ensureColumn("news_posts", "is_pinned", "INTEGER DEFAULT 0");
     await ensureColumn("news_posts", "views_count", "INTEGER DEFAULT 0");
     await ensureColumn("news_posts", "notify_enabled", "INTEGER DEFAULT 0");
+    await ensureColumn("news_posts", "publisher_name", "TEXT");
+    await ensureColumn("news_posts", "publisher_phone", "TEXT");
   } catch (e) {
     console.error("news_posts columns ensure error:", e);
   }
@@ -373,10 +542,47 @@ async function ensureSpousesTable() {
   `);
 }
 
+async function ensureAdminEnhancements() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS admin_activity_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      admin_id INTEGER,
+      admin_username TEXT,
+      action TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id TEXT,
+      details TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const defaults = [
+    ["maintenance_enabled", "0"],
+    ["maintenance_message", "الموقع تحت الصيانة حاليًا، يرجى المحاولة لاحقًا."],
+  ];
+  for (const [key, value] of defaults) {
+    const exists = await get(`SELECT key FROM site_settings WHERE key=?`, [key]);
+    if (!exists) {
+      await run(`INSERT INTO site_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`, [key, value]);
+    }
+  }
+}
+
 async function bootstrap() {
   await ensurePersonsColumns();
   await ensureCmsTables();
   await ensureSpousesTable();
+  await ensureAdminEnhancements();
 }
 bootstrap().catch((err) => console.error("Bootstrap error:", err));
 
@@ -455,15 +661,14 @@ async function getSiteStats() {
      FROM persons
      WHERE LOWER(TRIM(COALESCE(gender, ''))) IN ('female', 'f', 'أنثى', 'انثى', 'امرأة', 'إمرأة', 'بنت')`
   );
+
+  // لا نعتبر كل من ليس عليه علامة "متوفى" أنه حي؛ لأن كثيرًا من السجلات القديمة قد تكون حالتها غير مدخلة.
+  // لذلك الإحصائية الأدق هنا هي "المتوفون المسجلون"، والحالة غير المحددة تُحسب بشكل مستقل.
   const deceasedRow = await get(
     `SELECT COUNT(*) AS total
      FROM persons
-     WHERE COALESCE(is_deceased, 0) = 1`
-  );
-  const aliveRow = await get(
-    `SELECT COUNT(*) AS total
-     FROM persons
-     WHERE COALESCE(is_deceased, 0) = 0`
+     WHERE COALESCE(is_deceased, 0) = 1
+        OR TRIM(COALESCE(death_date, '')) <> ''`
   );
 
   const repeatedNames = await all(`
@@ -477,13 +682,63 @@ async function getSiteStats() {
     ORDER BY COUNT(*) DESC, name ASC
   `);
 
+  const newsRow = await get(`SELECT COUNT(*) AS total FROM news_posts`);
+  const activeNewsRow = await get(`SELECT COUNT(*) AS total FROM news_posts WHERE COALESCE(is_active, 1) = 1`);
+  const inactiveNewsRow = await get(`SELECT COUNT(*) AS total FROM news_posts WHERE COALESCE(is_active, 1) = 0`);
+  const supportRow = await get(`SELECT COUNT(*) AS total FROM support_messages`);
+  const honorRow = await get(`SELECT COUNT(*) AS total FROM honor_items`);
+  const adminsRow = await get(`SELECT COUNT(*) AS total FROM admins WHERE COALESCE(is_active, 1) = 1`);
+  const noPhotoRow = await get(`SELECT COUNT(*) AS total FROM persons WHERE TRIM(COALESCE(photo_url, '')) = ''`);
+  const noBioRow = await get(`SELECT COUNT(*) AS total FROM persons WHERE TRIM(COALESCE(short_bio, '')) = '' AND TRIM(COALESCE(notes, '')) = ''`);
+  const noBirthRow = await get(`SELECT COUNT(*) AS total FROM persons WHERE TRIM(COALESCE(birth_date, '')) = ''`);
+
+  const total = Number(totalRow?.total || 0);
+  const males = Number(malesRow?.total || 0);
+  const females = Number(femalesRow?.total || 0);
+  const deceased = Number(deceasedRow?.total || 0);
+  const noPhoto = Number(noPhotoRow?.total || 0);
+  const noBio = Number(noBioRow?.total || 0);
+  const noBirth = Number(noBirthRow?.total || 0);
+
   return {
-    total: totalRow?.total || 0,
-    males: malesRow?.total || 0,
-    females: femalesRow?.total || 0,
-    alive: aliveRow?.total || 0,
-    deceased: deceasedRow?.total || 0,
+    total,
+    males,
+    females,
+    unknownGender: Math.max(total - males - females, 0),
+    // kept for older views that may still reference alive, but the dashboard no longer labels it as "الأحياء".
+    alive: Math.max(total - deceased, 0),
+    deceased,
+    unknownStatus: Math.max(total - deceased, 0),
+    newsTotal: Number(newsRow?.total || 0),
+    activeNews: Number(activeNewsRow?.total || 0),
+    inactiveNews: Number(inactiveNewsRow?.total || 0),
+    supportTotal: Number(supportRow?.total || 0),
+    honorTotal: Number(honorRow?.total || 0),
+    activeAdmins: Number(adminsRow?.total || 0),
+    noPhoto,
+    withPhoto: Math.max(total - noPhoto, 0),
+    noBio,
+    withBio: Math.max(total - noBio, 0),
+    noBirth,
+    withBirth: Math.max(total - noBirth, 0),
     repeatedNames,
+  };
+}
+
+async function getFullDashboardData() {
+  const stats = await getSiteStats();
+  const latestPersons = await all(`SELECT id, name, gender, birth_date, photo_url FROM persons ORDER BY id DESC LIMIT 10`);
+  const latestNews = await all(`SELECT id, title, published_at, is_active, views_count FROM news_posts ORDER BY id DESC LIMIT 10`);
+  const latestSupport = await all(`SELECT id, sender_name, phone, created_at FROM support_messages ORDER BY id DESC LIMIT 10`);
+  const latestActivity = await all(`SELECT * FROM admin_activity_logs ORDER BY id DESC LIMIT 10`);
+  const maintenance = await get(`SELECT value FROM site_settings WHERE key='maintenance_enabled'`);
+  return {
+    stats,
+    latestPersons,
+    latestNews,
+    latestSupport,
+    latestActivity,
+    maintenanceEnabled: String(maintenance?.value || "0") === "1",
   };
 }
 
@@ -1014,6 +1269,10 @@ app.get("/news/:id", async (req, res) => {
                     </div>
                     ${post.person_id ? `<div style="color:#1f637a;font-weight:bold;margin-bottom:14px">مرتبط بـ: ${esc(post.person_name || ("#" + post.person_id))}</div>` : ""}
                     <p style="white-space:pre-line;color:#333">${esc(post.content || post.summary || "")}</p>
+                    ${(post.publisher_name || post.publisher_phone) ? `<div style="margin-top:18px;padding:14px;border:1px solid #e7d49a;border-radius:14px;background:#fffaf0;color:#333;font-weight:bold">
+                      ${post.publisher_name ? `<div>الناشر: ${esc(post.publisher_name)}</div>` : ""}
+                      ${post.publisher_phone ? `<div>جوال الناشر: ${esc(post.publisher_phone)}</div>` : ""}
+                    </div>` : ""}
                     <div style="margin-top:20px;border-top:1px solid #eee;padding-top:14px">
                       <a href="https://wa.me/?text=${encodeURIComponent(post.title + " " + shareUrl)}" style="margin-inline-end:10px">مشاركة واتساب</a>
                       <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(post.title)}&url=${encodeURIComponent(shareUrl)}" style="margin-inline-end:10px">مشاركة تويتر</a>
@@ -1162,7 +1421,14 @@ app.get("/pages/honor.html", (req, res) => res.redirect(301, "/honor"));
 
 app.get("/api/tree", async (req, res) => {
   try {
-    const rows = await all("SELECT * FROM persons ORDER BY id ASC");
+    const rows = await all(`
+      SELECT
+        id, name, father_id, mother_id, birth_date, birth_place,
+        death_date, death_place, is_deceased, gender, job, lineage,
+        photo_url, notes, short_bio
+      FROM persons
+      ORDER BY id ASC
+    `);
     const root = buildTree(rows);
     res.json(root || null);
   } catch (e) {
@@ -1173,7 +1439,14 @@ app.get("/api/tree", async (req, res) => {
 
 app.get("/api/person/:id", async (req, res) => {
   try {
-    const row = await get("SELECT * FROM persons WHERE id = ?", [req.params.id]);
+    const row = await get(`
+      SELECT
+        id, name, father_id, mother_id, birth_date, birth_place,
+        death_date, death_place, is_deceased, gender, job, lineage,
+        photo_url, notes, short_bio
+      FROM persons
+      WHERE id = ?
+    `, [req.params.id]);
     if (!row) return res.status(404).json({ error: "Not found" });
 
     const father = row.father_id
@@ -1286,22 +1559,39 @@ app.get("/admin/login", (req, res) => {
 
 app.post("/admin/login", async (req, res) => {
   try {
+    await ensureAdminRoleSchema();
     const { username, password } = req.body;
     const admin = await get("SELECT * FROM admins WHERE username = ?", [username]);
-    if (!admin) return res.render("login", { error: "بيانات الدخول غير صحيحة" });
+    if (!admin || Number(admin.is_active) === 0) {
+      await logAdminAction(req, "فشل تسجيل الدخول", "admin", username || "", { reason: "بيانات غير صحيحة أو حساب غير نشط" });
+      return res.render("login", { error: "بيانات الدخول غير صحيحة" });
+    }
 
     const ok = await bcrypt.compare(password, admin.password_hash);
-    if (!ok) return res.render("login", { error: "بيانات الدخول غير صحيحة" });
+    if (!ok) {
+      await logAdminAction(req, "فشل تسجيل الدخول", "admin", username || "", { reason: "كلمة مرور غير صحيحة" });
+      return res.render("login", { error: "بيانات الدخول غير صحيحة" });
+    }
 
-    req.session.admin = { id: admin.id, username: admin.username };
-    res.redirect("/admin");
+    req.session.admin = {
+      id: admin.id,
+      username: admin.username,
+      person_id: admin.person_id,
+      display_name: admin.display_name,
+      role_title: admin.role_title || "مدير النظام",
+      permissions: admin.permissions || "[]",
+      is_super_admin: Number(admin.is_super_admin) === 1 ? 1 : 0,
+    };
+    await logAdminAction(req, "تسجيل دخول", "admin", admin.id, { username: admin.username });
+    res.redirect(firstAllowedAdminPath(req.session.admin));
   } catch (e) {
     console.error(e);
     res.render("login", { error: "حدث خطأ أثناء تسجيل الدخول" });
   }
 });
 
-app.post("/admin/logout", (req, res) => {
+app.post("/admin/logout", async (req, res) => {
+  await logAdminAction(req, "تسجيل خروج", "admin", req.session?.admin?.id || "", {});
   req.session.destroy(() => res.redirect("/"));
 });
 
@@ -1316,7 +1606,65 @@ app.post("/admin/upload", isAuthed, upload.single("photo"), (req, res) => {
 /* =========================
    Admin: persons CRUD
    ========================= */
+app.get("/admin/dashboard", isAuthed, async (req, res) => {
+  try {
+    const dashboard = await getFullDashboardData();
+    res.render("admin_dashboard", {
+      admin: req.session.admin,
+      dashboard,
+      parseLogDetails,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("خطأ في تحميل الإحصائيات");
+  }
+});
+
+app.get("/admin/activity", isAuthed, requireSuperAdmin, async (req, res) => {
+  try {
+    await ensureAdminEnhancements();
+    const logs = await all(`SELECT * FROM admin_activity_logs ORDER BY id DESC LIMIT 250`);
+    res.render("admin_activity", { admin: req.session.admin, logs, parseLogDetails });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("خطأ في تحميل سجل النشاطات");
+  }
+});
+
+app.get("/admin/maintenance", isAuthed, requireSuperAdmin, async (req, res) => {
+  try {
+    await ensureAdminEnhancements();
+    const enabled = await get(`SELECT value FROM site_settings WHERE key='maintenance_enabled'`);
+    const message = await get(`SELECT value FROM site_settings WHERE key='maintenance_message'`);
+    res.render("admin_maintenance", {
+      admin: req.session.admin,
+      enabled: String(enabled?.value || "0") === "1",
+      message: message?.value || "الموقع تحت الصيانة حاليًا، يرجى المحاولة لاحقًا.",
+      saved: req.query.saved === "1",
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("خطأ في تحميل وضع الصيانة");
+  }
+});
+
+app.post("/admin/maintenance", isAuthed, requireSuperAdmin, async (req, res) => {
+  try {
+    await ensureAdminEnhancements();
+    const enabled = req.body.maintenance_enabled ? "1" : "0";
+    const message = cleanText(req.body.maintenance_message, 500) || "الموقع تحت الصيانة حاليًا، يرجى المحاولة لاحقًا.";
+    await run(`UPDATE site_settings SET value=?, updated_at=CURRENT_TIMESTAMP WHERE key='maintenance_enabled'`, [enabled]);
+    await run(`UPDATE site_settings SET value=?, updated_at=CURRENT_TIMESTAMP WHERE key='maintenance_message'`, [message]);
+    await logAdminAction(req, enabled === "1" ? "تفعيل وضع الصيانة" : "إيقاف وضع الصيانة", "site_settings", "maintenance", { message });
+    res.redirect("/admin/maintenance?saved=1");
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("خطأ في حفظ وضع الصيانة");
+  }
+});
+
 app.get("/admin", isAuthed, async (req, res) => {
+  if (!userCan(req.session.admin, "persons")) return res.redirect(firstAllowedAdminPath(req.session.admin));
   try {
     const persons = await all(`
       SELECT
@@ -1348,7 +1696,7 @@ app.get("/admin", isAuthed, async (req, res) => {
   }
 });
 
-app.get("/admin/person-stats", isAuthed, async (req, res) => {
+app.get("/admin/person-stats", isAuthed, requirePermission("persons"), async (req, res) => {
   try {
     const personStats = await getPersonStatsPageData();
 
@@ -1362,7 +1710,7 @@ app.get("/admin/person-stats", isAuthed, async (req, res) => {
   }
 });
 
-app.get("/admin/news/stats", isAuthed, async (req, res) => {
+app.get("/admin/news/stats", isAuthed, requirePermission("news"), async (req, res) => {
   try {
     const newsStats = await getNewsStatsPageData();
 
@@ -1376,7 +1724,7 @@ app.get("/admin/news/stats", isAuthed, async (req, res) => {
   }
 });
 
-app.get("/admin/person/new", isAuthed, async (req, res) => {
+app.get("/admin/person/new", isAuthed, requirePermission("persons"), async (req, res) => {
   try {
     const persons = await all("SELECT id, name FROM persons ORDER BY name ASC");
     res.render("person_form", {
@@ -1392,7 +1740,7 @@ app.get("/admin/person/new", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/person/new", isAuthed, async (req, res) => {
+app.post("/admin/person/new", isAuthed, requirePermission("persons"), async (req, res) => {
   try {
     const {
       name,
@@ -1405,6 +1753,9 @@ app.post("/admin/person/new", isAuthed, async (req, res) => {
       is_deceased,
       gender,
       job,
+      mobile_phone,
+      personal_email,
+      national_address,
       photo_url,
       notes,
       short_bio,
@@ -1416,9 +1767,9 @@ app.post("/admin/person/new", isAuthed, async (req, res) => {
       `INSERT INTO persons (
         name, father_id, mother_id, birth_date, birth_place,
         death_date, death_place, is_deceased, gender,
-        job, lineage, photo_url, notes, short_bio
+        job, mobile_phone, personal_email, national_address, lineage, photo_url, notes, short_bio
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         String(name || "").trim(),
         father_id || null,
@@ -1430,6 +1781,9 @@ app.post("/admin/person/new", isAuthed, async (req, res) => {
         Number(is_deceased ? 1 : 0),
         gender || null,
         job || null,
+        mobile_phone || null,
+        personal_email || null,
+        national_address || null,
         null,
         photo_url || null,
         notes || null,
@@ -1438,6 +1792,7 @@ app.post("/admin/person/new", isAuthed, async (req, res) => {
     );
 
     await setSpouseNames(result.lastID, spouse_names);
+    await logAdminAction(req, "إضافة فرد", "person", result.lastID, { name });
     res.redirect("/admin");
   } catch (e) {
     console.error(e);
@@ -1445,7 +1800,7 @@ app.post("/admin/person/new", isAuthed, async (req, res) => {
   }
 });
 
-app.get("/admin/person/:id/edit", isAuthed, async (req, res) => {
+app.get("/admin/person/:id/edit", isAuthed, requirePermission("persons"), async (req, res) => {
   try {
     const person = await get("SELECT * FROM persons WHERE id = ?", [req.params.id]);
     if (!person) return res.redirect("/admin");
@@ -1467,7 +1822,7 @@ app.get("/admin/person/:id/edit", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/person/:id/edit", isAuthed, async (req, res) => {
+app.post("/admin/person/:id/edit", isAuthed, requirePermission("persons"), async (req, res) => {
   try {
     const {
       name,
@@ -1480,6 +1835,9 @@ app.post("/admin/person/:id/edit", isAuthed, async (req, res) => {
       is_deceased,
       gender,
       job,
+      mobile_phone,
+      personal_email,
+      national_address,
       photo_url,
       notes,
       short_bio,
@@ -1500,6 +1858,9 @@ app.post("/admin/person/:id/edit", isAuthed, async (req, res) => {
          is_deceased = ?,
          gender = ?,
          job = ?,
+         mobile_phone = ?,
+         personal_email = ?,
+         national_address = ?,
          photo_url = ?,
          notes = ?,
          short_bio = ?
@@ -1515,6 +1876,9 @@ app.post("/admin/person/:id/edit", isAuthed, async (req, res) => {
         Number(is_deceased ? 1 : 0),
         gender || null,
         job || null,
+        mobile_phone || null,
+        personal_email || null,
+        national_address || null,
         photo_url || null,
         notes || null,
         short_bio || null,
@@ -1523,6 +1887,7 @@ app.post("/admin/person/:id/edit", isAuthed, async (req, res) => {
     );
 
     await setSpouseNames(req.params.id, spouse_names);
+    await logAdminAction(req, "تعديل فرد", "person", req.params.id, { name });
     res.redirect("/admin");
   } catch (e) {
     console.error(e);
@@ -1530,7 +1895,7 @@ app.post("/admin/person/:id/edit", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/person/:id/delete", isAuthed, async (req, res) => {
+app.post("/admin/person/:id/delete", isAuthed, requirePermission("persons"), async (req, res) => {
   try {
     const id = req.params.id;
 
@@ -1544,6 +1909,7 @@ app.post("/admin/person/:id/delete", isAuthed, async (req, res) => {
 
     await run("DELETE FROM person_spouses WHERE person_id = ?", [id]);
     await run("DELETE FROM persons WHERE id = ?", [id]);
+    await logAdminAction(req, "حذف فرد", "person", id, {});
 
     res.redirect("/admin");
   } catch (e) {
@@ -1555,7 +1921,7 @@ app.post("/admin/person/:id/delete", isAuthed, async (req, res) => {
 /* =========================
    Admin: CMS pages
    ========================= */
-app.get("/admin/pages", isAuthed, async (req, res) => {
+app.get("/admin/pages", isAuthed, requirePermission("pages"), async (req, res) => {
   try {
     // ✅ تم إضافة سطر جلب بيانات النبذة (about)
     const about = await get(`SELECT * FROM site_pages WHERE slug='about'`); 
@@ -1578,7 +1944,7 @@ app.get("/admin/pages", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/pages/save", isAuthed, async (req, res) => {
+app.post("/admin/pages/save", isAuthed, requirePermission("pages"), async (req, res) => {
   try {
     const { slug, title, subtitle, content } = req.body;
 
@@ -1630,7 +1996,7 @@ app.post("/admin/pages/save", isAuthed, async (req, res) => {
 /* =========================
    Admin: Tree PDF upload/delete
    ========================= */
-app.post("/admin/pages/tree-pdf/upload", isAuthed, (req, res) => {
+app.post("/admin/pages/tree-pdf/upload", isAuthed, requirePermission("pages"), (req, res) => {
   uploadPdf.single("pdf_file")(req, res, async (err) => {
     try {
       if (err) return res.status(400).send(err.message || "Upload error");
@@ -1663,7 +2029,7 @@ app.post("/admin/pages/tree-pdf/upload", isAuthed, (req, res) => {
   });
 });
 
-app.post("/admin/pages/tree-pdf/delete", isAuthed, async (req, res) => {
+app.post("/admin/pages/tree-pdf/delete", isAuthed, requirePermission("pages"), async (req, res) => {
   try {
     const old = await get(`SELECT pdf_url FROM site_pages WHERE slug='tree-pdf'`);
     if (
@@ -1765,7 +2131,7 @@ async function sendNewsEmailToSubscribers(post, req) {
 /* =========================
    Admin: News CRUD
    ========================= */
-app.get("/admin/news", isAuthed, async (req, res) => {
+app.get("/admin/news", isAuthed, requirePermission("news"), async (req, res) => {
   try {
     const posts = await getAllNewsAdmin();
     res.render("news_admin", {
@@ -1780,7 +2146,7 @@ app.get("/admin/news", isAuthed, async (req, res) => {
   }
 });
 
-app.get("/admin/news/new", isAuthed, async (req, res) => {
+app.get("/admin/news/new", isAuthed, requirePermission("news"), async (req, res) => {
   try {
     const persons = await all("SELECT id, name, photo_url, job, short_bio FROM persons ORDER BY name ASC");
     res.render("news_form", {
@@ -1795,7 +2161,7 @@ app.get("/admin/news/new", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/news/new", isAuthed, async (req, res) => {
+app.post("/admin/news/new", isAuthed, requirePermission("news"), async (req, res) => {
   try {
     const {
       title,
@@ -1808,14 +2174,17 @@ app.post("/admin/news/new", isAuthed, async (req, res) => {
       is_active,
       is_pinned,
       notify_enabled,
+      publisher_name,
+      publisher_phone,
     } = req.body;
 
     const result = await run(
       `INSERT INTO news_posts (
         title, summary, content, image_url, person_id,
-        event_date, published_at, is_active, is_pinned, notify_enabled
+        event_date, published_at, is_active, is_pinned, notify_enabled,
+        publisher_name, publisher_phone
       )
-      VALUES (?, ?, ?, ?, ?, ?, COALESCE(NULLIF(?, ''), datetime('now')), ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, COALESCE(NULLIF(?, ''), datetime('now')), ?, ?, ?, ?, ?)`,
       [
         String(title || "").trim(),
         summary || "",
@@ -1827,6 +2196,8 @@ app.post("/admin/news/new", isAuthed, async (req, res) => {
         Number(is_active ? 1 : 0),
         Number(is_pinned ? 1 : 0),
         Number(notify_enabled ? 1 : 0),
+        String(publisher_name || "").trim(),
+        String(publisher_phone || "").trim(),
       ]
     );
 
@@ -1834,6 +2205,7 @@ app.post("/admin/news/new", isAuthed, async (req, res) => {
       await createNewsNotification(result.lastID, title, summary || content);
     }
 
+    await logAdminAction(req, "إضافة خبر", "news", result.lastID, { title });
     res.redirect("/admin/news?saved=1");
   } catch (e) {
     console.error(e);
@@ -1841,7 +2213,7 @@ app.post("/admin/news/new", isAuthed, async (req, res) => {
   }
 });
 
-app.get("/admin/news/:id/edit", isAuthed, async (req, res) => {
+app.get("/admin/news/:id/edit", isAuthed, requirePermission("news"), async (req, res) => {
   try {
     const post = await get("SELECT * FROM news_posts WHERE id = ?", [req.params.id]);
     if (!post) return res.redirect("/admin/news");
@@ -1860,7 +2232,7 @@ app.get("/admin/news/:id/edit", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/news/:id/edit", isAuthed, async (req, res) => {
+app.post("/admin/news/:id/edit", isAuthed, requirePermission("news"), async (req, res) => {
   try {
     const {
       title,
@@ -1873,6 +2245,8 @@ app.post("/admin/news/:id/edit", isAuthed, async (req, res) => {
       is_active,
       is_pinned,
       notify_enabled,
+      publisher_name,
+      publisher_phone,
     } = req.body;
 
     await run(
@@ -1886,7 +2260,9 @@ app.post("/admin/news/:id/edit", isAuthed, async (req, res) => {
            published_at = COALESCE(NULLIF(?, ''), published_at, datetime('now')),
            is_active = ?,
            is_pinned = ?,
-           notify_enabled = ?
+           notify_enabled = ?,
+           publisher_name = ?,
+           publisher_phone = ?
        WHERE id = ?`,
       [
         String(title || "").trim(),
@@ -1899,6 +2275,8 @@ app.post("/admin/news/:id/edit", isAuthed, async (req, res) => {
         Number(is_active ? 1 : 0),
         Number(is_pinned ? 1 : 0),
         Number(notify_enabled ? 1 : 0),
+        String(publisher_name || "").trim(),
+        String(publisher_phone || "").trim(),
         req.params.id,
       ]
     );
@@ -1907,6 +2285,7 @@ app.post("/admin/news/:id/edit", isAuthed, async (req, res) => {
       await createNewsNotification(req.params.id, title, summary || content);
     }
 
+    await logAdminAction(req, "تعديل خبر", "news", req.params.id, { title });
     res.redirect("/admin/news?saved=1");
   } catch (e) {
     console.error(e);
@@ -1914,9 +2293,10 @@ app.post("/admin/news/:id/edit", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/news/:id/delete", isAuthed, async (req, res) => {
+app.post("/admin/news/:id/delete", isAuthed, requirePermission("news"), async (req, res) => {
   try {
     await run("DELETE FROM news_posts WHERE id = ?", [req.params.id]);
+    await logAdminAction(req, "حذف خبر", "news", req.params.id, {});
     res.redirect("/admin/news?deleted=1");
   } catch (e) {
     console.error(e);
@@ -1924,7 +2304,7 @@ app.post("/admin/news/:id/delete", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/news/:id/pin", isAuthed, async (req, res) => {
+app.post("/admin/news/:id/pin", isAuthed, requirePermission("news"), async (req, res) => {
   try {
     await run(
       `UPDATE news_posts
@@ -1940,7 +2320,7 @@ app.post("/admin/news/:id/pin", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/news/:id/notify", isAuthed, async (req, res) => {
+app.post("/admin/news/:id/notify", isAuthed, requirePermission("news"), async (req, res) => {
   try {
     const post = await get(
       `SELECT *
@@ -1968,7 +2348,7 @@ app.post("/admin/news/:id/notify", isAuthed, async (req, res) => {
   }
 });
 
-app.get("/admin/news/subscribers", isAuthed, async (req, res) => {
+app.get("/admin/news/subscribers", isAuthed, requirePermission("subscribers"), async (req, res) => {
   try {
     const subscribers = await all(`
       SELECT *
@@ -1986,7 +2366,7 @@ app.get("/admin/news/subscribers", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/news/subscribers/:id/toggle", isAuthed, async (req, res) => {
+app.post("/admin/news/subscribers/:id/toggle", isAuthed, requirePermission("subscribers"), async (req, res) => {
   try {
     await run(
       `UPDATE newsletter_subscribers
@@ -2002,9 +2382,10 @@ app.post("/admin/news/subscribers/:id/toggle", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/news/subscribers/:id/delete", isAuthed, async (req, res) => {
+app.post("/admin/news/subscribers/:id/delete", isAuthed, requirePermission("subscribers"), async (req, res) => {
   try {
     await run("DELETE FROM newsletter_subscribers WHERE id = ?", [req.params.id]);
+    await logAdminAction(req, "حذف مشترك", "subscriber", req.params.id, {});
     res.redirect("/admin/news/subscribers");
   } catch (e) {
     console.error(e);
@@ -2012,7 +2393,7 @@ app.post("/admin/news/subscribers/:id/delete", isAuthed, async (req, res) => {
   }
 });
 
-app.get("/admin/news/subscribers/export.csv", isAuthed, async (req, res) => {
+app.get("/admin/news/subscribers/export.csv", isAuthed, requirePermission("subscribers"), async (req, res) => {
   try {
     const subscribers = await all(`
       SELECT id, email, subscriber_name, created_at, is_active
@@ -2048,7 +2429,7 @@ app.get("/admin/news/subscribers/export.csv", isAuthed, async (req, res) => {
 /* =========================
    Admin: News Comments
    ========================= */
-app.get("/admin/news/comments", isAuthed, async (req, res) => {
+app.get("/admin/news/comments", isAuthed, requirePermission("comments"), async (req, res) => {
   try {
     const comments = await all(`
       SELECT
@@ -2070,9 +2451,10 @@ app.get("/admin/news/comments", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/news/comments/:id/delete", isAuthed, async (req, res) => {
+app.post("/admin/news/comments/:id/delete", isAuthed, requirePermission("comments"), async (req, res) => {
   try {
     await run(`DELETE FROM news_comments WHERE id = ?`, [req.params.id]);
+    await logAdminAction(req, "حذف تعليق", "comment", req.params.id, {});
     res.redirect("/admin/news/comments?deleted=1");
   } catch (e) {
     console.error(e);
@@ -2080,7 +2462,7 @@ app.post("/admin/news/comments/:id/delete", isAuthed, async (req, res) => {
   }
 });
 
-app.get("/admin/news/comments/export.csv", isAuthed, async (req, res) => {
+app.get("/admin/news/comments/export.csv", isAuthed, requirePermission("comments"), async (req, res) => {
   try {
     const comments = await all(`
       SELECT
@@ -2126,7 +2508,7 @@ app.get("/admin/news/comments/export.csv", isAuthed, async (req, res) => {
 /* =========================
    Admin: Historical Timeline CRUD
    ========================= */
-app.post("/admin/timeline/add", isAuthed, upload.single("image_file"), async (req, res) => {
+app.post("/admin/timeline/add", isAuthed, requirePermission("pages"), upload.single("image_file"), async (req, res) => {
   try {
     const { title, description, date, order, visible } = req.body;
     const image_url = req.file ? "/uploads/" + req.file.filename : null;
@@ -2142,7 +2524,7 @@ app.post("/admin/timeline/add", isAuthed, upload.single("image_file"), async (re
   }
 });
 
-app.post("/admin/timeline/:id/edit", isAuthed, upload.single("image_file"), async (req, res) => {
+app.post("/admin/timeline/:id/edit", isAuthed, requirePermission("pages"), upload.single("image_file"), async (req, res) => {
   try {
     const { title, description, date, order, visible } = req.body;
     const image_url = req.file ? "/uploads/" + req.file.filename : null;
@@ -2166,7 +2548,7 @@ app.post("/admin/timeline/:id/edit", isAuthed, upload.single("image_file"), asyn
   }
 });
 
-app.get("/admin/timeline/:id/edit", isAuthed, (req, res) => {
+app.get("/admin/timeline/:id/edit", isAuthed, requirePermission("pages"), (req, res) => {
   const id = req.params.id;
   db.get("SELECT * FROM timeline_events WHERE id = ?", [id], (err, row) => {
     if (err) return res.send("Database error: " + err.message);
@@ -2175,9 +2557,10 @@ app.get("/admin/timeline/:id/edit", isAuthed, (req, res) => {
   });
 });
 
-app.post("/admin/timeline/:id/delete", isAuthed, async (req, res) => {
+app.post("/admin/timeline/:id/delete", isAuthed, requirePermission("pages"), async (req, res) => {
   try {
     await run(`DELETE FROM timeline_events WHERE id=?`, [req.params.id]);
+    await logAdminAction(req, "حذف محطة زمنية", "timeline", req.params.id, {});
     res.redirect("/admin/pages?deleted=1");
   } catch (err) {
     console.error(err);
@@ -2188,7 +2571,7 @@ app.post("/admin/timeline/:id/delete", isAuthed, async (req, res) => {
 /* =========================
    Admin: Honor CRUD
    ========================= */
-app.get("/admin/honor", isAuthed, async (req, res) => {
+app.get("/admin/honor", isAuthed, requirePermission("honor"), async (req, res) => {
   try {
     const items = await all(`SELECT * FROM honor_items ORDER BY ord ASC, id ASC`);
     res.render("honor_admin", { admin: req.session.admin, items });
@@ -2198,11 +2581,11 @@ app.get("/admin/honor", isAuthed, async (req, res) => {
   }
 });
 
-app.get("/admin/honor/new", isAuthed, async (req, res) => {
+app.get("/admin/honor/new", isAuthed, requirePermission("honor"), async (req, res) => {
   res.render("honor_form", { admin: req.session.admin, mode: "new", item: null });
 });
 
-app.post("/admin/honor/new", isAuthed, async (req, res) => {
+app.post("/admin/honor/new", isAuthed, requirePermission("honor"), async (req, res) => {
   try {
     const { name, field, bio, achievement, photo_url, ord, birth_date, death_date, birth_place } = req.body;
     const person_id = req.body.person_id || await resolvePersonIdByName(name);
@@ -2231,7 +2614,7 @@ app.post("/admin/honor/new", isAuthed, async (req, res) => {
   }
 });
 
-app.get("/admin/honor/:id/edit", isAuthed, async (req, res) => {
+app.get("/admin/honor/:id/edit", isAuthed, requirePermission("honor"), async (req, res) => {
   try {
     const item = await get(`SELECT * FROM honor_items WHERE id=?`, [req.params.id]);
     if (!item) return res.redirect("/admin/honor");
@@ -2243,7 +2626,7 @@ app.get("/admin/honor/:id/edit", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/honor/:id/edit", isAuthed, async (req, res) => {
+app.post("/admin/honor/:id/edit", isAuthed, requirePermission("honor"), async (req, res) => {
   try {
     const { name, field, bio, achievement, photo_url, ord, birth_date, death_date, birth_place } = req.body;
     const person_id = req.body.person_id || await resolvePersonIdByName(name);
@@ -2274,9 +2657,10 @@ app.post("/admin/honor/:id/edit", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/honor/:id/delete", isAuthed, async (req, res) => {
+app.post("/admin/honor/:id/delete", isAuthed, requirePermission("honor"), async (req, res) => {
   try {
     await run(`DELETE FROM honor_items WHERE id=?`, [req.params.id]);
+    await logAdminAction(req, "حذف سيرة ذاتية", "honor", req.params.id, {});
     res.redirect("/admin/honor");
   } catch (e) {
     console.error(e);
@@ -2285,9 +2669,141 @@ app.post("/admin/honor/:id/delete", isAuthed, async (req, res) => {
 });
 
 /* =========================
+   Admin: Roles & Permissions
+   ========================= */
+app.get("/admin/roles", isAuthed, requireSuperAdmin, async (req, res) => {
+  try {
+    await ensureAdminRoleSchema();
+    const admins = await all(`
+      SELECT a.id, a.username, a.person_id, a.display_name, a.role_title, a.permissions,
+             a.is_super_admin, a.is_active, a.created_at, p.name AS person_name
+      FROM admins a
+      LEFT JOIN persons p ON p.id = a.person_id
+      ORDER BY a.is_super_admin DESC, a.id ASC
+    `);
+
+    const persons = await all(`
+      SELECT id, name, job, photo_url
+      FROM persons
+      ORDER BY name COLLATE NOCASE ASC
+    `);
+
+    res.render("roles_admin", {
+      admin: req.session.admin,
+      admins,
+      persons,
+      permissionGroups: PERMISSION_GROUPS,
+      parsePermissions,
+      saved: req.query.saved === "1",
+      deleted: req.query.deleted === "1",
+      error: req.query.error || "",
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("خطأ في تحميل وظائف الأفراد");
+  }
+});
+
+app.post("/admin/roles/new", isAuthed, requireSuperAdmin, async (req, res) => {
+  try {
+    await ensureAdminRoleSchema();
+    const { person_id, username, password, role_title } = req.body;
+    const permissions = normalizeMulti(req.body.permissions).filter(Boolean);
+    if (!username || !password) return res.redirect("/admin/roles?error=" + encodeURIComponent("اسم المستخدم وكلمة المرور مطلوبان"));
+    if (!permissions.length) return res.redirect("/admin/roles?error=" + encodeURIComponent("اختر صلاحية واحدة على الأقل"));
+
+    const person = person_id ? await get(`SELECT id, name FROM persons WHERE id=?`, [person_id]) : null;
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await run(
+      `INSERT INTO admins (username, password_hash, person_id, display_name, role_title, permissions, is_super_admin, is_active)
+       VALUES (?, ?, ?, ?, ?, ?, 0, 1)`,
+      [
+        username.trim(),
+        passwordHash,
+        person ? person.id : null,
+        person ? person.name : (req.body.display_name || username).trim(),
+        role_title || "محرر",
+        JSON.stringify(permissions),
+      ]
+    );
+
+    res.redirect("/admin/roles?saved=1");
+  } catch (e) {
+    console.error(e);
+    const msg = e && String(e.message || e).includes("UNIQUE") ? "اسم المستخدم موجود بالفعل" : "حدث خطأ أثناء إضافة المستخدم";
+    res.redirect("/admin/roles?error=" + encodeURIComponent(msg));
+  }
+});
+
+app.post("/admin/roles/:id/update", isAuthed, requireSuperAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const current = await get(`SELECT * FROM admins WHERE id=?`, [id]);
+    if (!current) return res.redirect("/admin/roles");
+    if (Number(current.is_super_admin) === 1 && Number(id) === Number(req.session.admin.id)) {
+      return res.redirect("/admin/roles?error=" + encodeURIComponent("لا يمكن تعديل صلاحيات المدير الرئيسي الحالي من هنا"));
+    }
+
+    const { person_id, username, password, role_title, is_active } = req.body;
+    const permissions = normalizeMulti(req.body.permissions).filter(Boolean);
+    const person = person_id ? await get(`SELECT id, name FROM persons WHERE id=?`, [person_id]) : null;
+
+    const params = [
+      username.trim(),
+      person ? person.id : null,
+      person ? person.name : (req.body.display_name || username).trim(),
+      role_title || current.role_title || "محرر",
+      JSON.stringify(permissions.length ? permissions : parsePermissions(current.permissions)),
+      is_active ? 1 : 0,
+    ];
+
+    let sql = `UPDATE admins SET username=?, person_id=?, display_name=?, role_title=?, permissions=?, is_active=?`;
+    if (password && password.trim()) {
+      sql += `, password_hash=?`;
+      params.push(await bcrypt.hash(password, 10));
+    }
+    sql += ` WHERE id=?`;
+    params.push(id);
+
+    await run(sql, params);
+    res.redirect("/admin/roles?saved=1");
+  } catch (e) {
+    console.error(e);
+    const msg = e && String(e.message || e).includes("UNIQUE") ? "اسم المستخدم موجود بالفعل" : "حدث خطأ أثناء تحديث المستخدم";
+    res.redirect("/admin/roles?error=" + encodeURIComponent(msg));
+  }
+});
+
+app.post("/admin/roles/:id/delete", isAuthed, requireSuperAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const current = await get(`SELECT * FROM admins WHERE id=?`, [id]);
+    if (!current) return res.redirect("/admin/roles");
+    if (Number(current.is_super_admin) === 1 || id === Number(req.session.admin.id)) {
+      return res.redirect("/admin/roles?error=" + encodeURIComponent("لا يمكن حذف المدير الرئيسي أو حسابك الحالي"));
+    }
+    await run(`DELETE FROM admins WHERE id=?`, [id]);
+    await logAdminAction(req, "حذف مستخدم إداري", "admin", id, { username: current.username });
+    res.redirect("/admin/roles?deleted=1");
+  } catch (e) {
+    console.error(e);
+    res.redirect("/admin/roles?error=" + encodeURIComponent("حدث خطأ أثناء الحذف"));
+  }
+});
+
+app.get("/admin/no-access", isAuthed, (req, res) => {
+  res.status(403).render("admin_no_access", {
+    admin: req.session.admin,
+    permissionGroups: PERMISSION_GROUPS,
+    userCan: (perm) => userCan(req.session.admin, perm),
+  });
+});
+
+/* =========================
    Admin: Support Messages
    ========================= */
-app.get("/admin/support-messages", isAuthed, async (req, res) => {
+app.get("/admin/support-messages", isAuthed, requirePermission("support"), async (req, res) => {
   try {
     const msgs = await all(`
       SELECT *
@@ -2306,9 +2822,10 @@ app.get("/admin/support-messages", isAuthed, async (req, res) => {
   }
 });
 
-app.post("/admin/support-messages/:id/delete", isAuthed, async (req, res) => {
+app.post("/admin/support-messages/:id/delete", isAuthed, requirePermission("support"), async (req, res) => {
   try {
     await run(`DELETE FROM support_messages WHERE id=?`, [req.params.id]);
+    await logAdminAction(req, "حذف رسالة دعم", "support_message", req.params.id, {});
     res.redirect("/admin/support-messages?deleted=1");
   } catch (e) {
     console.error(e);
@@ -2316,7 +2833,7 @@ app.post("/admin/support-messages/:id/delete", isAuthed, async (req, res) => {
   }
 });
 
-app.get("/admin/support-messages/export.csv", isAuthed, async (req, res) => {
+app.get("/admin/support-messages/export.csv", isAuthed, requirePermission("support"), async (req, res) => {
   try {
     const msgs = await all(`
       SELECT id, sender_name, phone, message, created_at

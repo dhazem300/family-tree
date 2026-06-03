@@ -339,19 +339,136 @@
       background: linear-gradient(180deg, rgba(10,10,10,.98), rgba(5,5,5,.98));
     }
 
-    /* Mobile Nav */
-    #mobileNavOverlay.hidden { display: none; }
-    #mobileNavOverlay { display: block; }
+    /* Mobile Nav - fixed independent from Tailwind hidden/lg:hidden utilities */
+    #mobileNavOverlay.mobile-nav-hidden { display: none !important; }
+    #mobileNavOverlay:not(.mobile-nav-hidden) { display: block !important; }
+
     #mobileNavDrawer {
-      transform: translateX(-110%);
+      right: 0 !important;
+      left: auto !important;
+      transform: translateX(110%);
       transition: transform .3s cubic-bezier(.2,.9,.2,1);
       will-change: transform;
+      display: flex !important;
+      visibility: visible !important;
     }
-    #mobileNavDrawer.isOpen { transform: translateX(0); }
-    #mobileNavBtn[data-open="true"] .ico-open { display: none; }
-    #mobileNavBtn[data-open="true"] .ico-close { display: inline; }
-    #mobileNavBtn[data-open="false"] .ico-open { display: inline; }
-    #mobileNavBtn[data-open="false"] .ico-close { display: none; }
+    #mobileNavDrawer.isOpen { transform: translateX(0) !important; }
+    #mobileNavDrawer nav {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 1rem !important;
+    }
+    #mobileNavDrawer nav a {
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      text-align: right !important;
+    }
+    #mobileNavDrawer .mobile-login-link {
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+    #mobileNavBtn[data-open="true"] .ico-open { display: none !important; }
+    #mobileNavBtn[data-open="true"] .ico-close { display: inline !important; }
+    #mobileNavBtn[data-open="false"] .ico-open { display: inline !important; }
+    #mobileNavBtn[data-open="false"] .ico-close { display: none !important; }
+
+    @media (max-width: 1023px) {
+      #mobileNavBtn { display: flex !important; }
+      header nav[aria-label="التنقل الرئيسي"] { display: none !important; }
+    }
+
+    @media (min-width: 1024px) {
+      #mobileNavBtn, #mobileNavOverlay, #mobileNavDrawer { display: none !important; }
+      header nav[aria-label="التنقل الرئيسي"] { display: flex !important; }
+    }
+  </style>
+
+
+  <style id="mobile-menu-hard-fix-css">
+    @media (max-width: 1023px) {
+      #mobileNavBtn { display: inline-flex !important; position: relative !important; z-index: 120 !important; }
+      #mobileNavOverlay { position: fixed !important; inset: 0 !important; background: rgba(0,0,0,.60) !important; z-index: 100 !important; }
+      #mobileNavDrawer {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: auto !important;
+        bottom: 0 !important;
+        width: min(340px, 88vw) !important;
+        height: 100vh !important;
+        max-width: 88vw !important;
+        z-index: 110 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        transform: translateX(-115%) !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: none !important;
+        background: #fff !important;
+        color: #111827 !important;
+        border-right: 1px solid rgba(0,0,0,.10) !important;
+        box-shadow: 18px 0 50px rgba(0,0,0,.25) !important;
+        transition: transform .25s ease !important;
+      }
+      html.dark #mobileNavDrawer, html[data-theme="dark"] #mobileNavDrawer {
+        background: #050505 !important;
+        color: #FAFAFA !important;
+        border-right-color: rgba(255,255,255,.12) !important;
+      }
+      #mobileNavDrawer.mobile-menu-open {
+        transform: translateX(0) !important;
+        pointer-events: auto !important;
+      }
+      #mobileNavDrawer nav, #mobileNavDrawer .mobile-menu-links {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        padding: 22px !important;
+        flex: 1 1 auto !important;
+      }
+      #mobileNavDrawer nav a {
+        display: flex !important;
+        align-items: center !important;
+        min-height: 46px !important;
+        padding: 12px 16px !important;
+        border-radius: 14px !important;
+        font-size: 16px !important;
+        font-weight: 800 !important;
+        text-decoration: none !important;
+        color: #111827 !important;
+        background: rgba(0,90,43,.055) !important;
+        border-right: 3px solid transparent !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+      html.dark #mobileNavDrawer nav a, html[data-theme="dark"] #mobileNavDrawer nav a {
+        color: #FAFAFA !important;
+        background: rgba(255,255,255,.06) !important;
+      }
+      #mobileNavDrawer nav a:first-child {
+        color: #005A2B !important;
+        border-right-color: #E5B869 !important;
+        background: rgba(229,184,105,.16) !important;
+      }
+      html.dark #mobileNavDrawer nav a:first-child, html[data-theme="dark"] #mobileNavDrawer nav a:first-child {
+        color: #E5B869 !important;
+      }
+      #mobileNavDrawer .mobile-login-link {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 8px !important;
+        min-height: 48px !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+      body.mobile-menu-is-open { overflow: hidden !important; }
+    }
+    @media (min-width: 1024px) {
+      #mobileNavBtn, #mobileNavOverlay, #mobileNavDrawer { display: none !important; }
+    }
   </style>
 
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
@@ -421,7 +538,7 @@
 
 <body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col relative overflow-x-hidden selection:bg-accent-gold selection:text-bg-charcoal transition-colors duration-300">
 
-  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></div>
+  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] mobile-nav-hidden" aria-hidden="true"></div>
 
   <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-bg-charcoal border-r border-gray-200 dark:border-white/10 shadow-2xl z-[90] flex flex-col">
     <div class="h-1.5 w-full bg-gradient-to-r from-gray-300 via-accent-gold to-gray-300 dark:from-gray-800 dark:via-accent-gold dark:to-gray-800"></div>
@@ -444,8 +561,9 @@
     </nav>
 
     <div class="p-6 border-t border-gray-100 dark:border-white/5">
-      <a href="/admin/login" class="flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-lg hover:opacity-90 transition-colors font-bold" title="تسجيل الدخول">
+      <a href="/admin/login" class="mobile-login-link flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-lg hover:opacity-90 transition-colors font-bold" title="تسجيل الدخول">
         <span class="material-symbols-outlined">login</span>
+        <span>تسجيل الدخول</span>
       </a>
     </div>
   </aside>
@@ -524,9 +642,13 @@
             </div>
 
             <input id="search"
-                   class="royal-search block w-full ps-12 pe-4 py-3.5 text-gray-900 dark:text-text-cream placeholder-gray-400 dark:placeholder-gray-500 text-base"
+                   class="royal-search block w-full ps-12 pe-12 py-3.5 text-gray-900 dark:text-text-cream placeholder-gray-400 dark:placeholder-gray-500 text-base"
                    placeholder="ابحث عن أحد أفراد العائلة..."
-                   type="text" />
+                   type="text"
+                   autocomplete="off" />
+            <button id="clearSearch" class="search-clear-btn" type="button" aria-label="مسح البحث" title="مسح البحث">×</button>
+            <div id="searchSuggestions" class="search-suggestions hidden" role="listbox" aria-label="نتائج البحث"></div>
+            <div id="searchEmptyMessage" class="search-empty-message hidden" role="status" aria-live="polite"></div>
           </label>
 
           <div class="flex flex-wrap gap-2 justify-center xl:justify-end">
@@ -646,6 +768,10 @@
   
   <script>
     (function initializeFamilyChart() {
+      // تم تعطيل محرك FamilyChart القديم لأن الشجرة الحالية تُرسم من /app.js بمحرك D3.
+      // تركه يعمل كان يسبب تضارباً خصوصاً على الهاتف ومحاولات تحميل مسار غير موجود /api/family-data.
+      if (window.__ENABLE_LEGACY_FAMILY_CHART !== true) return;
+
       // Wait for DOM and data
       document.addEventListener('DOMContentLoaded', async function() {
         try {
@@ -947,14 +1073,14 @@
         }
 
         function openNav(){
-          overlay?.classList.remove("hidden");
+          overlay?.classList.remove("mobile-nav-hidden");
           navDrawer?.classList.add("isOpen");
           setOpenState(true);
         }
         
         function closeNav(){
           navDrawer?.classList.remove("isOpen");
-          overlay?.classList.add("hidden");
+          overlay?.classList.add("mobile-nav-hidden");
           setOpenState(false);
         }
 
@@ -1113,6 +1239,81 @@
       });
 
       observer.observe(document.body, { childList: true, subtree: true });
+    })();
+  </script>
+
+  <script id="mobile-menu-hard-fix-js">
+    (function(){
+      function initMobileMenu(){
+        var btn = document.getElementById('mobileNavBtn');
+        var drawer = document.getElementById('mobileNavDrawer');
+        var overlay = document.getElementById('mobileNavOverlay');
+        var closeBtn = document.getElementById('mobileNavClose');
+        if (!btn || !drawer || !overlay) return;
+
+        function forceLinksVisible(){
+          var links = drawer.querySelectorAll('nav a, .mobile-login-link');
+          links.forEach(function(a){
+            a.style.setProperty('display', a.classList.contains('mobile-login-link') ? 'flex' : 'flex', 'important');
+            a.style.setProperty('visibility', 'visible', 'important');
+            a.style.setProperty('opacity', '1', 'important');
+          });
+        }
+
+        function openMenu(e){
+          if (e) { e.preventDefault(); e.stopPropagation(); }
+          overlay.classList.remove('mobile-nav-hidden');
+          overlay.style.setProperty('display', 'block', 'important');
+          overlay.style.setProperty('visibility', 'visible', 'important');
+          drawer.classList.add('mobile-menu-open');
+          drawer.classList.add('isOpen');
+          drawer.style.setProperty('display', 'flex', 'important');
+          drawer.style.setProperty('visibility', 'visible', 'important');
+          drawer.style.setProperty('opacity', '1', 'important');
+          drawer.style.setProperty('transform', 'translateX(0)', 'important');
+          drawer.style.setProperty('pointer-events', 'auto', 'important');
+          btn.setAttribute('data-open', 'true');
+          btn.setAttribute('aria-expanded', 'true');
+          document.body.classList.add('mobile-menu-is-open');
+          forceLinksVisible();
+        }
+
+        function closeMenu(e){
+          if (e) { e.preventDefault(); e.stopPropagation(); }
+          drawer.classList.remove('mobile-menu-open');
+          drawer.classList.remove('isOpen');
+          drawer.style.setProperty('transform', 'translateX(-115%)', 'important');
+          drawer.style.setProperty('pointer-events', 'none', 'important');
+          overlay.classList.add('mobile-nav-hidden');
+          overlay.style.setProperty('display', 'none', 'important');
+          btn.setAttribute('data-open', 'false');
+          btn.setAttribute('aria-expanded', 'false');
+          document.body.classList.remove('mobile-menu-is-open');
+        }
+
+        btn.onclick = function(e){
+          var isOpen = btn.getAttribute('data-open') === 'true';
+          isOpen ? closeMenu(e) : openMenu(e);
+        };
+        if (closeBtn) closeBtn.onclick = closeMenu;
+        overlay.onclick = closeMenu;
+        drawer.querySelectorAll('a').forEach(function(a){
+          a.addEventListener('click', function(){
+            // لا نستخدم preventDefault هنا حتى تعمل روابط القائمة وتنتقل للصفحات بشكل طبيعي
+            drawer.classList.remove('mobile-menu-open');
+            drawer.classList.remove('isOpen');
+            overlay.classList.add('mobile-nav-hidden');
+            overlay.style.setProperty('display', 'none', 'important');
+            btn.setAttribute('data-open', 'false');
+            btn.setAttribute('aria-expanded', 'false');
+            document.body.classList.remove('mobile-menu-is-open');
+          });
+        });
+        document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeMenu(e); });
+        closeMenu();
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMobileMenu);
+      else initMobileMenu();
     })();
   </script>
 

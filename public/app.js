@@ -448,6 +448,81 @@ function fitToScreen(containerEl, padding = 110) {
   svg.transition().duration(320).call(zoomBehavior.transform, t);
 }
 
+function centerNodeInView(node, containerEl, preferredScale = 1.25, duration = 450) {
+  if (!node || !containerEl || !svg || !zoomBehavior) return;
+
+  const w = containerEl.clientWidth || 1;
+  const h = containerEl.clientHeight || 1;
+  const currentTransform = d3.zoomTransform(svg.node());
+  const isSmallScreen = window.matchMedia ? window.matchMedia("(max-width: 700px)").matches : window.innerWidth <= 700;
+
+  // على الهاتف نستخدم زووم ثابت ومريح بدل الاعتماد على الزووم الحالي،
+  // لأن الزووم الابتدائي قد يكون صغيراً جداً فيجعل الأسماء تبدو فوق بعضها.
+  const targetScale = isSmallScreen ? Math.max(preferredScale, 1.55) : preferredScale;
+  const scale = clamp(Math.max(currentTransform.k || 1, targetScale), ZOOM_MIN, ZOOM_MAX);
+
+  const tx = (w / 2) - (node.x * scale);
+  const ty = (h / 2) - (node.y * scale);
+  const t = d3.zoomIdentity.translate(tx, ty).scale(scale);
+
+  svg.transition().duration(duration).call(zoomBehavior.transform, t);
+}
+
+function flashTreeNode(targetNode) {
+  if (!targetNode || !__treeState.nodesSel) return;
+
+  const domNode = __treeState.nodesSel.filter(n => n === targetNode).node();
+  if (!domNode) return;
+
+  const foreignObjDiv = d3.select(domNode).select(".person-node").node();
+  if (!foreignObjDiv) return;
+
+  foreignObjDiv.style.transition = "background-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out";
+  foreignObjDiv.style.backgroundColor = "rgba(227, 197, 111, 0.4)";
+  foreignObjDiv.style.boxShadow = "0 0 30px rgba(227, 197, 111, 0.8)";
+  foreignObjDiv.style.borderRadius = "12px";
+
+  setTimeout(() => {
+    foreignObjDiv.style.backgroundColor = "";
+    foreignObjDiv.style.boxShadow = "";
+  }, 3000);
+}
+
+function normalizeSearchText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/[ًٌٍَُِّْـ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function pickBestSearchMatch(allNodes, q) {
+  const normalizedQ = normalizeSearchText(q);
+  if (!normalizedQ) return null;
+
+  const matches = allNodes
+    .map((node) => {
+      const name = normalizeSearchText(node.data.name);
+      if (!name.includes(normalizedQ)) return null;
+
+      let score = 3;
+      if (name === normalizedQ) score = 0;
+      else if (name.startsWith(normalizedQ)) score = 1;
+      else if (name.split(" ").some((part) => part.startsWith(normalizedQ))) score = 2;
+
+      return { node, score, nameLength: name.length };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.score - b.score || a.nameLength - b.nameLength);
+
+  return matches.length ? matches[0].node : null;
+}
+
 function initialRootAndChildrenView(containerEl, rootHierarchy, padding = 120) {
   if (!containerEl || !svg || !zoomBehavior) return;
 
@@ -687,45 +762,46 @@ function renderTree(rootData) {
     focusOnNode(d, nodes, links);
   });
 
+  function focusTreePersonById(personId, options = {}) {
+    if (!personId) return false;
+
+    const targetNode = root.descendants().find(node => String(node.data.id) === String(personId));
+    if (!targetNode) return false;
+
+    resetFocus(nodes, links);
+    focusOnNode(targetNode, nodes, links);
+    nodes.classed("nodeSelected", node => node === targetNode);
+
+    centerNodeInView(
+      targetNode,
+      container,
+      options.preferredScale || 1.45,
+      options.duration || 650
+    );
+
+    flashTreeNode(targetNode);
+
+    if (options.openDetails !== false) {
+      fetchPerson(targetNode.data.id).then(person => {
+        showDetailsInSide(person);
+        openDrawer();
+      }).catch(err => console.error("focusTreePersonById fetch error:", err));
+    }
+
+    return true;
+  }
+
+  // تستخدمها أزرار السير الذاتية أو أي رابط خارجي يريد فتح مكان الشخص مباشرة.
+  window.__focusTreePersonById = focusTreePersonById;
+
   // إضافة معالجة تحديد الشخص عبر الرابط (focus أو highlight URL parameter)
   const params = new URLSearchParams(window.location.search);
   const focusId = params.get("focus") || params.get("highlight");
 
   if (focusId) {
     setTimeout(() => {
-      const targetNode = root.descendants().find(node => {
-        return String(node.data.id) === String(focusId);
-      });
-
-      if (targetNode) {
-        focusOnNode(targetNode, nodes, links);
-        nodes.classed("nodeSelected", node => node === targetNode);
-
-        // التمرير التلقائي والتأثير البصري
-        const domNode = nodes.filter(n => n === targetNode).node();
-        if (domNode) {
-          domNode.scrollIntoView({ behavior: "smooth", block: "center" });
-          
-          const foreignObjDiv = d3.select(domNode).select(".person-node").node();
-          if (foreignObjDiv) {
-            foreignObjDiv.style.transition = "background-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out";
-            foreignObjDiv.style.backgroundColor = "rgba(227, 197, 111, 0.4)";
-            foreignObjDiv.style.boxShadow = "0 0 30px rgba(227, 197, 111, 0.8)";
-            foreignObjDiv.style.borderRadius = "12px";
-            
-            setTimeout(() => {
-              foreignObjDiv.style.backgroundColor = "";
-              foreignObjDiv.style.boxShadow = "";
-            }, 3000);
-          }
-        }
-
-        fetchPerson(targetNode.data.id).then(person => {
-          showDetailsInSide(person);
-          openDrawer();
-        });
-      }
-    }, 500);
+      focusTreePersonById(focusId, { preferredScale: 1.55, duration: 750, openDetails: true });
+    }, 520);
   }
 
   svg.on("click", (event) => {
@@ -762,19 +838,144 @@ function renderTree(rootData) {
 
   const searchInput = document.getElementById("search");
   if (searchInput) {
+    const suggestionsBox = document.getElementById("searchSuggestions");
+    const emptyMessageBox = document.getElementById("searchEmptyMessage");
+    const clearSearchBtn = document.getElementById("clearSearch");
+    let lastMatchedId = null;
+    let searchTimer = null;
+
+    const hideSearchUi = () => {
+      suggestionsBox?.classList.add("hidden");
+      if (suggestionsBox) suggestionsBox.innerHTML = "";
+      emptyMessageBox?.classList.add("hidden");
+      if (emptyMessageBox) emptyMessageBox.textContent = "";
+    };
+
+    const setClearButtonState = () => {
+      clearSearchBtn?.classList.toggle("is-visible", Boolean(searchInput.value.trim()));
+    };
+
+    const showSearchEmptyMessage = () => {
+      suggestionsBox?.classList.add("hidden");
+      if (suggestionsBox) suggestionsBox.innerHTML = "";
+      if (emptyMessageBox) {
+        emptyMessageBox.textContent = "هذا الفرد غير موجود أو لم تتم إضافته بعد.";
+        emptyMessageBox.classList.remove("hidden");
+      }
+    };
+
+    const applySearchHighlight = (matchedNodes, targetNode) => {
+      const matchedSet = new Set(matchedNodes);
+      nodes
+        .attr("opacity", (d) => matchedSet.has(d) ? 1 : 0.12)
+        .attr("pointer-events", (d) => matchedSet.has(d) ? "auto" : "none")
+        .classed("nodeSelected", (d) => d === targetNode);
+      links.attr("opacity", 0.08);
+    };
+
+    const renderSearchSuggestions = (matchedNodes, targetNode) => {
+      if (!suggestionsBox || matchedNodes.length < 1) {
+        suggestionsBox?.classList.add("hidden");
+        if (suggestionsBox) suggestionsBox.innerHTML = "";
+        return;
+      }
+
+      suggestionsBox.innerHTML = matchedNodes.slice(0, 8).map((node, index) => `
+        <button class="search-suggestion-item ${node === targetNode ? "is-active" : ""}" type="button" data-person-id="${String(node.data.id).replace(/"/g, "&quot;")}">
+          <span>${escapeHtml(node.data.name || "بدون اسم")}</span>
+          <span class="search-suggestion-count">${index + 1}</span>
+        </button>
+      `).join("");
+
+      suggestionsBox.classList.remove("hidden");
+      suggestionsBox.querySelectorAll(".search-suggestion-item").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const personId = btn.getAttribute("data-person-id");
+          const selectedNode = root.descendants().find(node => String(node.data.id) === String(personId));
+          if (!selectedNode) return;
+          searchInput.value = selectedNode.data.name || "";
+          setClearButtonState();
+          hideSearchUi();
+          lastMatchedId = selectedNode.data.id;
+          applySearchHighlight([selectedNode], selectedNode);
+          centerNodeInView(selectedNode, container, 1.45, 520);
+          flashTreeNode(selectedNode);
+          fetchPerson(selectedNode.data.id).then(person => {
+            showDetailsInSide(person);
+            openDrawer();
+          }).catch(err => console.error("search suggestion fetch error:", err));
+        });
+      });
+    };
+
+    const clearSearch = () => {
+      clearTimeout(searchTimer);
+      searchInput.value = "";
+      lastMatchedId = null;
+      setClearButtonState();
+      hideSearchUi();
+      resetFocus(nodes, links);
+    };
+
+    clearSearchBtn?.addEventListener("click", clearSearch);
+
     searchInput.oninput = () => {
-      const q = searchInput.value.trim().toLowerCase();
-      if (!q) {
+      const q = searchInput.value.trim();
+      const normalizedQ = normalizeSearchText(q);
+      setClearButtonState();
+      clearTimeout(searchTimer);
+
+      if (!normalizedQ) {
+        lastMatchedId = null;
+        hideSearchUi();
         resetFocus(nodes, links);
         return;
       }
 
-      nodes
-        .attr("opacity", (d) => String(d.data.name || "").toLowerCase().includes(q) ? 1 : 0.12)
-        .attr("pointer-events", (d) => String(d.data.name || "").toLowerCase().includes(q) ? "auto" : "none");
+      const allTreeNodes = root.descendants();
+      const matchedNodes = allTreeNodes.filter((d) => {
+        return normalizeSearchText(d.data.name).includes(normalizedQ);
+      }).sort((a, b) => normalizeSearchText(a.data.name).length - normalizeSearchText(b.data.name).length);
 
-      links.attr("opacity", 0.08);
+      if (!matchedNodes.length) {
+        lastMatchedId = null;
+        nodes.attr("opacity", 0.18).attr("pointer-events", "auto").classed("nodeSelected", false);
+        links.attr("opacity", 0.08);
+        showSearchEmptyMessage();
+        return;
+      }
+
+      emptyMessageBox?.classList.add("hidden");
+      const targetNode = pickBestSearchMatch(allTreeNodes, q) || matchedNodes[0];
+      applySearchHighlight(matchedNodes, targetNode);
+      renderSearchSuggestions(matchedNodes, targetNode);
+
+      // الانتقال التلقائي لموقع الشخص فقط بدون فتح تبويبة التفاصيل.
+      // تبويبة التفاصيل تفتح فقط عند الضغط على اسم نتيجة البحث أو الضغط على الشخص داخل الشجرة.
+      if (targetNode && String(targetNode.data.id) !== String(lastMatchedId)) {
+        lastMatchedId = targetNode.data.id;
+        searchTimer = setTimeout(() => {
+          applySearchHighlight(matchedNodes, targetNode);
+          centerNodeInView(targetNode, container, 1.42, 520);
+          flashTreeNode(targetNode);
+        }, 180);
+      }
     };
+
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") clearSearch();
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const firstResult = suggestionsBox?.querySelector(".search-suggestion-item");
+        firstResult?.click();
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest?.("#search") && !event.target.closest?.("#searchSuggestions") && !event.target.closest?.("#clearSearch")) {
+        suggestionsBox?.classList.add("hidden");
+      }
+    });
   }
 
   if (!__treeState.didInitialView) {

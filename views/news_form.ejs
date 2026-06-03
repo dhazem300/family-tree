@@ -165,6 +165,12 @@
       <div class="space-y-2">
         <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والموقع</p>
 
+        <% if (typeof userCan === "function" && userCan("roles")) { %>
+        <a href="/admin/roles" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">manage_accounts</span> وظائف الأفراد
+        </a>
+        <% } %>
+        
         <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
           <span class="material-symbols-outlined text-[22px]">mail</span> رسائل الدعم
         </a>
@@ -386,6 +392,32 @@
               <p class="text-xs text-gray-500 dark:text-gray-400 leading-relaxed font-bold bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark rounded-2xl px-4 py-3">
                 ملاحظة: عند تفعيل "إرسال إشعار" سيتم إنشاء إشعار جديد للخبر عند الحفظ. أما "تثبيت كخبر مهم" فيجعل الخبر يظهر أولًا في صفحة الأخبار.
               </p>
+
+              <div class="rounded-3xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark p-5 space-y-4">
+                <div>
+                  <h3 class="font-display text-2xl font-bold text-primary dark:text-accent mb-1">بيانات الناشر</h3>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 font-bold leading-relaxed">هذه البيانات اختيارية، وتظهر أسفل الخبر المنشور عند إدخالها.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-black mb-2 text-gray-700 dark:text-gray-300">اسم الناشر</label>
+                    <input name="publisher_name"
+                           value="<%= post?.publisher_name || '' %>"
+                           placeholder="مثال: إدارة الموقع"
+                           class="admin-input w-full rounded-2xl bg-white/70 dark:bg-black/20 border border-border-light dark:border-border-dark px-4 py-3.5 font-bold text-gray-900 dark:text-white placeholder-gray-400 focus:ring-0">
+                  </div>
+
+                  <div>
+                    <label class="block text-sm font-black mb-2 text-gray-700 dark:text-gray-300">رقم جوال الناشر</label>
+                    <input name="publisher_phone"
+                           value="<%= post?.publisher_phone || '' %>"
+                           placeholder="مثال: 05xxxxxxxx"
+                           dir="ltr"
+                           class="admin-input w-full rounded-2xl bg-white/70 dark:bg-black/20 border border-border-light dark:border-border-dark px-4 py-3.5 font-bold text-gray-900 dark:text-white placeholder-gray-400 focus:ring-0">
+                  </div>
+                </div>
+              </div>
 
             </section>
 

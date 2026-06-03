@@ -186,6 +186,24 @@
       <div class="space-y-2">
         <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والموقع</p>
         
+        <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">dashboard</span> لوحة الإحصائيات
+        </a>
+        <% if (Number(admin?.is_super_admin || 0) === 1) { %>
+        <a href="/admin/activity" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">manage_history</span> سجل النشاطات
+        </a>
+        <a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">construction</span> وضع الصيانة
+        </a>
+        <% } %>
+        
+        <% if (typeof userCan === "function" && userCan("roles")) { %>
+        <a href="/admin/roles" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">manage_accounts</span> وظائف الأفراد
+        </a>
+        <% } %>
+        
         <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
           <span class="material-symbols-outlined text-[22px]">mail</span> رسائل الدعم
         </a>
@@ -270,38 +288,7 @@
             </div>
           </div>
 
-          <a href="/admin/person-stats" class="bg-card-light dark:bg-card-dark glass-panel rounded-[2rem] border border-border-light dark:border-border-dark p-5 flex items-center gap-4 shadow-sm group hover:border-primary dark:hover:border-accent transition-colors">
-            <div class="w-14 h-14 rounded-2xl bg-red-50 dark:bg-red-500/10 flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform">
-              <span class="material-symbols-outlined text-[28px]">content_copy</span>
-            </div>
-            <div>
-              <p class="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-0.5">أسماء متكررة</p>
-              <p class="text-3xl font-black text-red-600 dark:text-red-400 leading-none"><%= stats?.repeatedNames?.length || 0 %></p>
-            </div>
-            <span class="material-symbols-outlined mr-auto text-gray-300 dark:text-gray-600 rtl:rotate-180">arrow_forward_ios</span>
-          </a>
-
         </div>
-
-        <% if (stats?.repeatedNames && stats.repeatedNames.length) { %>
-          <section class="bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark rounded-3xl p-6 shadow-sm">
-            <div class="flex items-center gap-2 mb-4">
-              <span class="material-symbols-outlined text-red-500 text-[22px]">warning</span>
-              <h3 class="font-bold text-gray-900 dark:text-white text-base">قائمة الأسماء المكررة للتحقق</h3>
-            </div>
-            
-            <div class="flex flex-wrap gap-3">
-              <% stats.repeatedNames.forEach(function(item) { %>
-                <div class="inline-flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white dark:bg-[#111] border border-gray-200 dark:border-white/10 shadow-sm cursor-default hover:-translate-y-1 transition-transform">
-                  <span class="font-bold text-sm text-gray-800 dark:text-gray-200"><%= item.name %></span>
-                  <span class="flex items-center justify-center min-w-[24px] h-6 rounded-lg bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400 text-xs font-black">
-                    <%= item.count %>
-                  </span>
-                </div>
-              <% }) %>
-            </div>
-          </section>
-        <% } %>
 
         <section class="bg-card-light dark:bg-card-dark glass-panel rounded-3xl shadow-sm border border-border-light dark:border-border-dark overflow-hidden">
           <div class="overflow-x-auto custom-scrollbar p-2">
@@ -439,6 +426,11 @@
     <a href="/admin/pages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">history_edu</span> إدارة الصفحات</a>
     <a href="/admin/honor" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">workspace_premium</span> السير الذاتية</a>
     <a href="/admin/news" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">newspaper</span> الأخبار</a>
+    <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">dashboard</span> لوحة الإحصائيات</a>
+    <% if (Number(admin?.is_super_admin || 0) === 1) { %>
+    <a href="/admin/activity" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_history</span> سجل النشاطات</a>
+    <a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">construction</span> وضع الصيانة</a>
+    <% } %>
     <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">mail</span> رسائل الدعم</a>
     <div class="my-4 border-t border-border-light dark:border-border-dark"></div>
     <a href="/" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">account_tree</span> العودة للموقع</a>
@@ -623,6 +615,19 @@
     initParticles();
     draw();
   })();
+</script>
+
+<script id="global-delete-confirmation">
+  document.addEventListener("submit", function (e) {
+    const form = e.target;
+    if (!form || !form.matches || !form.matches("form")) return;
+    const action = form.getAttribute("action") || "";
+    const isDelete = action.includes("/delete") || form.dataset.deleteConfirm === "true";
+    if (!isDelete || form.dataset.confirmed === "true") return;
+    if (!confirm("هل أنت متأكد من الحذف؟ لا يمكن التراجع عن هذه العملية.")) {
+      e.preventDefault();
+    }
+  }, true);
 </script>
 </body>
 </html>

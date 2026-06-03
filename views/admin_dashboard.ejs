@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>لوحة الإدارة - لوحة الإحصائيات</title>
+
+  <script src="/theme.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#005A2B",
+            primaryDark: "#00361A",
+            accent: "#E5B869",
+            "bg-light": "#F5F3F7",
+            "bg-dark": "#050505",
+            "card-light": "rgba(255, 255, 255, 0.8)",
+            "card-dark": "rgba(15, 12, 25, 0.8)",
+            "border-light": "rgba(0, 90, 43, 0.1)",
+            "border-dark": "rgba(229, 184, 105, 0.1)",
+          },
+          fontFamily: {
+            display: ["'Aref Ruqaa'", "serif"],
+            sans: ["Tajawal", "sans-serif"],
+          },
+        }
+      }
+    };
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .glass-panel { @apply backdrop-blur-2xl shadow-xl; }
+    }
+  </style>
+
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #005A2B; border-radius: 10px; }
+    html.dark ::-webkit-scrollbar-thumb { background: #E5B869; }
+
+    #nexusCanvas {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 0; pointer-events: auto;
+    }
+
+    html.dark .dark-toggle-icon-moon { display: none; }
+    html:not(.dark) .dark-toggle-icon-sun { display: none; }
+
+    #mobileNavOverlay.hidden { display: none; }
+    #mobileNavOverlay { display: block; }
+    #mobileNavDrawer { transform: translateX(110%); transition: transform .4s cubic-bezier(0.16, 1, 0.3, 1); }
+    #mobileNavDrawer.isOpen { transform: translateX(0); }
+
+    .metric-card,
+    .list-card,
+    .highlight-card { transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+    .metric-card:hover,
+    .list-card:hover,
+    .highlight-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 18px 40px rgba(0, 90, 43, 0.10);
+    }
+    html.dark .metric-card:hover,
+    html.dark .list-card:hover,
+    html.dark .highlight-card:hover {
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+    }
+  </style>
+
+  <script>
+    (function () {
+      const saved = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", saved);
+      document.documentElement.classList.toggle("dark", saved === "dark");
+    })();
+  </script>
+</head>
+
+<body class="bg-bg-light dark:bg-bg-dark text-gray-800 dark:text-gray-200 font-sans h-screen flex overflow-hidden selection:bg-accent selection:text-primaryDark">
+  <canvas id="nexusCanvas"></canvas>
+  <div class="fixed inset-0 bg-gradient-to-b from-white/40 to-white/80 dark:from-black/40 dark:to-[#050505]/90 pointer-events-none z-[1]"></div>
+
+  <aside class="relative z-20 hidden lg:flex flex-col w-[280px] h-[calc(100vh-2rem)] my-4 mx-4 bg-card-light dark:bg-card-dark glass-panel rounded-3xl border border-border-light dark:border-border-dark overflow-hidden shrink-0">
+    <div class="flex items-center gap-3 p-6 border-b border-border-light dark:border-border-dark shrink-0">
+      <div class="w-12 h-12 flex items-center justify-center rounded-2xl bg-primary dark:bg-accent text-white dark:text-black shadow-lg">
+        <span class="material-symbols-outlined text-[28px]">shield_person</span>
+      </div>
+      <div>
+        <h1 class="font-display font-bold text-xl leading-none text-primary dark:text-white">عائلة خاشقجي</h1>
+        <p class="text-[10px] font-bold text-gray-500 dark:text-accent uppercase tracking-widest mt-1.5">نظام الإدارة المركزية</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto p-4 space-y-6">
+      <div class="space-y-2">
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">البيانات الرئيسية</p>
+        <a href="/admin" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">group</span> إدارة الأفراد
+        </a>
+        <a href="/admin/pages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">history_edu</span> إدارة الصفحات
+        </a>
+        <a href="/admin/honor" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">workspace_premium</span> السير الذاتية
+        </a>
+        <a href="/admin/news" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">newspaper</span> الأخبار والمناسبات
+        </a>
+      </div>
+
+      <div class="space-y-2">
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والموقع</p>
+        <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent font-bold text-sm border border-primary/20 dark:border-accent/20 transition-all relative overflow-hidden shadow-sm">
+          <div class="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-6 rounded-l-full bg-primary dark:bg-accent"></div>
+          <span class="material-symbols-outlined text-[22px]">dashboard</span> لوحة الإحصائيات
+        </a>
+        <% if (Number(admin?.is_super_admin || 0) === 1) { %>
+        <a href="/admin/activity" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">manage_history</span> سجل النشاطات
+        </a>
+        <a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">construction</span> وضع الصيانة
+        </a>
+        <% } %>
+        <% if (typeof userCan === "function" && userCan("roles")) { %>
+        <a href="/admin/roles" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">manage_accounts</span> وظائف الأفراد
+        </a>
+        <% } %>
+        <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">mail</span> رسائل الدعم
+        </a>
+        <a href="/" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">account_tree</span> عرض الشجرة
+        </a>
+      </div>
+    </nav>
+
+    <div class="p-4 border-t border-border-light dark:border-border-dark shrink-0 m-2 rounded-2xl bg-white/50 dark:bg-black/30">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-primary/10 dark:bg-accent/10 flex items-center justify-center text-primary dark:text-accent border border-gray-200 dark:border-white/10 shadow-sm">
+          <span class="material-symbols-outlined text-[20px]">person</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-bold text-gray-900 dark:text-white truncate"><%= admin?.username || "مدير النظام" %></p>
+          <p class="text-[10px] text-primary dark:text-accent uppercase tracking-widest mt-0.5 font-bold">Admin</p>
+        </div>
+        <form method="post" action="/admin/logout" class="m-0">
+          <button type="submit" class="w-9 h-9 flex items-center justify-center rounded-xl bg-red-50 dark:bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm" title="تسجيل خروج">
+            <span class="material-symbols-outlined text-[18px]">logout</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </aside>
+
+  <main class="flex-1 flex flex-col min-w-0 h-full relative z-10">
+    <header class="flex items-center justify-between p-4 lg:p-8 shrink-0">
+      <div class="flex items-center gap-3">
+        <button id="mobileNavBtn" class="lg:hidden flex items-center justify-center w-12 h-12 rounded-2xl bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm" type="button">
+          <span class="material-symbols-outlined text-[24px]">menu</span>
+        </button>
+        <div>
+          <h2 class="text-2xl md:text-3xl font-display font-bold text-primary dark:text-white tracking-tight leading-none mb-1.5">لوحة الإحصائيات</h2>
+          <div class="flex items-center gap-1.5 text-gray-500 text-[11px] font-bold uppercase tracking-widest">
+            <span>لوحة الإدارة</span>
+            <span class="material-symbols-outlined text-[14px]">chevron_left</span>
+            <span>النظام والموقع</span>
+            <span class="material-symbols-outlined text-[14px]">chevron_left</span>
+            <span class="text-accent">الإحصائيات</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 shrink-0">
+        <button id="themeBtn" class="flex items-center justify-center w-12 h-12 rounded-2xl bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-gray-600 dark:text-accent shadow-sm hover:-translate-y-1 transition-transform" type="button" title="تبديل المظهر">
+          <span class="material-symbols-outlined text-[22px] dark-toggle-icon-moon">dark_mode</span>
+          <span class="material-symbols-outlined hidden dark:block text-[24px]">light_mode</span>
+        </button>
+        <a href="/admin/activity" class="flex items-center gap-2 px-6 h-12 rounded-2xl font-bold text-sm bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm hover:-translate-y-1 transition-transform">
+          <span class="material-symbols-outlined text-[22px]">manage_history</span>
+          <span class="hidden sm:inline">سجل النشاطات</span>
+        </a>
+        <% if (Number(admin?.is_super_admin || 0) === 1) { %>
+        <a href="/admin/maintenance" class="flex items-center gap-2 px-6 h-12 rounded-2xl font-bold text-sm bg-primary dark:bg-accent text-white dark:text-black shadow-sm hover:-translate-y-1 transition-transform">
+          <span class="material-symbols-outlined text-[22px]">construction</span>
+          <span class="hidden sm:inline">وضع الصيانة</span>
+        </a>
+        <% } %>
+      </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto px-4 lg:px-8 pb-12">
+      <div class="max-w-[100rem] mx-auto space-y-8">
+        <% const s = dashboard.stats || {}; %>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
+          <div class="highlight-card xl:col-span-2 bg-card-light dark:bg-card-dark glass-panel rounded-[2rem] border border-border-light dark:border-border-dark p-6 shadow-sm">
+            <div class="flex items-center gap-4">
+              <div class="w-16 h-16 rounded-2xl bg-primary/10 dark:bg-accent/10 flex items-center justify-center text-primary dark:text-accent">
+                <span class="material-symbols-outlined text-[30px]">monitoring</span>
+              </div>
+              <div>
+                <h3 class="text-xl font-black text-primary dark:text-white">ملخص سريع لحالة الموقع</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">إجمالي الأفراد والمحتوى والإدارة وحالة الصيانة في واجهة واحدة متناسقة مع تصميم لوحة التحكم.</p>
+              </div>
+            </div>
+          </div>
+          <div class="metric-card bg-card-light dark:bg-card-dark glass-panel rounded-[2rem] border border-border-light dark:border-border-dark p-5 flex items-center gap-4 shadow-sm">
+            <div class="w-14 h-14 rounded-2xl bg-primary/10 dark:bg-accent/10 flex items-center justify-center text-primary dark:text-accent"><span class="material-symbols-outlined text-[28px]">group</span></div>
+            <div>
+              <p class="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-0.5">إجمالي الأفراد</p>
+              <p class="text-3xl font-black text-primary dark:text-white leading-none"><%= s.total || 0 %></p>
+            </div>
+          </div>
+          <div class="metric-card bg-card-light dark:bg-card-dark glass-panel rounded-[2rem] border border-border-light dark:border-border-dark p-5 flex items-center gap-4 shadow-sm">
+            <div class="w-14 h-14 rounded-2xl <%= dashboard.maintenanceEnabled ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300' : 'bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300' %> flex items-center justify-center"><span class="material-symbols-outlined text-[28px]">construction</span></div>
+            <div>
+              <p class="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-0.5">وضع الصيانة</p>
+              <p class="text-2xl font-black text-primary dark:text-white leading-none"><%= dashboard.maintenanceEnabled ? 'مفعل' : 'متوقف' %></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
+          <% const metrics = [
+            { label: 'عدد الذكور', value: s.males || 0, icon: 'man', box: 'bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300' },
+            { label: 'عدد الإناث', value: s.females || 0, icon: 'woman', box: 'bg-pink-100 dark:bg-pink-500/15 text-pink-700 dark:text-pink-300' },
+            { label: 'المتوفون المسجلون', value: s.deceased || 0, icon: 'history_toggle_off', box: 'bg-slate-100 dark:bg-slate-500/15 text-slate-700 dark:text-slate-300' },
+            { label: 'الأخبار المنشورة', value: s.activeNews ?? s.newsTotal ?? 0, icon: 'newspaper', box: 'bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300' },
+            { label: 'إجمالي الأخبار', value: s.newsTotal || 0, icon: 'article', box: 'bg-purple-100 dark:bg-purple-500/15 text-purple-700 dark:text-purple-300' },
+            { label: 'السير الذاتية', value: s.honorTotal || 0, icon: 'workspace_premium', box: 'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300' },
+            { label: 'رسائل الدعم', value: s.supportTotal || 0, icon: 'mail', box: 'bg-cyan-100 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300' },
+            { label: 'مستخدمي الإدارة', value: s.activeAdmins || 0, icon: 'shield_person', box: 'bg-rose-100 dark:bg-rose-500/15 text-rose-700 dark:text-rose-300' },
+            { label: 'لديهم صورة', value: s.withPhoto || 0, icon: 'image', box: 'bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
+            { label: 'بدون صورة', value: s.noPhoto || 0, icon: 'imagesmode', box: 'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300' },
+            { label: 'لديهم نبذة', value: s.withBio || 0, icon: 'article_person', box: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300' },
+            { label: 'بدون نبذة', value: s.noBio || 0, icon: 'contract_edit', box: 'bg-gray-100 dark:bg-gray-500/15 text-gray-700 dark:text-gray-300' },
+            { label: 'تاريخ ميلاد مضاف', value: s.withBirth || 0, icon: 'event_available', box: 'bg-teal-100 dark:bg-teal-500/15 text-teal-700 dark:text-teal-300' },
+            { label: 'بدون تاريخ ميلاد', value: s.noBirth || 0, icon: 'event_busy', box: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300' }
+          ]; %>
+          <% metrics.forEach(function(m) { %>
+          <div class="metric-card bg-card-light dark:bg-card-dark glass-panel rounded-[2rem] border border-border-light dark:border-border-dark p-5 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-2"><%= m.label %></p>
+                <p class="text-3xl font-black text-primary dark:text-white leading-none"><%= m.value %></p>
+              </div>
+              <div class="w-14 h-14 rounded-2xl flex items-center justify-center <%= m.box %>">
+                <span class="material-symbols-outlined text-[28px]"><%= m.icon %></span>
+              </div>
+            </div>
+          </div>
+          <% }) %>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6">
+          <section class="list-card bg-card-light dark:bg-card-dark glass-panel rounded-3xl shadow-sm border border-border-light dark:border-border-dark overflow-hidden">
+            <div class="p-5 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-3">
+              <div>
+                <h3 class="font-black text-lg text-primary dark:text-white">آخر الأفراد المضافين</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">روابط سريعة لتعديل آخر السجلات.</p>
+              </div>
+              <span class="w-10 h-10 rounded-2xl bg-primary/10 dark:bg-accent/10 flex items-center justify-center text-primary dark:text-accent"><span class="material-symbols-outlined">person_add</span></span>
+            </div>
+            <div class="p-4 space-y-3">
+              <% if ((dashboard.latestPersons || []).length) { %>
+                <% (dashboard.latestPersons || []).forEach(function(p) { %>
+                <a href="/admin/person/<%= p.id %>/edit" class="block p-4 rounded-2xl bg-white/50 dark:bg-white/5 border border-black/5 dark:border-white/10 hover:border-primary/20 dark:hover:border-accent/20 transition-all">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <p class="font-black text-gray-900 dark:text-white"><%= p.name %></p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">ID: <%= p.id %></p>
+                    </div>
+                    <span class="material-symbols-outlined text-gray-400">arrow_back</span>
+                  </div>
+                </a>
+                <% }) %>
+              <% } else { %>
+                <div class="p-6 rounded-2xl bg-white/50 dark:bg-white/5 text-center text-gray-500 font-bold">لا توجد بيانات حالياً.</div>
+              <% } %>
+            </div>
+          </section>
+
+          <section class="list-card bg-card-light dark:bg-card-dark glass-panel rounded-3xl shadow-sm border border-border-light dark:border-border-dark overflow-hidden">
+            <div class="p-5 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-3">
+              <div>
+                <h3 class="font-black text-lg text-primary dark:text-white">آخر الأخبار</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">الوصول السريع إلى تعديل الأخبار المنشورة.</p>
+              </div>
+              <span class="w-10 h-10 rounded-2xl bg-primary/10 dark:bg-accent/10 flex items-center justify-center text-primary dark:text-accent"><span class="material-symbols-outlined">newspaper</span></span>
+            </div>
+            <div class="p-4 space-y-3">
+              <% if ((dashboard.latestNews || []).length) { %>
+                <% (dashboard.latestNews || []).forEach(function(n) { %>
+                <a href="/admin/news/<%= n.id %>/edit" class="block p-4 rounded-2xl bg-white/50 dark:bg-white/5 border border-black/5 dark:border-white/10 hover:border-primary/20 dark:hover:border-accent/20 transition-all">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <p class="font-black text-gray-900 dark:text-white"><%= n.title %></p>
+                      <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">مشاهدات: <%= n.views_count || 0 %></p>
+                    </div>
+                    <span class="material-symbols-outlined text-gray-400">arrow_back</span>
+                  </div>
+                </a>
+                <% }) %>
+              <% } else { %>
+                <div class="p-6 rounded-2xl bg-white/50 dark:bg-white/5 text-center text-gray-500 font-bold">لا توجد أخبار حالياً.</div>
+              <% } %>
+            </div>
+          </section>
+
+          <section class="list-card bg-card-light dark:bg-card-dark glass-panel rounded-3xl shadow-sm border border-border-light dark:border-border-dark overflow-hidden">
+            <div class="p-5 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-3">
+              <div>
+                <h3 class="font-black text-lg text-primary dark:text-white">آخر نشاطات الإدارة</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">ملخص سريع لآخر العمليات التي تمت.</p>
+              </div>
+              <span class="w-10 h-10 rounded-2xl bg-primary/10 dark:bg-accent/10 flex items-center justify-center text-primary dark:text-accent"><span class="material-symbols-outlined">history</span></span>
+            </div>
+            <div class="p-4 space-y-3">
+              <% if ((dashboard.latestActivity || []).length) { %>
+                <% (dashboard.latestActivity || []).forEach(function(l) { %>
+                <div class="p-4 rounded-2xl bg-white/50 dark:bg-white/5 border border-black/5 dark:border-white/10">
+                  <p class="font-black text-gray-900 dark:text-white"><%= l.action %></p>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 mt-1"><%= l.admin_username || 'غير معروف' %> — <%= l.created_at %></p>
+                </div>
+                <% }) %>
+              <% } else { %>
+                <div class="p-6 rounded-2xl bg-white/50 dark:bg-white/5 text-center text-gray-500 font-bold">لا توجد نشاطات مسجلة بعد.</div>
+              <% } %>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside id="mobileNavDrawer" class="fixed top-0 right-0 h-full w-[320px] max-w-[85vw] bg-card-light dark:bg-card-dark glass-panel border-l border-border-light dark:border-border-dark z-[90] flex flex-col">
+    <div class="h-1.5 w-full bg-primary"></div>
+    <div class="flex items-center justify-between p-6 border-b border-border-light dark:border-border-dark shrink-0">
+      <div>
+        <h1 class="font-display font-bold text-xl leading-none text-primary dark:text-white">عائلة خاشقجي</h1>
+        <p class="text-[10px] font-bold text-gray-500 dark:text-accent uppercase tracking-widest mt-1.5">نظام الإدارة</p>
+      </div>
+      <button id="mobileNavClose" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-500 hover:text-primary dark:hover:text-accent transition-colors" type="button">
+        <span class="material-symbols-outlined text-[24px]">close</span>
+      </button>
+    </div>
+    <nav class="flex-1 overflow-y-auto p-6 space-y-3 text-sm font-bold text-gray-700 dark:text-gray-300">
+      <a href="/admin" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">group</span> إدارة الأفراد</a>
+      <a href="/admin/pages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">history_edu</span> إدارة الصفحات</a>
+      <a href="/admin/honor" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">workspace_premium</span> السير الذاتية</a>
+      <a href="/admin/news" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">newspaper</span> الأخبار</a>
+      <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-4 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent border border-primary/20 dark:border-accent/20"><span class="material-symbols-outlined">dashboard</span> لوحة الإحصائيات</a>
+      <% if (Number(admin?.is_super_admin || 0) === 1) { %>
+      <a href="/admin/activity" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_history</span> سجل النشاطات</a>
+      <a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">construction</span> وضع الصيانة</a>
+      <% } %>
+      <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">mail</span> رسائل الدعم</a>
+      <div class="my-4 border-t border-border-light dark:border-border-dark"></div>
+      <a href="/" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">account_tree</span> العودة للموقع</a>
+      <form method="post" action="/admin/logout" class="m-0 mt-4">
+        <button type="submit" class="w-full flex items-center justify-center gap-2 px-4 py-4 rounded-2xl border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-500/10 hover:bg-red-50 transition-colors">
+          <span class="material-symbols-outlined">logout</span> تسجيل خروج
+        </button>
+      </form>
+    </nav>
+  </aside>
+  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></div>
+
+  <script>
+    (function () {
+      const btn = document.getElementById("themeBtn");
+      function setTheme(next) {
+        document.documentElement.setAttribute("data-theme", next);
+        document.documentElement.classList.toggle("dark", next === "dark");
+        localStorage.setItem("theme", next);
+        if (window.initNexus) window.initNexus();
+      }
+      btn?.addEventListener("click", () => {
+        const cur = document.documentElement.getAttribute("data-theme") || "dark";
+        setTheme(cur === "dark" ? "light" : "dark");
+      });
+    })();
+
+    (function mobileNavInit(){
+      const btn = document.getElementById("mobileNavBtn");
+      const navDrawer = document.getElementById("mobileNavDrawer");
+      const overlay = document.getElementById("mobileNavOverlay");
+      const closeBtn = document.getElementById("mobileNavClose");
+      function toggleNav() {
+        navDrawer?.classList.toggle("isOpen");
+        overlay?.classList.toggle("hidden");
+      }
+      btn?.addEventListener("click", toggleNav);
+      closeBtn?.addEventListener("click", toggleNav);
+      overlay?.addEventListener("click", toggleNav);
+    })();
+
+    (function() {
+      const canvas = document.getElementById('nexusCanvas');
+      if(!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let width, height, particles = [];
+      const numParticles = window.innerWidth > 1024 ? 110 : 60;
+      let mouseX = -1000, mouseY = -1000;
+      let dotColor, lineColor, connectionColor;
+
+      function setColors() {
+        const isDark = document.documentElement.classList.contains('dark');
+        dotColor = isDark ? 'rgba(229, 184, 105, 0.35)' : 'rgba(0, 90, 43, 0.28)';
+        lineColor = isDark ? 'rgba(229, 184, 105, 0.08)' : 'rgba(0, 90, 43, 0.08)';
+        connectionColor = isDark ? 'rgba(229, 184, 105, 0.18)' : 'rgba(0, 90, 43, 0.16)';
+      }
+      function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+      }
+      function initParticles() {
+        particles = [];
+        for (let i = 0; i < numParticles; i++) {
+          particles.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            vx: (Math.random() - 0.5) * 0.45,
+            vy: (Math.random() - 0.5) * 0.45,
+            radius: Math.random() * 1.8 + 1.2
+          });
+        }
+      }
+      function animate() {
+        ctx.clearRect(0, 0, width, height);
+        particles.forEach((p, i) => {
+          p.x += p.vx; p.y += p.vy;
+          if (p.x < 0 || p.x > width) p.vx *= -1;
+          if (p.y < 0 || p.y > height) p.vy *= -1;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fillStyle = dotColor; ctx.fill();
+          for (let j = i + 1; j < particles.length; j++) {
+            const p2 = particles[j];
+            const dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+            if (dist < 110) {
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y); ctx.lineTo(p2.x, p2.y);
+              ctx.strokeStyle = lineColor; ctx.lineWidth = 1; ctx.stroke();
+            }
+          }
+          const mouseDist = Math.hypot(p.x - mouseX, p.y - mouseY);
+          if (mouseDist < 140) {
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y); ctx.lineTo(mouseX, mouseY);
+            ctx.strokeStyle = connectionColor; ctx.lineWidth = 1.2; ctx.stroke();
+          }
+        });
+        requestAnimationFrame(animate);
+      }
+      window.initNexus = function() { setColors(); };
+      resize(); setColors(); initParticles(); animate();
+      window.addEventListener('resize', () => { resize(); initParticles(); });
+      window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
+      window.addEventListener('mouseleave', () => { mouseX = -1000; mouseY = -1000; });
+    })();
+  </script>
+</body>
+</html>
