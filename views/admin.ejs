@@ -170,9 +170,69 @@
     }
   </style>
 
+
+  <style id="admin-css-only-menu-fix">
+    .admin-menu-toggle {
+      position: fixed !important;
+      width: 1px !important;
+      height: 1px !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      clip: rect(0 0 0 0) !important;
+    }
+
+    #mobileNavBtn {
+      cursor: pointer !important;
+      -webkit-tap-highlight-color: transparent !important;
+      touch-action: manipulation !important;
+    }
+
+    #mobileNavOverlay {
+      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      z-index: 10000 !important;
+    }
+
+    #mobileNavDrawer {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: auto !important;
+      transform: translateX(-115%) !important;
+      pointer-events: none !important;
+      z-index: 10001 !important;
+      transition: transform .32s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+
+    #adminMenuToggle:checked ~ #mobileNavDrawer {
+      transform: translateX(0) !important;
+      pointer-events: auto !important;
+    }
+
+    #adminMenuToggle:checked ~ #mobileNavOverlay {
+      display: block !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+
+    @media (min-width: 1024px) {
+      #adminMenuToggle,
+      #mobileNavDrawer,
+      #mobileNavOverlay {
+        display: none !important;
+      }
+    }
+  </style>
+
 </head>
 
 <body class="bg-bg-light dark:bg-bg-dark text-gray-800 dark:text-gray-200 font-sans h-screen flex overflow-hidden selection:bg-accent selection:text-primaryDark">
+
+  <input id="adminMenuToggle" type="checkbox" class="admin-menu-toggle" aria-hidden="true" />
 
   <canvas id="nexusCanvas"></canvas>
   <div class="fixed inset-0 bg-gradient-to-b from-white/40 to-white/80 dark:from-black/40 dark:to-[#050505]/90 pointer-events-none z-[1]"></div>
@@ -265,9 +325,9 @@
     <header class="flex items-center justify-between p-4 lg:p-8 shrink-0">
       
       <div class="flex items-center gap-3">
-        <button id="mobileNavBtn" onclick="window.openAdminMobileMenu && window.openAdminMobileMenu(event)" class="lg:hidden flex items-center justify-center w-12 h-12 rounded-2xl bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm" type="button" aria-controls="mobileNavDrawer" aria-expanded="false">
+        <label id="mobileNavBtn" for="adminMenuToggle" class="lg:hidden flex items-center justify-center w-12 h-12 rounded-2xl bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm cursor-pointer" aria-controls="mobileNavDrawer" aria-label="فتح القائمة">
           <span class="material-symbols-outlined text-[24px]">menu</span>
-        </button>
+        </label>
 
         <div>
           <h2 class="text-2xl md:text-3xl font-display font-bold text-primary dark:text-white tracking-tight leading-none mb-1.5">إدارة الأفراد</h2>
@@ -446,9 +506,9 @@
       <h1 class="font-display font-bold text-xl leading-none text-primary dark:text-white">عائلة خاشقجي</h1>
       <p class="text-[10px] font-bold text-gray-500 dark:text-accent uppercase tracking-widest mt-1.5">نظام الإدارة</p>
     </div>
-    <button id="mobileNavClose" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-500 hover:text-primary dark:hover:text-accent transition-colors" type="button">
+    <label id="mobileNavClose" for="adminMenuToggle" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-500 hover:text-primary dark:hover:text-accent transition-colors cursor-pointer" aria-label="إغلاق القائمة">
       <span class="material-symbols-outlined text-[24px]">close</span>
-    </button>
+    </label>
   </div>
 
   <nav class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-3 text-sm font-bold text-gray-700 dark:text-gray-300">
@@ -473,7 +533,7 @@
   </nav>
 </aside>
 
-<div id="mobileNavOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></div>
+<label id="mobileNavOverlay" for="adminMenuToggle" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></label>
 
 <script>
   // Theme Toggle (Instant & High Performance)
@@ -513,58 +573,7 @@
     });
   })();
 
-  // Mobile Drawer - hard fixed for إدارة الأفراد
-  (function mobileNavInit(){
-    const btn = document.getElementById("mobileNavBtn");
-    const navDrawer = document.getElementById("mobileNavDrawer");
-    const overlay = document.getElementById("mobileNavOverlay");
-    const closeBtn = document.getElementById("mobileNavClose");
-
-    function setOpenState(isOpen) {
-      if (!navDrawer || !overlay) return;
-
-      navDrawer.classList.toggle("isOpen", isOpen);
-      navDrawer.classList.toggle("mobile-menu-open", isOpen);
-      navDrawer.style.setProperty("transform", isOpen ? "translateX(0)" : "translateX(-115%)", "important");
-      navDrawer.style.setProperty("pointer-events", isOpen ? "auto" : "none", "important");
-      navDrawer.style.setProperty("display", "flex", "important");
-      navDrawer.style.setProperty("visibility", "visible", "important");
-      navDrawer.style.setProperty("opacity", "1", "important");
-
-      overlay.classList.toggle("hidden", !isOpen);
-      overlay.style.setProperty("display", isOpen ? "block" : "none", "important");
-      document.body.style.overflow = isOpen ? "hidden" : "";
-      btn?.setAttribute("aria-expanded", isOpen ? "true" : "false");
-    }
-
-    window.openAdminMobileMenu = function(event) {
-      event?.preventDefault?.();
-      event?.stopPropagation?.();
-      setOpenState(true);
-    };
-
-    window.closeAdminMobileMenu = function(event) {
-      event?.preventDefault?.();
-      event?.stopPropagation?.();
-      setOpenState(false);
-    };
-
-    btn?.addEventListener("click", window.openAdminMobileMenu, true);
-    closeBtn?.addEventListener("click", window.closeAdminMobileMenu, true);
-    overlay?.addEventListener("click", window.closeAdminMobileMenu, true);
-
-    navDrawer?.querySelectorAll("a").forEach(function(link) {
-      link.addEventListener("click", function() {
-        setOpenState(false);
-      }, false);
-    });
-
-    document.addEventListener("keydown", function(event) {
-      if (event.key === "Escape") setOpenState(false);
-    });
-
-    setOpenState(false);
-  })();
+  // Mobile drawer is handled by CSS checkbox toggle.
 
   // ==========================================
   // سكريبت "الشبكة التفاعلية الممتعة" في الخلفية (The Family Nexus)
