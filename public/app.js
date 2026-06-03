@@ -474,18 +474,21 @@ function flashTreeNode(targetNode) {
   const domNode = __treeState.nodesSel.filter(n => n === targetNode).node();
   if (!domNode) return;
 
-  const foreignObjDiv = d3.select(domNode).select(".person-node").node();
-  if (!foreignObjDiv) return;
+  const card = d3.select(domNode).select(".svg-node-card");
+  if (card.empty()) return;
 
-  foreignObjDiv.style.transition = "background-color 0.5s ease-in-out, box-shadow 0.5s ease-in-out";
-  foreignObjDiv.style.backgroundColor = "rgba(227, 197, 111, 0.4)";
-  foreignObjDiv.style.boxShadow = "0 0 30px rgba(227, 197, 111, 0.8)";
-  foreignObjDiv.style.borderRadius = "12px";
+  card.select(".node-svg-namebox")
+    .transition().duration(180)
+    .attr("fill", "#FFF5D6")
+    .attr("stroke", "#E5B869")
+    .attr("stroke-width", 3);
 
-  setTimeout(() => {
-    foreignObjDiv.style.backgroundColor = "";
-    foreignObjDiv.style.boxShadow = "";
-  }, 3000);
+  card.select(".node-svg-portrait-bg")
+    .transition().duration(180)
+    .attr("stroke", "#E5B869")
+    .attr("stroke-width", 4);
+
+  setTimeout(() => updateNodesTheme(), 1400);
 }
 
 function normalizeSearchText(value) {
@@ -550,13 +553,7 @@ function initialRootAndChildrenView(containerEl, rootHierarchy, padding = 120) {
   const fullW = bw + padding * 2;
   const fullH = bh + padding * 2;
 
-  const isSmallScreen = window.matchMedia ? window.matchMedia("(max-width: 700px)").matches : window.innerWidth <= 700;
-
-  // على الهاتف نمنع الزووم الابتدائي العالي، لأن بعض المتصفحات كانت تعرض الصور والبراويز مقصوصة.
-  // نعرض جذر الشجرة وأول مستوى بشكل أهدأ ومنظم، ثم يستطيع المستخدم التكبير بيده.
-  const rawScale = Math.min(w / fullW, h / fullH) * (isSmallScreen ? 0.92 : 1.06);
-  const maxInitialScale = isSmallScreen ? 0.82 : ZOOM_MAX;
-  const scale = clamp(rawScale, ZOOM_MIN, maxInitialScale);
+  const scale = clamp(Math.min(w / fullW, h / fullH) * 1.06, ZOOM_MIN, ZOOM_MAX);
   const tx = (w - bw * scale) / 2 - minX * scale;
   const ty = (h - bh * scale) / 2 - minY * scale;
 
@@ -623,33 +620,154 @@ function buildNodeHtml({ id, photo, name, sub, isDeceased }, theme, nodeW, nodeH
   `;
 }
 
+function truncateNodeText(value, max = 16) {
+  const txt = String(value || "").trim();
+  if (txt.length <= max) return txt;
+  return txt.slice(0, max - 1) + "…";
+}
+
+function nodeVisualStyle(data, theme) {
+  const gender = String(data.gender || "").trim();
+  const isMale = gender === "male" || gender === "ذكر" || gender === "M";
+  const isFemale = gender === "female" || gender === "أنثى" || gender === "انثى" || gender === "F";
+
+  if (theme === "dark") {
+    return {
+      portraitFill: "#050505",
+      portraitStroke: isMale ? "#005A2B" : isFemale ? "#E5B869" : "#E5B869",
+      nameFill: "rgba(5,5,5,0.96)",
+      nameStroke: "rgba(229,184,105,0.85)",
+      textFill: "#FAFAFA",
+      subFill: "#E5B869",
+      shadowFill: "rgba(0,0,0,0.22)",
+    };
+  }
+
+  return {
+    portraitFill: "#FFFFFF",
+    portraitStroke: isMale ? "#005A2B" : isFemale ? "#E5B869" : "#005A2B",
+    nameFill: "#FFFFFF",
+    nameStroke: isMale ? "#005A2B" : "#E5B869",
+    textFill: "#005A2B",
+    subFill: "#8B5E3C",
+    shadowFill: "rgba(0,0,0,0.12)",
+  };
+}
+
+function renderNodeSvg(g, d, theme) {
+  const id = d.data.id;
+  const photo = (d.data.photo_url && String(d.data.photo_url).trim())
+    ? String(d.data.photo_url).trim()
+    : "/images/default.png";
+  const name = (d.data.name || "").toString();
+  const sub = d.data.birth_date ? String(d.data.birth_date) : "";
+  const isDeceased = Number(d.data.is_deceased || 0) === 1;
+  const st = nodeVisualStyle(d.data, theme);
+
+  const clipSafe = String(id || "x").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const clipId = `nodeClip_${clipSafe}`;
+  let defs = svg.select("defs");
+  if (defs.empty()) defs = svg.append("defs");
+  defs.select(`#${clipId}`).remove();
+  defs.append("clipPath")
+    .attr("id", clipId)
+    .append("rect")
+    .attr("x", -66)
+    .attr("y", -68)
+    .attr("width", 132)
+    .attr("height", 116)
+    .attr("rx", 18)
+    .attr("ry", 18);
+
+  g.selectAll("*").remove();
+  const card = g.append("g")
+    .attr("class", "svg-node-card")
+    .attr("data-id", id)
+    .style("cursor", "pointer");
+
+  card.append("rect")
+    .attr("class", "node-svg-shadow")
+    .attr("x", -73)
+    .attr("y", -62)
+    .attr("width", 146)
+    .attr("height", 168)
+    .attr("rx", 24)
+    .attr("fill", st.shadowFill);
+
+  card.append("rect")
+    .attr("class", "node-svg-portrait-bg")
+    .attr("x", -72)
+    .attr("y", -74)
+    .attr("width", 144)
+    .attr("height", 132)
+    .attr("rx", 22)
+    .attr("fill", st.portraitFill)
+    .attr("stroke", st.portraitStroke)
+    .attr("stroke-width", 3);
+
+  card.append("image")
+    .attr("class", "node-svg-photo")
+    .attr("href", photo)
+    .attr("xlink:href", photo)
+    .attr("x", -66)
+    .attr("y", -68)
+    .attr("width", 132)
+    .attr("height", 116)
+    .attr("preserveAspectRatio", "xMidYMid slice")
+    .attr("clip-path", `url(#${clipId})`);
+
+  if (isDeceased) {
+    card.append("line")
+      .attr("x1", -62).attr("y1", -62)
+      .attr("x2", 62).attr("y2", 42)
+      .attr("stroke", "rgba(0,0,0,0.82)")
+      .attr("stroke-width", 6)
+      .attr("stroke-linecap", "round");
+  }
+
+  card.append("rect")
+    .attr("class", "node-svg-namebox")
+    .attr("x", -76)
+    .attr("y", 54)
+    .attr("width", 152)
+    .attr("height", sub ? 48 : 42)
+    .attr("rx", 14)
+    .attr("fill", st.nameFill)
+    .attr("stroke", st.nameStroke)
+    .attr("stroke-width", 2.5);
+
+  card.append("text")
+    .attr("class", "node-svg-name")
+    .attr("x", 0)
+    .attr("y", sub ? 78 : 82)
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "middle")
+    .attr("fill", st.textFill)
+    .attr("font-family", "Tajawal, Arial, sans-serif")
+    .attr("font-weight", 900)
+    .attr("font-size", 18)
+    .text(truncateNodeText(name, 15));
+
+  if (sub) {
+    card.append("text")
+      .attr("class", "node-svg-sub")
+      .attr("x", 0)
+      .attr("y", 96)
+      .attr("text-anchor", "middle")
+      .attr("dominant-baseline", "middle")
+      .attr("fill", st.subFill)
+      .attr("font-family", "Tajawal, Arial, sans-serif")
+      .attr("font-weight", 800)
+      .attr("font-size", 10)
+      .text(truncateNodeText(sub, 18));
+  }
+}
+
 function updateNodesTheme() {
   if (!__treeState.nodesSel) return;
-
   const theme = getCurrentTheme();
-
   __treeState.nodesSel.each(function (d) {
-    const g = d3.select(this);
-    const fo = g.select("foreignObject");
-    if (fo.empty()) return;
-
-    const id = d.data.id;
-    const photo = (d.data.photo_url && String(d.data.photo_url).trim())
-      ? String(d.data.photo_url).trim()
-      : "/images/default.png";
-
-    const name = (d.data.name || "").toString();
-    const sub = d.data.birth_date ? String(d.data.birth_date) : "";
-    const isDeceased = Number(d.data.is_deceased || 0) === 1;
-
-    const div = fo.select("div");
-    const html = buildNodeHtml({ id, photo, name, sub, isDeceased }, theme, NODE_W, NODE_H);
-
-    if (!div.empty()) {
-      div.html(html);
-    } else {
-      fo.append("xhtml:div").html(html);
-    }
+    renderNodeSvg(d3.select(this), d, theme);
   });
 }
 
@@ -727,28 +845,7 @@ function renderTree(rootData) {
     .attr("transform", (d) => `translate(${d.x},${d.y})`);
 
   nodes.each(function (d) {
-    const g = d3.select(this);
-
-    const id = d.data.id;
-    const photo = (d.data.photo_url && String(d.data.photo_url).trim())
-      ? String(d.data.photo_url).trim()
-      : "/images/default.png";
-
-    const name = (d.data.name || "").toString();
-    const sub = d.data.birth_date ? String(d.data.birth_date) : "";
-    const isDeceased = Number(d.data.is_deceased || 0) === 1;
-
-    const fo = g.append("foreignObject")
-      .attr("x", -NODE_W / 2)
-      .attr("y", -70)
-      .attr("width", NODE_W)
-      .attr("height", NODE_H)
-      .style("overflow", "visible");
-
-    const theme = getCurrentTheme();
-    fo.append("xhtml:div").html(
-      buildNodeHtml({ id, photo, name, sub, isDeceased }, theme, NODE_W, NODE_H)
-    );
+    renderNodeSvg(d3.select(this), d, getCurrentTheme());
   });
 
   nodes.on("pointerdown", (event) => {

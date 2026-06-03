@@ -532,163 +532,51 @@
     #closeDrawer { border: 1px solid rgba(229,184,105,.25) !important; background: rgba(255,255,255,.65) !important; }
     html.dark #closeDrawer, html[data-theme="dark"] #closeDrawer { background: rgba(255,255,255,.055) !important; color: #E5B869 !important; border-color: rgba(255,255,255,.10) !important; }
     #uiThemeBtn { cursor: pointer !important; }
+  </style>
 
 
-    /* =================================================================================
-       HARD FIX: Mobile D3 foreignObject node sizing
-       السبب: كان فيه reset قديم foreignObject .node-portrait { all: revert; }
-       وده على الموبايل كان بيخلي صور وبراويز الشجرة تتمدد وتظهر مقصوصة.
-       ================================================================================= */
-    #tree svg,
-    #tree foreignObject {
-      overflow: visible !important;
+  <style id="mobile-svg-tree-and-menu-final-fix">
+    .nodeCard.nodeSelected .node-svg-namebox {
+      stroke: #E5B869 !important;
+      stroke-width: 4px !important;
     }
-
-    #tree foreignObject .person-node {
-      box-sizing: border-box !important;
-      width: 170px !important;
-      height: 190px !important;
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: center !important;
-      justify-content: flex-start !important;
-      overflow: visible !important;
-      pointer-events: auto !important;
+    .nodeCard.nodeSelected .node-svg-portrait-bg {
+      stroke: #E5B869 !important;
+      stroke-width: 4px !important;
     }
-
-    #tree foreignObject .node-portrait {
-      all: unset;
-      box-sizing: border-box !important;
-      display: block !important;
-      width: 100px !important;
-      height: 100px !important;
-      min-width: 100px !important;
-      min-height: 100px !important;
-      max-width: 100px !important;
-      max-height: 100px !important;
-      border-radius: 10px !important;
-      border: 2px solid #7A542F !important;
-      background: #ffffff !important;
-      overflow: hidden !important;
-      position: relative !important;
-      z-index: 10 !important;
-      box-shadow: 0 10px 24px rgba(0,0,0,.10) !important;
+    .node-svg-photo {
+      pointer-events: none;
     }
-
-    html.dark #tree foreignObject .node-portrait,
-    html[data-theme="dark"] #tree foreignObject .node-portrait {
-      background: #0F1115 !important;
-      border-color: #D4AF37 !important;
-      box-shadow: 0 12px 28px rgba(0,0,0,.45) !important;
-    }
-
-    #tree foreignObject .node-portrait img {
-      width: 100% !important;
-      height: 100% !important;
-      max-width: 100% !important;
-      max-height: 100% !important;
-      display: block !important;
-      object-fit: cover !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
-
-    html.dark #tree foreignObject .node-portrait img,
-    html[data-theme="dark"] #tree foreignObject .node-portrait img {
-      object-fit: contain !important;
-      padding: 6px !important;
-      background: #0F1115 !important;
-    }
-
-    #tree foreignObject .name-box {
-      all: unset;
-      box-sizing: border-box !important;
-      display: block !important;
-      width: auto !important;
-      min-width: 120px !important;
-      max-width: 160px !important;
-      margin-top: -12px !important;
-      padding: 5px 16px !important;
-      border-radius: 10px !important;
-      border: 1.5px solid rgba(229,184,105,.45) !important;
-      background: #ffffff !important;
-      color: #005A2B !important;
-      text-align: center !important;
-      position: relative !important;
-      z-index: 20 !important;
-      box-shadow: 0 8px 18px rgba(0,0,0,.08) !important;
-      overflow: hidden !important;
-      font-family: "Tajawal", sans-serif !important;
-    }
-
-    html.dark #tree foreignObject .name-box,
-    html[data-theme="dark"] #tree foreignObject .name-box {
-      background: #16191E !important;
-      border-color: rgba(212,175,55,.55) !important;
-      color: #FDFBF7 !important;
-    }
-
-    #tree foreignObject .node-label-text {
-      font-family: "Tajawal", sans-serif !important;
-      font-size: 16px !important;
-      font-weight: 900 !important;
-      line-height: 1.15 !important;
-      color: inherit !important;
-      white-space: normal !important;
-      overflow: hidden !important;
-      text-overflow: clip !important;
-      display: -webkit-box !important;
-      -webkit-box-orient: vertical !important;
-      -webkit-line-clamp: 2 !important;
-      line-clamp: 2 !important;
-      overflow-wrap: anywhere !important;
-      word-break: normal !important;
-      text-align: center !important;
-    }
-
-    @media (max-width: 700px) {
-      .tree-royal-frame.tree-viewport {
-        height: min(74dvh, 720px) !important;
-        min-height: 520px !important;
-        border-radius: 28px !important;
+    @media (max-width: 1023px) {
+      #mobileNavDrawer {
+        height: 100dvh !important;
+        max-height: 100dvh !important;
       }
-
-      #tree {
-        min-height: 520px !important;
+      #mobileNavDrawer nav {
+        overflow-y: auto !important;
+        padding-bottom: 14px !important;
       }
-
-      #tree foreignObject .person-node {
-        width: 150px !important;
-        height: 170px !important;
+      #mobileNavDrawer .mobile-login-inline {
+        display: flex !important;
+        margin-top: 10px !important;
+        background: #005A2B !important;
+        color: #fff !important;
+        border-right-color: #E5B869 !important;
+        justify-content: center !important;
       }
-
-      #tree foreignObject .node-portrait {
-        width: 86px !important;
-        height: 86px !important;
-        min-width: 86px !important;
-        min-height: 86px !important;
-        max-width: 86px !important;
-        max-height: 86px !important;
+      html.dark #mobileNavDrawer .mobile-login-inline,
+      html[data-theme="dark"] #mobileNavDrawer .mobile-login-inline {
+        background: #E5B869 !important;
+        color: #050505 !important;
       }
-
-      #tree foreignObject .name-box {
-        min-width: 104px !important;
-        max-width: 138px !important;
-        padding: 5px 10px !important;
-        margin-top: -9px !important;
-      }
-
-      #tree foreignObject .node-label-text {
-        font-size: 13px !important;
-        line-height: 1.18 !important;
-      }
-
-      .tree-hint-strip {
-        display: none !important;
+      #mobileNavDrawer > div.p-6.border-t {
+        position: sticky !important;
+        bottom: 0 !important;
+        background: inherit !important;
+        z-index: 2 !important;
       }
     }
   </style>
-
 </head>
 
 <body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col relative overflow-x-hidden selection:bg-accent-gold selection:text-bg-charcoal transition-colors duration-300">
@@ -713,6 +601,10 @@
       <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/news">أخبار العائلة</a>
       <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/tree-pdf">مشجرة العائلة</a>
       <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/support">الدعم</a>
+      <a class="mobile-login-inline px-4 py-3 rounded-lg transition-colors" href="/admin/login">
+        <span class="material-symbols-outlined">login</span>
+        <span>تسجيل الدخول</span>
+      </a>
     </nav>
 
     <div class="p-6 border-t border-gray-100 dark:border-white/5">
