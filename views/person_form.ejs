@@ -78,7 +78,7 @@
     /* Mobile Nav */
     #mobileNavOverlay.hidden { display: none; }
     #mobileNavOverlay { display: block; }
-    #mobileNavDrawer { transform: translateX(-110%); transition: transform .4s cubic-bezier(0.16, 1, 0.3, 1); }
+    #mobileNavDrawer { transform: translateX(110%); transition: transform .4s cubic-bezier(0.16, 1, 0.3, 1); }
     #mobileNavDrawer.isOpen { transform: translateX(0); }
   </style>
 
@@ -117,63 +117,34 @@
 
     <nav class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
       <div class="space-y-2">
-        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">نظرة عامة</p>
-        <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
-          <span class="material-symbols-outlined text-[22px]">dashboard</span> لوحة الإحصائيات
-        </a>
-      </div>
-
-      <div class="space-y-2">
-        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">إدارة البيانات</p>
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">البيانات الرئيسية</p>
         <a href="/admin" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent font-bold text-sm border border-primary/20 dark:border-accent/20 transition-all relative overflow-hidden shadow-sm">
           <div class="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-6 rounded-l-full bg-primary dark:bg-accent shadow-[0_0_10px_rgba(229,184,105,0.8)]"></div>
           <span class="material-symbols-outlined text-[22px]">group</span> إدارة الأفراد
         </a>
-        <% if (typeof userCan === "function" && userCan("person_requests")) { %>
-        <a href="/admin/person-requests" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
-          <span class="material-symbols-outlined text-[22px]">fact_check</span> طلبات الأفراد
-        </a>
-        <% } %>
         <a href="/admin/pages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">history_edu</span> إدارة الصفحات
         </a>
         <a href="/admin/honor" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">workspace_premium</span> السير الذاتية
         </a>
         <a href="/admin/news" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">newspaper</span> الأخبار والمناسبات
-        </a>
-        <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
-          <span class="material-symbols-outlined text-[22px]">mail</span> رسائل الدعم
         </a>
       </div>
 
       <div class="space-y-2">
-        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والصلاحيات</p>
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والموقع</p>
         <% if (typeof userCan === "function" && userCan("roles")) { %>
         <a href="/admin/roles" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">manage_accounts</span> وظائف الأفراد
         </a>
         <% } %>
-        <% if (Number(admin?.is_super_admin || 0) === 1) { %>
-        <a href="/admin/activity" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
-          <span class="material-symbols-outlined text-[22px]">manage_history</span> سجل النشاطات
+        
+        <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">mail</span> رسائل الدعم
         </a>
-        <a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
-          <span class="material-symbols-outlined text-[22px]">construction</span> وضع الصيانة
-        </a>
-        <% } %>
         <a href="/" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">account_tree</span> عرض الشجرة
         </a>
       </div>
@@ -252,23 +223,17 @@
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-2 block">الأب</label>
-                <select name="father_id" class="form-input w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0">
-                  <option value="">— بدون —</option>
-                  <% persons.forEach(x => { %>
-                    <option value="<%= x.id %>" <%= person?.father_id == x.id ? 'selected' : '' %>><%= x.name %></option>
-                  <% }) %>
-                </select>
+                <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-2 block">اسم الأب الثلاثي داخل الشجرة</label>
+                <input name="father_lineage_name" data-lineage-resolver="father" value="<%= fatherLineageName || '' %>" placeholder="برجاء كتابة اسم الاب ثلاثي"
+                       class="form-input w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0"/>
+                <p class="lineage-feedback mt-2 text-xs font-bold text-gray-500 dark:text-gray-400" data-lineage-feedback="father">اكتب الاسم الثلاثي للأب وسيتم ربط الفرد به تلقائيًا.</p>
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-2 block">الأم</label>
-                <select name="mother_id" class="form-input w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0">
-                  <option value="">— بدون —</option>
-                  <% persons.forEach(x => { %>
-                    <option value="<%= x.id %>" <%= person?.mother_id == x.id ? 'selected' : '' %>><%= x.name %></option>
-                  <% }) %>
-                </select>
+                <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-2 block">اسم الأم الثلاثي داخل الشجرة</label>
+                <input name="mother_lineage_name" data-lineage-resolver="mother" value="<%= motherLineageName || '' %>" placeholder="برجاء كتابة اسم الام ثلاثي"
+                       class="form-input w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0"/>
+                <p class="lineage-feedback mt-2 text-xs font-bold text-gray-500 dark:text-gray-400" data-lineage-feedback="mother">اختياري: إذا كانت الأم موجودة في الشجرة سيتم ربطها تلقائيًا.</p>
               </div>
 
               <div>
@@ -458,7 +423,7 @@
   </main>
 </div>
 
-<aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-card-light dark:bg-card-dark glass-panel border-r border-border-light dark:border-border-dark z-[90] flex flex-col">
+<aside id="mobileNavDrawer" class="fixed top-0 right-0 h-full w-[320px] max-w-[85vw] bg-card-light dark:bg-card-dark glass-panel border-l border-border-light dark:border-border-dark z-[90] flex flex-col">
   <div class="h-1.5 w-full bg-primary"></div>
   <div class="flex items-center justify-between p-6 border-b border-border-light dark:border-border-dark shrink-0">
     <div>
@@ -471,35 +436,13 @@
   </div>
 
   <nav class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-3 text-sm font-bold text-gray-700 dark:text-gray-300">
-    <div class="space-y-2">
-      <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">نظرة عامة</p>
-    <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">dashboard</span> لوحة الإحصائيات</a>
-    </div>
-    <div class="space-y-2 mt-4">
-      <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">إدارة البيانات</p>
     <a href="/admin" class="flex items-center gap-3 px-4 py-4 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent transition-colors border border-primary/20 dark:border-accent/20"><span class="material-symbols-outlined">group</span> إدارة الأفراد</a>
-      <% if (typeof userCan === "function" && userCan("person_requests")) { %>
-    <a href="/admin/person-requests" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">fact_check</span> طلبات الأفراد</a>
-      <% } %>
     <a href="/admin/pages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">history_edu</span> إدارة الصفحات</a>
     <a href="/admin/honor" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">workspace_premium</span> السير الذاتية</a>
-    <a href="/admin/news" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">newspaper</span> الأخبار والمناسبات</a>
+    <a href="/admin/news" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">newspaper</span> الأخبار</a>
     <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">mail</span> رسائل الدعم</a>
-    </div>
-    <div class="space-y-2 mt-4">
-      <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والصلاحيات</p>
-      <% if (typeof userCan === "function" && userCan("roles")) { %>
-    <a href="/admin/roles" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_accounts</span> وظائف الأفراد</a>
-      <% } %>
-      <% if (Number(admin?.is_super_admin || 0) === 1) { %>
-    <a href="/admin/activity" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_history</span> سجل النشاطات</a>
-    <a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">construction</span> وضع الصيانة</a>
-      <% } %>
-    </div>
     <div class="my-4 border-t border-border-light dark:border-border-dark"></div>
     <a href="/" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">account_tree</span> العودة للموقع</a>
-    
-
     
     <form method="post" action="/admin/logout" class="m-0 mt-4">
       <button type="submit" class="w-full flex items-center justify-center gap-2 px-4 py-4 rounded-2xl border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-500/10 hover:bg-red-50 transition-colors">
@@ -651,6 +594,41 @@
     bindRemoveButtons();
     div.querySelector("input")?.focus();
   });
+
+
+  // مطابقة الاسم الثلاثي للأب والأم تلقائيًا
+  (function lineageResolverInit(){
+    const inputs = document.querySelectorAll('[data-lineage-resolver]');
+    if (!inputs.length) return;
+    const timers = new Map();
+    function setFeedback(input, type, msg, state) {
+      const el = document.querySelector(`[data-lineage-feedback="${type}"]`);
+      if (!el) return;
+      el.textContent = msg;
+      el.className = 'lineage-feedback mt-2 text-xs font-bold ' + (state === 'ok' ? 'text-green-700 dark:text-green-300' : state === 'warn' ? 'text-amber-700 dark:text-amber-300' : state === 'bad' ? 'text-red-700 dark:text-red-300' : 'text-gray-500 dark:text-gray-400');
+    }
+    inputs.forEach(input => {
+      input.addEventListener('input', () => {
+        const type = input.getAttribute('data-lineage-resolver');
+        clearTimeout(timers.get(input));
+        const q = input.value.trim();
+        if (!q) return setFeedback(input, type, type === 'father' ? 'اكتب الاسم الثلاثي للأب وسيتم ربط الفرد به تلقائيًا.' : 'اختياري: إذا كانت الأم موجودة في الشجرة سيتم ربطها تلقائيًا.', 'normal');
+        timers.set(input, setTimeout(async () => {
+          try {
+            const exclude = '<%= person?.id || "" %>';
+            const res = await fetch('/api/person-lineage/resolve?q=' + encodeURIComponent(q) + (exclude ? '&exclude_id=' + encodeURIComponent(exclude) : ''));
+            const data = await res.json();
+            const result = data.result || {};
+            if (result.status === 'matched') setFeedback(input, type, 'تم العثور على: ' + (result.match?.name || q) + ' وسيتم الربط تلقائيًا.', 'ok');
+            else if (result.status === 'multiple') setFeedback(input, type, 'يوجد أكثر من شخص بنفس الاسم الثلاثي. يرجى توضيح التسلسل من الإدارة.', 'warn');
+            else setFeedback(input, type, result.message || 'لم يتم العثور على هذا التسلسل داخل الشجرة.', type === 'father' ? 'bad' : 'warn');
+          } catch (e) {
+            setFeedback(input, type, 'تعذر التحقق الآن، سيتم التحقق عند الحفظ.', 'warn');
+          }
+        }, 350));
+      });
+    });
+  })();
 
   // ==========================================
   // شبكة العائلة التفاعلية

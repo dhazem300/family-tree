@@ -127,24 +127,25 @@
 
     <section class="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
       <% if (submitted) { %>
-        <div class="mb-6 rounded-3xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 p-5 sm:p-6 text-green-800 dark:text-green-200 font-bold text-center">
-          <div class="flex items-center justify-center gap-2 mb-3">
-            <span class="material-symbols-outlined text-[26px]">check_circle</span>
-            <span>تم إرسال البيانات بنجاح. سيتم مراجعتها من الإدارة قبل الظهور في الشجرة.</span>
-          </div>
-          <% if (referenceCode) { %>
-            <div class="mt-4 max-w-xl mx-auto rounded-2xl bg-white/80 dark:bg-black/25 border border-green-200 dark:border-green-500/20 p-4">
-              <p class="text-sm text-green-700 dark:text-green-300 mb-2">الرقم المرجعي الخاص بطلبك</p>
-              <div class="flex flex-col sm:flex-row items-stretch gap-3">
-                <input id="referenceCodeInput" class="field text-center tracking-[0.18em] font-black" value="<%= referenceCode %>" readonly>
-                <button id="copyReferenceBtn" type="button" class="px-5 py-3 rounded-2xl bg-primary dark:bg-accent-gold text-white dark:text-black font-black whitespace-nowrap flex items-center justify-center gap-2">
-                  <span class="material-symbols-outlined text-[20px]">content_copy</span>
-                  نسخ الرمز
-                </button>
-              </div>
-              <p id="copyReferenceMsg" class="text-xs mt-2 text-green-700 dark:text-green-300 hidden">تم نسخ الرقم المرجعي.</p>
+        <div class="mb-6 rounded-3xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 p-5 text-green-800 dark:text-green-200 font-bold text-center">
+          <div class="flex flex-col items-center gap-3">
+            <span class="material-symbols-outlined text-[34px]">verified</span>
+            <div>
+              <p class="text-xl font-black">تم استلام طلبك بنجاح</p>
+              <p class="text-sm mt-1 opacity-90">سيتم مراجعة البيانات من الإدارة قبل الظهور في الشجرة.</p>
             </div>
-          <% } %>
+            <% if (referenceCode) { %>
+              <div class="w-full max-w-xl mt-2 rounded-2xl bg-white/75 dark:bg-black/20 border border-green-200 dark:border-green-500/20 p-4">
+                <p class="text-sm font-black mb-2">رقم الطلب المرجعي</p>
+                <input id="referenceCodeInput" class="field text-center tracking-[0.18em] font-black" value="<%= referenceCode %>" readonly>
+                <button id="copyReferenceBtn" type="button" class="mt-3 w-full px-5 py-3 rounded-2xl bg-primary dark:bg-accent-gold text-white dark:text-black font-black flex items-center justify-center gap-2">
+                  <span class="material-symbols-outlined">content_copy</span>
+                  نسخ الرقم المرجعي
+                </button>
+                <p id="copyReferenceMsg" class="hidden mt-2 text-xs font-black text-green-700 dark:text-green-300">تم نسخ الرقم المرجعي بنجاح.</p>
+              </div>
+            <% } %>
+          </div>
         </div>
       <% } %>
       <% if (error) { %><div class="mb-6 rounded-3xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 p-5 text-red-800 dark:text-red-200 font-bold text-center"><%= error %></div><% } %>
@@ -153,8 +154,8 @@
         <section class="space-y-4"><h3 class="font-display font-bold text-2xl text-primary dark:text-accent-gold">البيانات الأساسية</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label class="block"><span class="font-bold mb-2 block">الاسم الكامل *</span><input name="name" required class="field" placeholder="اكتب الاسم الكامل"></label>
           <label class="block"><span class="font-bold mb-2 block">النوع</span><select name="gender" class="field"><option value="">غير محدد</option><option value="male">ذكر</option><option value="female">أنثى</option></select></label>
-          <label class="block"><span class="font-bold mb-2 block">الأب داخل الشجرة</span><select name="father_id" class="field"><option value="">غير محدد</option><% persons.forEach(p => { %><option value="<%= p.id %>"><%= p.name %></option><% }) %></select></label>
-          <label class="block"><span class="font-bold mb-2 block">الأم داخل الشجرة</span><select name="mother_id" class="field"><option value="">غير محدد</option><% persons.forEach(p => { %><option value="<%= p.id %>"><%= p.name %></option><% }) %></select></label>
+          <label class="block"><span class="font-bold mb-2 block">اسم الأب الثلاثي داخل الشجرة</span><input name="father_lineage_name" data-lineage-resolver="father" class="field" placeholder="برجاء كتابة اسم الاب ثلاثي"><small class="lineage-feedback block mt-2 text-xs font-bold text-gray-500 dark:text-gray-400" data-lineage-feedback="father">اكتب الاسم الثلاثي للأب حتى يتم ربط بياناتك بموقعه في الشجرة تلقائيًا.</small></label>
+          <label class="block"><span class="font-bold mb-2 block">اسم الأم الثلاثي داخل الشجرة</span><input name="mother_lineage_name" data-lineage-resolver="mother" class="field" placeholder="برجاء كتابة اسم الام ثلاثي"><small class="lineage-feedback block mt-2 text-xs font-bold text-gray-500 dark:text-gray-400" data-lineage-feedback="mother">اختياري: إذا كانت الأم موجودة في الشجرة سيتم ربطها تلقائيًا، وإذا لم تكن موجودة سيظل الطلب قابلًا للمراجعة.</small></label>
           <label class="block"><span class="font-bold mb-2 block">تاريخ الميلاد</span><input name="birth_date" class="field" placeholder="مثال: 1980-01-01"></label>
           <label class="block"><span class="font-bold mb-2 block">مكان الميلاد</span><input name="birth_place" class="field" placeholder="مكان الميلاد"></label>
           <label class="block"><span class="font-bold mb-2 block">العمل</span><input name="job" class="field" placeholder="الوظيفة أو العمل"></label>
@@ -212,44 +213,17 @@
             </div>
           <% } else if (trackingResult.status === 'pending') { %>
             <div class="mt-5 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 p-5 text-amber-800 dark:text-amber-200">
-              <div class="flex items-start gap-3">
-                <span class="material-symbols-outlined text-[28px]">hourglass_top</span>
-                <div>
-                  <p class="font-black text-lg">حالة الطلب: قيد المراجعة</p>
-                  <p class="text-sm mt-1 opacity-90">طلب <strong><%= trackingResult.name %></strong> وصل للإدارة وجاري مراجعته.</p>
-                  <p class="text-xs mt-2 opacity-80">الرقم المرجعي: <%= trackingResult.reference_code %></p>
-                </div>
-              </div>
+              <div class="flex items-start gap-3"><span class="material-symbols-outlined text-[28px]">hourglass_top</span><div><p class="font-black text-lg">حالة الطلب: قيد المراجعة</p><p class="text-sm mt-1 opacity-90">طلب <strong><%= trackingResult.name %></strong> وصل للإدارة وجاري مراجعته.</p><p class="text-xs mt-2 opacity-80">الرقم المرجعي: <%= trackingResult.reference_code %></p></div></div>
             </div>
           <% } else if (trackingResult.status === 'rejected') { %>
             <div class="mt-5 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 p-5 text-red-800 dark:text-red-200">
-              <div class="flex items-start gap-3">
-                <span class="material-symbols-outlined text-[28px]">cancel</span>
-                <div>
-                  <p class="font-black text-lg">حالة الطلب: تم الرفض</p>
-                  <p class="text-sm mt-1 opacity-90">طلب <strong><%= trackingResult.name %></strong> تم رفضه.</p>
-                  <p class="mt-3 font-bold">سبب الرفض:</p>
-                  <p class="text-sm mt-1 leading-7"><%= trackingResult.admin_note || 'لم يتم ذكر سبب محدد.' %></p>
-                </div>
-              </div>
+              <div class="flex items-start gap-3"><span class="material-symbols-outlined text-[28px]">cancel</span><div><p class="font-black text-lg">حالة الطلب: تم الرفض</p><p class="text-sm mt-1 opacity-90">طلب <strong><%= trackingResult.name %></strong> تم رفضه.</p><p class="mt-3 font-bold">سبب الرفض:</p><p class="text-sm mt-1 leading-7"><%= trackingResult.admin_note || 'لم يتم ذكر سبب محدد.' %></p></div></div>
             </div>
           <% } else if (trackingResult.status === 'approved') { %>
             <div class="mt-5 rounded-2xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 p-5 text-green-800 dark:text-green-200">
               <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div class="flex items-start gap-3">
-                  <span class="material-symbols-outlined text-[28px]">verified</span>
-                  <div>
-                    <p class="font-black text-lg">حالة الطلب: تمت الموافقة</p>
-                    <p class="text-sm mt-1 opacity-90">تمت إضافة <strong><%= trackingResult.created_person_name || trackingResult.name %></strong> إلى الشجرة التفاعلية.</p>
-                    <% if (trackingResult.reviewed_at) { %><p class="text-xs mt-2 opacity-80">تاريخ المراجعة: <%= trackingResult.reviewed_at %></p><% } %>
-                  </div>
-                </div>
-                <% if (trackingResult.created_person_id) { %>
-                  <a href="/?focus=<%= trackingResult.created_person_id %>" class="px-6 py-3 rounded-2xl bg-primary dark:bg-accent-gold text-white dark:text-black font-black text-center whitespace-nowrap flex items-center justify-center gap-2">
-                    <span class="material-symbols-outlined">account_tree</span>
-                    شاهد موقعك في الشجرة
-                  </a>
-                <% } %>
+                <div class="flex items-start gap-3"><span class="material-symbols-outlined text-[28px]">verified</span><div><p class="font-black text-lg">حالة الطلب: تمت الموافقة</p><p class="text-sm mt-1 opacity-90">تمت إضافة <strong><%= trackingResult.created_person_name || trackingResult.name %></strong> إلى الشجرة التفاعلية.</p><% if (trackingResult.reviewed_at) { %><p class="text-xs mt-2 opacity-80">تاريخ المراجعة: <%= trackingResult.reviewed_at %></p><% } %></div></div>
+                <% if (trackingResult.created_person_id) { %><a href="/?focus=<%= trackingResult.created_person_id %>" class="px-6 py-3 rounded-2xl bg-primary dark:bg-accent-gold text-white dark:text-black font-black text-center whitespace-nowrap flex items-center justify-center gap-2"><span class="material-symbols-outlined">account_tree</span>شاهد موقعك في الشجرة</a><% } %>
               </div>
             </div>
           <% } %>
@@ -263,18 +237,6 @@
   <script>
     (function(){const btn=document.getElementById('themeBtn');function setTheme(next){document.documentElement.classList.toggle('dark',next==='dark');document.documentElement.setAttribute('data-theme',next);localStorage.setItem('theme',next)}btn?.addEventListener('click',()=>{const cur=document.documentElement.classList.contains('dark')?'dark':'light';setTheme(cur==='dark'?'light':'dark')});})();
     (function(){
-      const copyBtn=document.getElementById('copyReferenceBtn');
-      const input=document.getElementById('referenceCodeInput');
-      const msg=document.getElementById('copyReferenceMsg');
-      copyBtn?.addEventListener('click', async ()=>{
-        const value=input?.value || '';
-        try { await navigator.clipboard.writeText(value); }
-        catch(e){ input?.select(); document.execCommand('copy'); }
-        msg?.classList.remove('hidden');
-        setTimeout(()=>msg?.classList.add('hidden'),2200);
-      });
-    })();
-    (function(){
       const btn=document.getElementById('mobileNavBtn'),drawer=document.getElementById('mobileNavDrawer'),overlay=document.getElementById('mobileNavOverlay'),close=document.getElementById('mobileNavClose');
       function lockPage(){document.documentElement.style.overflowY='hidden';document.body.style.overflowY='hidden'}
       function unlockPage(){document.documentElement.style.overflowY='auto';document.body.style.overflowY='auto';document.body.style.overflowX='hidden'}
@@ -285,6 +247,32 @@
       close?.addEventListener('click',shut);
       overlay?.addEventListener('click',shut);
       drawer?.querySelectorAll('a').forEach(a=>a.addEventListener('click',shut));
+    })();
+
+    (function lineageResolverInit(){
+      const inputs=document.querySelectorAll('[data-lineage-resolver]');
+      if(!inputs.length)return;
+      const timers=new Map();
+      function setFeedback(type,msg,state){
+        const el=document.querySelector(`[data-lineage-feedback="${type}"]`); if(!el)return;
+        el.textContent=msg;
+        el.className='lineage-feedback block mt-2 text-xs font-bold '+(state==='ok'?'text-green-700 dark:text-green-300':state==='warn'?'text-amber-700 dark:text-amber-300':state==='bad'?'text-red-700 dark:text-red-300':'text-gray-500 dark:text-gray-400');
+      }
+      inputs.forEach(input=>input.addEventListener('input',()=>{
+        const type=input.getAttribute('data-lineage-resolver');
+        clearTimeout(timers.get(input));
+        const q=input.value.trim();
+        if(!q)return setFeedback(type,type==='father'?'اكتب الاسم الثلاثي للأب حتى يتم ربط بياناتك بموقعه في الشجرة تلقائيًا.':'اختياري: إذا كانت الأم موجودة في الشجرة سيتم ربطها تلقائيًا، وإذا لم تكن موجودة سيظل الطلب قابلًا للمراجعة.','normal');
+        timers.set(input,setTimeout(async()=>{
+          try{
+            const res=await fetch('/api/person-lineage/resolve?q='+encodeURIComponent(q));
+            const data=await res.json(); const result=data.result||{};
+            if(result.status==='matched')setFeedback(type,'تم العثور على: '+(result.match?.name||q)+' وسيتم الربط تلقائيًا.','ok');
+            else if(result.status==='multiple')setFeedback(type,'يوجد أكثر من شخص بنفس التسلسل. الإدارة ستراجع الطلب قبل الاعتماد.','warn');
+            else setFeedback(type,result.message||'لم يتم العثور على هذا التسلسل داخل الشجرة.',type==='father'?'bad':'warn');
+          }catch(e){setFeedback(type,'تعذر التحقق الآن، سيتم التحقق عند إرسال الطلب.','warn')}
+        },350));
+      }));
     })();
   </script>
 </body>
