@@ -6,6 +6,7 @@
   <title>إرسال بيانات فرد للمراجعة</title>
   <script src="/theme.js"></script>
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/address-fields.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700;900&family=Amiri:wght@400;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -156,7 +157,7 @@
           <label class="block"><span class="font-bold mb-2 block">النوع</span><select name="gender" class="field"><option value="">غير محدد</option><option value="male">ذكر</option><option value="female">أنثى</option></select></label>
           <label class="block"><span class="font-bold mb-2 block">اسم الأب الثلاثي داخل الشجرة</span><input name="father_lineage_name" data-lineage-resolver="father" class="field" placeholder="برجاء كتابة اسم الاب ثلاثي"><small class="lineage-feedback block mt-2 text-xs font-bold text-gray-500 dark:text-gray-400" data-lineage-feedback="father">اكتب الاسم الثلاثي للأب حتى يتم ربط بياناتك بموقعه في الشجرة تلقائيًا.</small></label>
           <label class="block"><span class="font-bold mb-2 block">اسم الأم الثلاثي داخل الشجرة</span><input name="mother_lineage_name" data-lineage-resolver="mother" class="field" placeholder="برجاء كتابة اسم الام ثلاثي"><small class="lineage-feedback block mt-2 text-xs font-bold text-gray-500 dark:text-gray-400" data-lineage-feedback="mother">اختياري: إذا كانت الأم موجودة في الشجرة سيتم ربطها تلقائيًا، وإذا لم تكن موجودة سيظل الطلب قابلًا للمراجعة.</small></label>
-          <label class="block"><span class="font-bold mb-2 block">تاريخ الميلاد</span><input name="birth_date" class="field" placeholder="مثال: 1980-01-01"></label>
+          <label class="block"><span class="font-bold mb-2 block">تاريخ الميلاد</span><input name="birth_date" data-dual-date class="field" placeholder="اختر التاريخ الميلادي أو اكتب التاريخ الهجري"></label>
           <label class="block"><span class="font-bold mb-2 block">مكان الميلاد</span><input name="birth_place" class="field" placeholder="مكان الميلاد"></label>
           <label class="block"><span class="font-bold mb-2 block">العمل</span><input name="job" class="field" placeholder="الوظيفة أو العمل"></label>
           <label class="block"><span class="font-bold mb-2 block">الصورة الشخصية</span><input name="photo_file" type="file" accept="image/*" class="field"></label>
@@ -165,7 +166,27 @@
         <section class="space-y-4"><h3 class="font-display font-bold text-2xl text-primary dark:text-accent-gold">بيانات التواصل الخاصة بالإدارة</h3><div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <label class="block"><span class="font-bold mb-2 block">رقم الجوال</span><input name="mobile_phone" class="field" placeholder="رقم الجوال"></label>
           <label class="block"><span class="font-bold mb-2 block">البريد الإلكتروني</span><input name="personal_email" type="email" class="field" placeholder="email@example.com"></label>
-          <label class="block"><span class="font-bold mb-2 block">العنوان</span><input name="national_address" class="field" placeholder="العنوان"></label>
+          <div class="md:col-span-3" data-family-address-card>
+            <textarea name="national_address" data-address-hidden class="hidden"></textarea>
+            <div class="family-address-card">
+              <div class="family-address-head"><div><h4>تفاصيل العنوان</h4><p>املأ بيانات العنوان الوطني كما في البطاقة، ويمكن تركه فارغًا إذا لم ترغب بإضافته.</p></div><span class="address-help-chip"><span class="material-symbols-outlined text-[17px]">home_pin</span>Address Details</span></div>
+              <div class="family-address-grid">
+                <label class="address-field full"><div class="address-label-row"><span>العنوان المختصر</span><span>Short Address</span></div><input data-address-part="short_address" class="address-input address-code-input" maxlength="8" placeholder="مثال: DMUC4941"></label>
+                <label class="address-field"><div class="address-label-row"><span>رقم المبنى</span><span>Building No.</span></div><input data-address-part="building_no" class="address-input address-code-input" inputmode="numeric" placeholder="4941"></label>
+                <label class="address-field"><div class="address-label-row"><span>الشارع</span><span>Street</span></div><input data-address-part="street_ar" class="address-input" placeholder="اسم الشارع بالعربية"></label>
+                <label class="address-field"><div class="address-label-row"><span>Street</span><span>English</span></div><input data-address-part="street_en" dir="ltr" class="address-input" placeholder="Street name in English"></label>
+                <label class="address-field"><div class="address-label-row"><span>الرقم الفرعي</span><span>Secondary No.</span></div><input data-address-part="secondary_no" class="address-input address-code-input" inputmode="numeric" placeholder="8820"></label>
+                <label class="address-field"><div class="address-label-row"><span>الحي</span><span>District</span></div><input data-address-part="district_ar" class="address-input" placeholder="اسم الحي بالعربية"></label>
+                <label class="address-field"><div class="address-label-row"><span>District</span><span>English</span></div><input data-address-part="district_en" dir="ltr" class="address-input" placeholder="District in English"></label>
+                <label class="address-field"><div class="address-label-row"><span>الرمز البريدي</span><span>Postal Code</span></div><input data-address-part="postal_code" class="address-input address-code-input" inputmode="numeric" placeholder="42382"></label>
+                <label class="address-field"><div class="address-label-row"><span>المدينة</span><span>City</span></div><input data-address-part="city_ar" class="address-input" placeholder="المدينة"></label>
+                <label class="address-field"><div class="address-label-row"><span>City</span><span>English</span></div><input data-address-part="city_en" dir="ltr" class="address-input" placeholder="City in English"></label>
+                <label class="address-field"><div class="address-label-row"><span>الدولة</span><span>Country</span></div><input data-address-part="country_ar" class="address-input" placeholder="الدولة"></label>
+                <label class="address-field"><div class="address-label-row"><span>Country</span><span>English</span></div><input data-address-part="country_en" dir="ltr" class="address-input" placeholder="Country in English"></label>
+              </div>
+              <div class="address-preview-wrap"><div class="address-preview-title"><span class="material-symbols-outlined text-[18px]">preview</span>معاينة العنوان المحفوظ</div><textarea data-address-preview readonly class="address-input address-preview" placeholder="سيظهر العنوان المجمع هنا تلقائيًا"></textarea></div>
+            </div>
+          </div>
         </div></section>
 
         <section class="space-y-4"><h3 class="font-display font-bold text-2xl text-primary dark:text-accent-gold">الزوجة / الزوج والأبناء</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -180,7 +201,7 @@
 
         <section class="rounded-3xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 p-4 sm:p-5">
           <label class="inline-flex items-center gap-3 font-bold"><input type="checkbox" name="is_deceased" value="1" class="rounded text-primary"> الفرد متوفى</label>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4"><input name="death_date" class="field" placeholder="تاريخ الوفاة إن وجد"><input name="death_place" class="field" placeholder="مكان الوفاة إن وجد"></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4"><input name="death_date" data-dual-date class="field" placeholder="تاريخ الوفاة إن وجد"><input name="death_place" class="field" placeholder="مكان الوفاة إن وجد"></div>
         </section>
 
         <div class="flex flex-col sm:flex-row justify-center gap-3"><button class="px-8 py-4 rounded-full bg-primary dark:bg-accent-gold text-white dark:text-black font-black shadow-lg hover:opacity-95" type="submit">إرسال للمراجعة</button><a href="/" class="px-8 py-4 rounded-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-primary dark:text-accent-gold font-black">العودة للشجرة</a></div>
@@ -328,5 +349,7 @@
       }));
     })();
   </script>
+  <script src="/address-fields.js"></script>
+  <script src="/dual-calendar.js"></script>
 </body>
 </html>

@@ -6,6 +6,7 @@
   <title><%= mode === "new" ? "إضافة شخص" : "تعديل شخص" %> - لوحة الإدارة</title>
 
   <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/address-fields.css" />
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -273,15 +274,40 @@
                        class="form-input w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0"/>
               </div>
 
-              <div class="md:col-span-2">
-                <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-2 block">العنوان الوطني</label>
-                <textarea name="national_address" rows="2" placeholder="اكتب العنوان الوطني أو العنوان التفصيلي"
-                          class="form-textarea w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0 resize-none"><%= person?.national_address || '' %></textarea>
+              <div class="md:col-span-2" data-family-address-card>
+                <textarea name="national_address" data-address-hidden class="hidden"><%= person?.national_address || '' %></textarea>
+                <div class="family-address-card">
+                  <div class="family-address-head">
+                    <div>
+                      <h4>تفاصيل العنوان الوطني</h4>
+                      <p>أدخل بيانات العنوان بنفس تنسيق العنوان الوطني. هذه البيانات خاصة بالإدارة فقط ولا تظهر للعامة.</p>
+                    </div>
+                    <span class="address-help-chip"><span class="material-symbols-outlined text-[17px]">home_pin</span>Address Details</span>
+                  </div>
+                  <div class="family-address-grid">
+                    <label class="address-field full"><div class="address-label-row"><span>العنوان المختصر</span><span>Short Address</span></div><input data-address-part="short_address" class="address-input address-code-input" maxlength="8" placeholder="مثال: DMUC4941"></label>
+                    <label class="address-field"><div class="address-label-row"><span>رقم المبنى</span><span>Building No.</span></div><input data-address-part="building_no" class="address-input address-code-input" inputmode="numeric" placeholder="4941"></label>
+                    <label class="address-field"><div class="address-label-row"><span>الشارع</span><span>Street</span></div><input data-address-part="street_ar" class="address-input" placeholder="اسم الشارع بالعربية"></label>
+                    <label class="address-field"><div class="address-label-row"><span>Street</span><span>English</span></div><input data-address-part="street_en" dir="ltr" class="address-input" placeholder="Street name in English"></label>
+                    <label class="address-field"><div class="address-label-row"><span>الرقم الفرعي</span><span>Secondary No.</span></div><input data-address-part="secondary_no" class="address-input address-code-input" inputmode="numeric" placeholder="8820"></label>
+                    <label class="address-field"><div class="address-label-row"><span>الحي</span><span>District</span></div><input data-address-part="district_ar" class="address-input" placeholder="اسم الحي بالعربية"></label>
+                    <label class="address-field"><div class="address-label-row"><span>District</span><span>English</span></div><input data-address-part="district_en" dir="ltr" class="address-input" placeholder="District in English"></label>
+                    <label class="address-field"><div class="address-label-row"><span>الرمز البريدي</span><span>Postal Code</span></div><input data-address-part="postal_code" class="address-input address-code-input" inputmode="numeric" placeholder="42382"></label>
+                    <label class="address-field"><div class="address-label-row"><span>المدينة</span><span>City</span></div><input data-address-part="city_ar" class="address-input" placeholder="المدينة"></label>
+                    <label class="address-field"><div class="address-label-row"><span>City</span><span>English</span></div><input data-address-part="city_en" dir="ltr" class="address-input" placeholder="City in English"></label>
+                    <label class="address-field"><div class="address-label-row"><span>الدولة</span><span>Country</span></div><input data-address-part="country_ar" class="address-input" placeholder="الدولة"></label>
+                    <label class="address-field"><div class="address-label-row"><span>Country</span><span>English</span></div><input data-address-part="country_en" dir="ltr" class="address-input" placeholder="Country in English"></label>
+                  </div>
+                  <div class="address-preview-wrap">
+                    <div class="address-preview-title"><span class="material-symbols-outlined text-[18px]">preview</span>معاينة العنوان المحفوظ</div>
+                    <textarea data-address-preview readonly class="address-input address-preview" placeholder="سيظهر العنوان المجمع هنا تلقائيًا"></textarea>
+                  </div>
+                </div>
               </div>
 
               <div>
                 <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-2 block">تاريخ الميلاد</label>
-                <input name="birth_date" value="<%= person?.birth_date || '' %>" placeholder="مثال: 2004-08-20"
+                <input name="birth_date" data-dual-date value="<%= person?.birth_date || '' %>" placeholder="اختر التاريخ الميلادي أو اكتب التاريخ الهجري"
                        class="form-input w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0"/>
               </div>
 
@@ -301,7 +327,7 @@
                 <div id="deceasedFields" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 <%= Number(person?.is_deceased || 0) === 1 ? '' : 'hidden' %>">
                   <div>
                     <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-2 block">تاريخ الوفاة</label>
-                    <input name="death_date" id="death_date" value="<%= person?.death_date || '' %>" placeholder="مثال: 2020-01-01"
+                    <input name="death_date" id="death_date" data-dual-date value="<%= person?.death_date || '' %>" placeholder="اختر التاريخ الميلادي أو اكتب التاريخ الهجري"
                            class="form-input w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0"/>
                   </div>
                   <div>
@@ -735,5 +761,7 @@
     draw();
   })();
 </script>
+  <script src="/address-fields.js"></script>
+  <script src="/dual-calendar.js"></script>
 </body>
 </html>

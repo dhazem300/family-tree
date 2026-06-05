@@ -1,0 +1,49 @@
+.family-address-card{
+  border:1px solid rgba(0,90,43,.14);
+  background:rgba(255,255,255,.82);
+  border-radius:28px;
+  padding:18px;
+  box-shadow:0 18px 55px rgba(0,0,0,.06);
+}
+html.dark .family-address-card{
+  border-color:rgba(229,184,105,.18);
+  background:rgba(255,255,255,.045);
+  box-shadow:0 18px 55px rgba(0,0,0,.30);
+}
+.family-address-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px;
+}
+.family-address-head h4{
+  margin:0;font-weight:900;color:#005A2B;font-size:1.05rem;
+}
+html.dark .family-address-head h4{color:#E5B869;}
+.family-address-head p{margin:5px 0 0;color:#6b7280;font-size:.82rem;font-weight:700;line-height:1.7;}
+html.dark .family-address-head p{color:rgba(255,255,255,.65);}
+.family-address-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;
+}
+@media(max-width:780px){.family-address-grid{grid-template-columns:1fr}.family-address-head{flex-direction:column}}
+.address-field{display:flex;flex-direction:column;gap:7px;}
+.address-field.full{grid-column:1/-1;}
+.address-label-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.address-label-row span:first-child{font-weight:900;color:#374151;font-size:.86rem;}
+.address-label-row span:last-child{font-size:.72rem;font-weight:800;color:#9ca3af;text-transform:capitalize;}
+html.dark .address-label-row span:first-child{color:#fff;}
+html.dark .address-label-row span:last-child{color:rgba(229,184,105,.70);}
+.address-input{
+  width:100%;border-radius:15px;border:1px solid rgba(0,0,0,.10);background:rgba(255,255,255,.92);
+  padding:12px 13px;color:#111827;font-weight:800;outline:none;transition:.2s;min-height:46px;
+}
+.address-input::placeholder{color:rgba(17,24,39,.38);font-weight:700;}
+html.dark .address-input{background:rgba(0,0,0,.20);border-color:rgba(255,255,255,.12);color:#fff;}
+html.dark .address-input::placeholder{color:rgba(255,255,255,.35);}
+.address-input:focus{border-color:#005A2B;box-shadow:0 0 0 4px rgba(0,90,43,.10);transform:translateY(-1px);}
+html.dark .address-input:focus{border-color:#E5B869;box-shadow:0 0 0 4px rgba(229,184,105,.12);}
+.address-code-input{letter-spacing:.22em;text-align:center;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;direction:ltr;}
+.address-preview-wrap{margin-top:14px;border-top:1px dashed rgba(0,90,43,.20);padding-top:14px;}
+html.dark .address-preview-wrap{border-color:rgba(229,184,105,.20);}
+.address-preview-title{display:flex;align-items:center;gap:8px;font-size:.82rem;font-weight:900;color:#005A2B;margin-bottom:8px;}
+html.dark .address-preview-title{color:#E5B869;}
+.address-preview{min-height:70px;resize:vertical;line-height:1.8;white-space:pre-wrap;}
+.address-help-chip{display:inline-flex;align-items:center;gap:6px;padding:8px 11px;border-radius:999px;background:rgba(229,184,105,.16);color:#6b4b13;font-weight:900;font-size:.75rem;}
+html.dark .address-help-chip{background:rgba(229,184,105,.11);color:#E5B869;}

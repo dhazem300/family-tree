@@ -4,6 +4,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <script src="/theme.js"></script>
+<link rel="stylesheet" href="/address-fields.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
@@ -149,36 +150,44 @@
           </section>
 
           <section class="space-y-4"><h3 class="font-display text-2xl font-bold text-primary dark:text-accent">بيانات الميلاد والعمل والتواصل</h3><div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            <label><span class="font-bold mb-2 block">تاريخ الميلاد</span><input name="birth_date" class="field" value="<%= request.birth_date || '' %>"></label>
+            <label><span class="font-bold mb-2 block">تاريخ الميلاد</span><input name="birth_date" data-dual-date class="field" value="<%= request.birth_date || '' %>" placeholder="اختر التاريخ الميلادي أو اكتب التاريخ الهجري"></label>
             <label><span class="font-bold mb-2 block">مكان الميلاد</span><input name="birth_place" class="field" value="<%= request.birth_place || '' %>"></label>
             <label><span class="font-bold mb-2 block">العمل</span><input name="job" class="field" value="<%= request.job || '' %>"></label>
             <label><span class="font-bold mb-2 block">رقم الجوال</span><input name="mobile_phone" class="field" value="<%= request.mobile_phone || '' %>"></label>
             <label><span class="font-bold mb-2 block">البريد الإلكتروني</span><input name="personal_email" class="field" value="<%= request.personal_email || '' %>"></label>
-            <label><span class="font-bold mb-2 block">العنوان</span><input name="national_address" class="field" value="<%= request.national_address || '' %>"></label>
+            <div class="md:col-span-2 xl:col-span-3" data-family-address-card>
+              <textarea name="national_address" data-address-hidden class="hidden"><%= request.national_address || '' %></textarea>
+              <div class="family-address-card">
+                <div class="family-address-head"><div><h4>تفاصيل العنوان</h4><p>يمكن للإدارة مراجعة بيانات العنوان وتعديلها قبل اعتماد الطلب.</p></div><span class="address-help-chip"><span class="material-symbols-outlined text-[17px]">home_pin</span>Address Details</span></div>
+                <div class="family-address-grid">
+                  <label class="address-field full"><div class="address-label-row"><span>العنوان المختصر</span><span>Short Address</span></div><input data-address-part="short_address" class="address-input address-code-input" maxlength="8" placeholder="مثال: DMUC4941"></label>
+                  <label class="address-field"><div class="address-label-row"><span>رقم المبنى</span><span>Building No.</span></div><input data-address-part="building_no" class="address-input address-code-input" inputmode="numeric" placeholder="4941"></label>
+                  <label class="address-field"><div class="address-label-row"><span>الشارع</span><span>Street</span></div><input data-address-part="street_ar" class="address-input" placeholder="اسم الشارع بالعربية"></label>
+                  <label class="address-field"><div class="address-label-row"><span>Street</span><span>English</span></div><input data-address-part="street_en" dir="ltr" class="address-input" placeholder="Street name in English"></label>
+                  <label class="address-field"><div class="address-label-row"><span>الرقم الفرعي</span><span>Secondary No.</span></div><input data-address-part="secondary_no" class="address-input address-code-input" inputmode="numeric" placeholder="8820"></label>
+                  <label class="address-field"><div class="address-label-row"><span>الحي</span><span>District</span></div><input data-address-part="district_ar" class="address-input" placeholder="اسم الحي بالعربية"></label>
+                  <label class="address-field"><div class="address-label-row"><span>District</span><span>English</span></div><input data-address-part="district_en" dir="ltr" class="address-input" placeholder="District in English"></label>
+                  <label class="address-field"><div class="address-label-row"><span>الرمز البريدي</span><span>Postal Code</span></div><input data-address-part="postal_code" class="address-input address-code-input" inputmode="numeric" placeholder="42382"></label>
+                  <label class="address-field"><div class="address-label-row"><span>المدينة</span><span>City</span></div><input data-address-part="city_ar" class="address-input" placeholder="المدينة"></label>
+                  <label class="address-field"><div class="address-label-row"><span>City</span><span>English</span></div><input data-address-part="city_en" dir="ltr" class="address-input" placeholder="City in English"></label>
+                  <label class="address-field"><div class="address-label-row"><span>الدولة</span><span>Country</span></div><input data-address-part="country_ar" class="address-input" placeholder="الدولة"></label>
+                  <label class="address-field"><div class="address-label-row"><span>Country</span><span>English</span></div><input data-address-part="country_en" dir="ltr" class="address-input" placeholder="Country in English"></label>
+                </div>
+                <div class="address-preview-wrap"><div class="address-preview-title"><span class="material-symbols-outlined text-[18px]">preview</span>معاينة العنوان المحفوظ</div><textarea data-address-preview readonly class="address-input address-preview" placeholder="سيظهر العنوان المجمع هنا تلقائيًا"></textarea></div>
+              </div>
+            </div>
           </div></section>
 
           <section class="space-y-4"><h3 class="font-display text-2xl font-bold text-primary dark:text-accent">الزوج/الزوجة والأبناء</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><label><span class="font-bold mb-2 block">الزوج/الزوجة</span><textarea name="spouse_names" rows="5" class="field"><%= spouseText %></textarea></label><label><span class="font-bold mb-2 block">الأبناء</span><textarea name="children_names" rows="5" class="field"><%= childrenText %></textarea></label></div></section>
 
           <section class="space-y-4"><h3 class="font-display text-2xl font-bold text-primary dark:text-accent">النبذة والملاحظات</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4"><label><span class="font-bold mb-2 block">نبذة مختصرة</span><textarea name="short_bio" rows="5" class="field"><%= request.short_bio || '' %></textarea></label><label><span class="font-bold mb-2 block">ملاحظات</span><textarea name="notes" rows="5" class="field"><%= request.notes || '' %></textarea></label></div></section>
 
-          <section class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end rounded-3xl p-4 sm:p-5 bg-white/60 dark:bg-white/5 border border-black/5 dark:border-white/10"><label class="font-bold flex items-center gap-3"><input type="checkbox" name="is_deceased" value="1" <%= Number(request.is_deceased||0)===1?'checked':'' %>> متوفى</label><input name="death_date" class="field" placeholder="تاريخ الوفاة" value="<%= request.death_date || '' %>"><input name="death_place" class="field" placeholder="مكان الوفاة" value="<%= request.death_place || '' %>"></section>
+          <section class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end rounded-3xl p-4 sm:p-5 bg-white/60 dark:bg-white/5 border border-black/5 dark:border-white/10"><label class="font-bold flex items-center gap-3"><input type="checkbox" name="is_deceased" value="1" <%= Number(request.is_deceased||0)===1?'checked':'' %>> متوفى</label><input name="death_date" data-dual-date class="field" placeholder="تاريخ الوفاة" value="<%= request.death_date || '' %>"><input name="death_place" class="field" placeholder="مكان الوفاة" value="<%= request.death_place || '' %>"></section>
 
           <label><span class="font-bold mb-2 block">ملاحظة الإدارة</span><textarea name="admin_note" rows="3" class="field" placeholder="ملاحظة اختيارية تظهر داخل سجل الطلب"><%= request.admin_note || '' %></textarea></label>
 
           <% if (request.status === 'pending') { %><div class="flex flex-col sm:flex-row gap-3 justify-center"><button class="px-7 py-4 rounded-full bg-primary dark:bg-accent text-white dark:text-black font-black shadow-lg" type="submit">اعتماد وإضافة للشجرة</button><a href="/admin/person-requests" class="px-7 py-4 rounded-full bg-white/80 dark:bg-white/5 border border-black/5 dark:border-white/10 text-primary dark:text-accent font-black text-center">إلغاء والرجوع</a></div><% } else { %><div class="p-4 rounded-2xl bg-gray-100 dark:bg-white/5 text-center font-bold">هذا الطلب تمت مراجعته بالفعل: <%= request.status %></div><% } %>
         </form>
-
-        <section class="bg-card-light dark:bg-card-dark glass-panel border border-red-200 dark:border-red-500/20 rounded-3xl p-4 sm:p-6 space-y-4">
-          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <h3 class="font-black text-lg text-red-700 dark:text-red-300">حذف الطلب</h3>
-              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">سيتم حذف سجل الطلب فقط، ولن يتم حذف الفرد من الشجرة إذا كان الطلب معتمدًا.</p>
-            </div>
-            <form method="post" action="/admin/person-requests/<%= request.id %>/delete">
-              <button class="px-6 py-3 rounded-full bg-red-600 text-white font-black" type="submit" onclick="return confirm('هل أنت متأكد من حذف هذا الطلب؟ سيتم حذف سجل الطلب فقط ولن يتم حذف الفرد من الشجرة إذا كان الطلب معتمدًا.')">حذف الطلب</button>
-            </form>
-          </div>
-        </section>
 
         <% if (request.status === 'pending') { %><form method="post" action="/admin/person-requests/<%= request.id %>/reject" class="bg-card-light dark:bg-card-dark glass-panel border border-red-200 dark:border-red-500/20 rounded-3xl p-4 sm:p-6 space-y-4"><label><span class="font-bold mb-2 block text-red-700 dark:text-red-300">سبب الرفض</span><textarea name="admin_note" rows="3" class="field" placeholder="اكتب سبب الرفض أو ملاحظة للإدارة"></textarea></label><button class="px-6 py-3 rounded-full bg-red-600 text-white font-black" type="submit" onclick="return confirm('هل أنت متأكد من رفض الطلب؟')">رفض الطلب</button></form><% } %>
       </div>
@@ -267,5 +276,7 @@
       }));
     })();
   </script>
+  <script src="/address-fields.js"></script>
+  <script src="/dual-calendar.js"></script>
 </body>
 </html>
