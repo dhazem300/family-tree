@@ -249,6 +249,59 @@
       drawer?.querySelectorAll('a').forEach(a=>a.addEventListener('click',shut));
     })();
 
+    (function referenceCopyInit(){
+      const btn = document.getElementById('copyReferenceBtn');
+      const input = document.getElementById('referenceCodeInput');
+      const msg = document.getElementById('copyReferenceMsg');
+      if (!btn || !input) return;
+
+      function showMessage(text, isError = false) {
+        if (!msg) return;
+        msg.textContent = text;
+        msg.classList.remove('hidden', 'text-green-700', 'dark:text-green-300', 'text-red-700', 'dark:text-red-300');
+        msg.classList.add(isError ? 'text-red-700' : 'text-green-700');
+        msg.classList.add(isError ? 'dark:text-red-300' : 'dark:text-green-300');
+        clearTimeout(msg.__copyTimer);
+        msg.__copyTimer = setTimeout(() => msg.classList.add('hidden'), 2500);
+      }
+
+      async function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+
+        input.removeAttribute('readonly');
+        input.focus();
+        input.select();
+        input.setSelectionRange(0, text.length);
+        const ok = document.execCommand('copy');
+        input.setAttribute('readonly', 'readonly');
+        window.getSelection?.().removeAllRanges?.();
+        return ok;
+      }
+
+      btn.addEventListener('click', async function () {
+        const code = (input.value || '').trim();
+        if (!code) return showMessage('لا يوجد رقم مرجعي لنسخه.', true);
+
+        try {
+          const copied = await copyText(code);
+          if (copied) {
+            btn.classList.add('opacity-90');
+            showMessage('تم نسخ الرقم المرجعي بنجاح.');
+            setTimeout(() => btn.classList.remove('opacity-90'), 500);
+          } else {
+            showMessage('لم يتم النسخ تلقائيًا، برجاء تحديد الرقم ونسخه يدويًا.', true);
+          }
+        } catch (error) {
+          console.error('copy reference error:', error);
+          showMessage('لم يتم النسخ تلقائيًا، برجاء تحديد الرقم ونسخه يدويًا.', true);
+        }
+      });
+    })();
+
+
     (function lineageResolverInit(){
       const inputs=document.querySelectorAll('[data-lineage-resolver]');
       if(!inputs.length)return;
