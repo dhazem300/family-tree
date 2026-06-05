@@ -3,8 +3,8 @@ const nodemailer = require("nodemailer");
 
 const express = require("express");
 const path = require("path");
-const crypto = require("crypto");
 const fs = require("fs");
+const crypto = require("crypto");
 const db = require("./db");
 const bcrypt = require("bcrypt");
 const session = require("express-session");
@@ -645,6 +645,8 @@ async function ensurePersonRequestsTable() {
   const existing = new Set(cols.map((c) => c.name));
   const extraCols = [
     ["reference_code", "TEXT"],
+    ["father_lineage_name", "TEXT"],
+    ["mother_lineage_name", "TEXT"],
     ["payload_json", "TEXT"],
     ["status", "TEXT DEFAULT 'pending'"],
     ["admin_note", "TEXT"],
@@ -753,6 +755,95 @@ function listToTextarea(value) {
     if (Array.isArray(parsed)) return parsed.join("\n");
   } catch (e) {}
   return String(value || "");
+}
+
+
+function normalizeArabicForMatch(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/ؤ/g, "و")
+    .replace(/ئ/g, "ي")
+    .replace(/[ًٌٍَُِّْـ]/g, "")
+    .replace(/[.,،؛:!؟()\[\]{}"'`~@#$%^&*_+=<>/\\|-]/g, " ")
+    .replace(/\b(بن|ابن|بنت|ال)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function namePartsForMatch(value) {
+  return normalizeArabicForMatch(value).split(" ").filter(Boolean);
+}
+
+function firstNameForMatch(value) {
+  return namePartsForMatch(value)[0] || "";
+}
+
+function buildThreePartLineage(person, byId) {
+  if (!person) return "";
+  const first = firstNameForMatch(person.name);
+  const father = person.father_id ? byId.get(Number(person.father_id)) : null;
+  const fatherFirst = father ? firstNameForMatch(father.name) : "";
+  const grandfather = father && father.father_id ? byId.get(Number(father.father_id)) : null;
+  const grandfatherFirst = grandfather ? firstNameForMatch(grandfather.name) : "";
+  return [first, fatherFirst, grandfatherFirst].filter(Boolean).join(" ");
+}
+
+async function getPersonsForLineage(excludeId = null) {
+  const rows = await all(`SELECT id, name, father_id, mother_id, gender FROM persons ORDER BY id ASC`);
+  const byId = new Map(rows.map((r) => [Number(r.id), r]));
+  const usable = excludeId ? rows.filter((r) => Number(r.id) !== Number(excludeId)) : rows;
+  return { rows: usable, byId };
+}
+
+async function resolvePersonByThreePartLineage(input, options = {}) {
+  const q = cleanText(input, 220);
+  const parts = namePartsForMatch(q);
+  if (!q || parts.length < 3) {
+    return { ok: false, id: null, status: "empty", message: "اكتب الاسم الثلاثي مثل: حجاج يوسف حسن" };
+  }
+
+  const target = parts.slice(0, 3);
+  const { rows, byId } = await getPersonsForLineage(options.excludeId || null);
+  const matches = [];
+
+  for (const person of rows) {
+    const father = person.father_id ? byId.get(Number(person.father_id)) : null;
+    const grandfather = father && father.father_id ? byId.get(Number(father.father_id)) : null;
+    if (!father || !grandfather) continue;
+
+    const triple = [firstNameForMatch(person.name), firstNameForMatch(father.name), firstNameForMatch(grandfather.name)];
+    if (triple[0] === target[0] && triple[1] === target[1] && triple[2] === target[2]) {
+      if (options.gender && normalizeArabicForMatch(person.gender) && normalizeArabicForMatch(person.gender) !== normalizeArabicForMatch(options.gender)) {
+        // لا نمنع المطابقة بسبب اختلاف صيغة النوع، فقط نستمر لو الطلب محدد بشدة.
+      }
+      matches.push({
+        id: person.id,
+        name: person.name,
+        lineage: buildThreePartLineage(person, byId),
+      });
+    }
+  }
+
+  if (matches.length === 1) return { ok: true, id: matches[0].id, status: "matched", match: matches[0] };
+  if (matches.length > 1) return { ok: false, id: null, status: "multiple", matches, message: "يوجد أكثر من شخص بنفس التسلسل، يرجى توضيح الاسم أكثر من الإدارة." };
+  return { ok: false, id: null, status: "not_found", message: "لم يتم العثور على شخص بهذا التسلسل الثلاثي داخل الشجرة." };
+}
+
+async function lineageLabelForPersonId(personId) {
+  if (!personId) return "";
+  const { rows, byId } = await getPersonsForLineage();
+  const person = byId.get(Number(personId));
+  return buildThreePartLineage(person, byId);
+}
+
+async function resolveOptionalLineageId(value, options = {}) {
+  const q = cleanText(value, 220);
+  if (!q) return { id: null, text: "", result: null };
+  const result = await resolvePersonByThreePartLineage(q, options);
+  return { id: result.ok ? result.id : null, text: q, result };
 }
 
 async function getRequestCounts() {
@@ -1732,6 +1823,18 @@ async function findPersonRequestByReference(referenceCode) {
   );
 }
 
+app.get("/api/person-lineage/resolve", async (req, res) => {
+  try {
+    const q = cleanText(req.query.q, 220);
+    const excludeId = req.query.exclude_id || null;
+    const result = await resolvePersonByThreePartLineage(q, { excludeId });
+    res.json({ ok: true, result });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: "خطأ في مطابقة الاسم الثلاثي" });
+  }
+});
+
 app.get("/submit-person", async (req, res) => {
   try {
     const persons = await all("SELECT id, name FROM persons ORDER BY name ASC");
@@ -1768,8 +1871,10 @@ app.post("/submit-person", upload.single("photo_file"), async (req, res) => {
     const payload = {
       name,
       gender: cleanText(body.gender, 20) || null,
-      father_id: body.father_id || null,
-      mother_id: body.mother_id || null,
+      father_id: null,
+      mother_id: null,
+      father_lineage_name: cleanText(body.father_lineage_name, 220) || null,
+      mother_lineage_name: cleanText(body.mother_lineage_name, 220) || null,
       birth_date: cleanText(body.birth_date, 40) || null,
       birth_place: cleanText(body.birth_place, 180) || null,
       death_date: cleanText(body.death_date, 40) || null,
@@ -1788,19 +1893,28 @@ app.post("/submit-person", upload.single("photo_file"), async (req, res) => {
       submitted_by_phone: cleanText(body.submitted_by_phone, 80) || null,
     };
 
+    const fatherResolved = await resolveOptionalLineageId(payload.father_lineage_name);
+    const motherResolved = await resolveOptionalLineageId(payload.mother_lineage_name);
+    payload.father_id = fatherResolved.id;
+    payload.mother_id = motherResolved.id;
+    payload.father_match_status = fatherResolved.result?.status || null;
+    payload.mother_match_status = motherResolved.result?.status || null;
+
     await run(
       `INSERT INTO person_requests (
-        reference_code, name, gender, father_id, mother_id, birth_date, birth_place,
+        reference_code, name, gender, father_id, mother_id, father_lineage_name, mother_lineage_name, birth_date, birth_place,
         death_date, death_place, is_deceased, job, mobile_phone, personal_email,
         national_address, photo_url, notes, short_bio, spouse_names, children_names,
         payload_json, status, ip_address, user_agent
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
       [
         referenceCode,
         payload.name,
         payload.gender,
         payload.father_id,
         payload.mother_id,
+        payload.father_lineage_name,
+        payload.mother_lineage_name,
         payload.birth_date,
         payload.birth_place,
         payload.death_date,
@@ -2012,12 +2126,13 @@ app.get("/admin/news/stats", isAuthed, requirePermission("news"), async (req, re
 
 app.get("/admin/person/new", isAuthed, requirePermission("persons"), async (req, res) => {
   try {
-    const persons = await all("SELECT id, name FROM persons ORDER BY name ASC");
     res.render("person_form", {
       mode: "new",
-      persons,
+      persons: [],
       person: null,
       spouseNames: [],
+      fatherLineageName: "",
+      motherLineageName: "",
       admin: req.session.admin,
     });
   } catch (e) {
@@ -2032,6 +2147,8 @@ app.post("/admin/person/new", isAuthed, requirePermission("persons"), async (req
       name,
       father_id,
       mother_id,
+      father_lineage_name,
+      mother_lineage_name,
       birth_date,
       birth_place,
       death_date,
@@ -2048,6 +2165,11 @@ app.post("/admin/person/new", isAuthed, requirePermission("persons"), async (req
     } = req.body;
 
     const spouse_names = req.body.spouse_names;
+    const resolvedFather = await resolveOptionalLineageId(father_lineage_name);
+    const resolvedMother = await resolveOptionalLineageId(mother_lineage_name);
+    if (cleanText(father_lineage_name, 220) && !resolvedFather.id) {
+      return res.status(400).send(resolvedFather.result?.message || "لم يتم العثور على الأب بهذا التسلسل الثلاثي");
+    }
 
     const result = await run(
       `INSERT INTO persons (
@@ -2058,8 +2180,8 @@ app.post("/admin/person/new", isAuthed, requirePermission("persons"), async (req
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         String(name || "").trim(),
-        father_id || null,
-        mother_id || null,
+        resolvedFather.id || null,
+        resolvedMother.id || null,
         birth_date || null,
         birth_place || null,
         death_date || null,
@@ -2091,15 +2213,18 @@ app.get("/admin/person/:id/edit", isAuthed, requirePermission("persons"), async 
     const person = await get("SELECT * FROM persons WHERE id = ?", [req.params.id]);
     if (!person) return res.redirect("/admin");
 
-    const persons = await all("SELECT id, name FROM persons WHERE id != ? ORDER BY name ASC", [req.params.id]);
     const spouseRows = await getSpouseNames(person.id);
     const spouseNames = spouseRows.map((x) => x.spouse_name);
+    const fatherLineageName = await lineageLabelForPersonId(person.father_id);
+    const motherLineageName = await lineageLabelForPersonId(person.mother_id);
 
     res.render("person_form", {
       mode: "edit",
-      persons,
+      persons: [],
       person,
       spouseNames,
+      fatherLineageName,
+      motherLineageName,
       admin: req.session.admin,
     });
   } catch (e) {
@@ -2114,6 +2239,8 @@ app.post("/admin/person/:id/edit", isAuthed, requirePermission("persons"), async
       name,
       father_id,
       mother_id,
+      father_lineage_name,
+      mother_lineage_name,
       birth_date,
       birth_place,
       death_date,
@@ -2130,6 +2257,11 @@ app.post("/admin/person/:id/edit", isAuthed, requirePermission("persons"), async
     } = req.body;
 
     const spouse_names = req.body.spouse_names;
+    const resolvedFather = await resolveOptionalLineageId(father_lineage_name, { excludeId: req.params.id });
+    const resolvedMother = await resolveOptionalLineageId(mother_lineage_name, { excludeId: req.params.id });
+    if (cleanText(father_lineage_name, 220) && !resolvedFather.id) {
+      return res.status(400).send(resolvedFather.result?.message || "لم يتم العثور على الأب بهذا التسلسل الثلاثي");
+    }
 
     await run(
       `UPDATE persons
@@ -2153,8 +2285,8 @@ app.post("/admin/person/:id/edit", isAuthed, requirePermission("persons"), async
        WHERE id = ?`,
       [
         String(name || "").trim(),
-        father_id || null,
-        mother_id || null,
+        resolvedFather.id || null,
+        resolvedMother.id || null,
         birth_date || null,
         birth_place || null,
         death_date || null,
@@ -3079,6 +3211,7 @@ app.post("/admin/roles/:id/delete", isAuthed, requireSuperAdmin, async (req, res
 });
 
 
+
 app.get("/admin/person-requests", isAuthed, requirePermission("person_requests"), async (req, res) => {
   try {
     const status = ["pending", "approved", "rejected"].includes(req.query.status) ? req.query.status : "pending";
@@ -3130,11 +3263,14 @@ app.get("/admin/person-requests/:id", isAuthed, requirePermission("person_reques
   try {
     const request = await get(`SELECT * FROM person_requests WHERE id = ?`, [req.params.id]);
     if (!request) return res.redirect("/admin/person-requests");
-    const persons = await all("SELECT id, name FROM persons ORDER BY name ASC");
+    const fatherLineageName = request.father_lineage_name || await lineageLabelForPersonId(request.father_id);
+    const motherLineageName = request.mother_lineage_name || await lineageLabelForPersonId(request.mother_id);
     res.render("person_request_review", {
       admin: req.session.admin,
       request,
-      persons,
+      persons: [],
+      fatherLineageName,
+      motherLineageName,
       spouseText: listToTextarea(request.spouse_names),
       childrenText: listToTextarea(request.children_names),
       error: req.query.error || "",
@@ -3144,7 +3280,6 @@ app.get("/admin/person-requests/:id", isAuthed, requirePermission("person_reques
     res.status(500).send("خطأ في فتح طلب الفرد");
   }
 });
-
 
 app.post("/admin/person-requests/:id/delete", isAuthed, requirePermission("person_requests"), async (req, res) => {
   try {
@@ -3184,6 +3319,13 @@ app.post("/admin/person-requests/:id/approve", isAuthed, requirePermission("pers
     const gender = cleanText(body.gender || request.gender, 20) || null;
     const spouseList = linesToCleanArray(body.spouse_names ?? request.spouse_names, 20, 160);
     const childrenList = linesToCleanArray(body.children_names ?? request.children_names, 40, 160);
+    const fatherLineageName = cleanText(body.father_lineage_name || request.father_lineage_name, 220);
+    const motherLineageName = cleanText(body.mother_lineage_name || request.mother_lineage_name, 220);
+    const resolvedFather = await resolveOptionalLineageId(fatherLineageName);
+    const resolvedMother = await resolveOptionalLineageId(motherLineageName);
+    if (fatherLineageName && !resolvedFather.id) {
+      return res.redirect("/admin/person-requests/" + req.params.id + "?error=" + encodeURIComponent(resolvedFather.result?.message || "لم يتم العثور على الأب بهذا التسلسل الثلاثي"));
+    }
 
     const result = await run(
       `INSERT INTO persons (
@@ -3193,8 +3335,8 @@ app.post("/admin/person-requests/:id/approve", isAuthed, requirePermission("pers
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name,
-        body.father_id || null,
-        body.mother_id || null,
+        resolvedFather.id || null,
+        resolvedMother.id || null,
         cleanText(body.birth_date, 40) || null,
         cleanText(body.birth_place, 180) || null,
         cleanText(body.death_date, 40) || null,
@@ -3228,9 +3370,9 @@ app.post("/admin/person-requests/:id/approve", isAuthed, requirePermission("pers
 
     await run(
       `UPDATE person_requests
-       SET status='approved', created_person_id=?, reviewed_by=?, reviewed_at=CURRENT_TIMESTAMP, admin_note=?
+       SET status='approved', created_person_id=?, reviewed_by=?, reviewed_at=CURRENT_TIMESTAMP, admin_note=?, father_lineage_name=?, mother_lineage_name=?
        WHERE id=?`,
-      [personId, req.session.admin.id, cleanText(body.admin_note, 1000) || null, req.params.id]
+      [personId, req.session.admin.id, cleanText(body.admin_note, 1000) || null, fatherLineageName || null, motherLineageName || null, req.params.id]
     );
 
     await logAdminAction(req, "اعتماد طلب إضافة فرد", "person_request", req.params.id, { personId, name });

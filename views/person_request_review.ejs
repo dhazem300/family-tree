@@ -134,7 +134,6 @@
     <div id="personReviewContent" class="w-full px-4 lg:px-8 pb-20 overflow-visible">
       <div class="max-w-[100rem] mx-auto space-y-6">
         <section class="bg-card-light dark:bg-card-dark glass-panel rounded-3xl border border-border-light dark:border-border-dark p-5 md:p-6 shadow-sm"><div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"><div><h3 class="font-black text-xl text-primary dark:text-white">راجع البيانات قبل اعتمادها</h3><p class="text-sm text-gray-500 dark:text-gray-400 mt-2 leading-7">يمكنك تعديل البيانات القادمة من المستخدم قبل إضافتها رسميًا داخل الشجرة التفاعلية.</p></div><div class="flex flex-wrap gap-2"><a href="/admin/person-requests" class="px-4 py-3 rounded-2xl bg-white/70 dark:bg-white/5 border border-black/5 dark:border-white/10 text-primary dark:text-accent font-bold">رجوع للطلبات</a><a href="/admin" class="px-4 py-3 rounded-2xl bg-primary dark:bg-accent text-white dark:text-black font-bold">إدارة الأفراد</a></div></div></section>
-        <section class="bg-card-light dark:bg-card-dark glass-panel rounded-3xl border border-border-light dark:border-border-dark p-5 md:p-6 shadow-sm"><div class="grid grid-cols-1 md:grid-cols-3 gap-4"><div class="rounded-2xl bg-white/70 dark:bg-white/5 border border-black/5 dark:border-white/10 p-4"><p class="text-xs font-black text-gray-500 dark:text-gray-400 mb-2">الرقم المرجعي</p><p class="text-xl font-black text-primary dark:text-accent"><%= request.reference_code || '-' %></p></div><div class="rounded-2xl bg-white/70 dark:bg-white/5 border border-black/5 dark:border-white/10 p-4"><p class="text-xs font-black text-gray-500 dark:text-gray-400 mb-2">حالة الطلب</p><p class="text-xl font-black text-primary dark:text-accent"><%= request.status || '-' %></p></div><div class="rounded-2xl bg-white/70 dark:bg-white/5 border border-black/5 dark:border-white/10 p-4"><p class="text-xs font-black text-gray-500 dark:text-gray-400 mb-2">تاريخ الإرسال</p><p class="text-base font-black text-primary dark:text-accent"><%= request.created_at || '-' %></p></div></div></section>
         <% if (error) { %><div class="p-4 rounded-2xl bg-red-50 dark:bg-red-500/10 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-500/20 font-bold"><%= error %></div><% } %>
 
         <form method="post" action="/admin/person-requests/<%= request.id %>/approve" class="bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark rounded-3xl shadow-sm p-4 sm:p-6 md:p-8 space-y-8">
@@ -143,8 +142,8 @@
             <div class="space-y-4"><h3 class="font-display text-2xl font-bold text-primary dark:text-accent">البيانات الأساسية</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label><span class="font-bold mb-2 block">الاسم *</span><input name="name" required class="field" value="<%= request.name || '' %>"></label>
               <label><span class="font-bold mb-2 block">النوع</span><select name="gender" class="field"><option value="">غير محدد</option><option value="male" <%= request.gender==='male'?'selected':'' %>>ذكر</option><option value="female" <%= request.gender==='female'?'selected':'' %>>أنثى</option></select></label>
-              <label><span class="font-bold mb-2 block">الأب</span><select name="father_id" class="field"><option value="">غير محدد</option><% persons.forEach(p=>{ %><option value="<%= p.id %>" <%= String(request.father_id||'')===String(p.id)?'selected':'' %>><%= p.name %></option><% }) %></select></label>
-              <label><span class="font-bold mb-2 block">الأم</span><select name="mother_id" class="field"><option value="">غير محدد</option><% persons.forEach(p=>{ %><option value="<%= p.id %>" <%= String(request.mother_id||'')===String(p.id)?'selected':'' %>><%= p.name %></option><% }) %></select></label>
+              <label><span class="font-bold mb-2 block">اسم الأب الثلاثي داخل الشجرة</span><input name="father_lineage_name" data-lineage-resolver="father" class="field" value="<%= fatherLineageName || '' %>" placeholder="برجاء كتابة اسم الاب ثلاثي"><small class="lineage-feedback block mt-2 text-xs font-bold text-gray-500 dark:text-gray-400" data-lineage-feedback="father">يتم مطابقة الاسم الثلاثي وربط الطلب بالأب تلقائيًا عند الاعتماد.</small></label>
+              <label><span class="font-bold mb-2 block">اسم الأم الثلاثي داخل الشجرة</span><input name="mother_lineage_name" data-lineage-resolver="mother" class="field" value="<%= motherLineageName || '' %>" placeholder="برجاء كتابة اسم الام ثلاثي"><small class="lineage-feedback block mt-2 text-xs font-bold text-gray-500 dark:text-gray-400" data-lineage-feedback="mother">اختياري: إذا كانت الأم موجودة في الشجرة سيتم ربطها تلقائيًا عند الاعتماد.</small></label>
               <input type="hidden" name="photo_url" value="<%= request.photo_url || '' %>">
             </div></div>
           </section>
@@ -169,9 +168,19 @@
           <% if (request.status === 'pending') { %><div class="flex flex-col sm:flex-row gap-3 justify-center"><button class="px-7 py-4 rounded-full bg-primary dark:bg-accent text-white dark:text-black font-black shadow-lg" type="submit">اعتماد وإضافة للشجرة</button><a href="/admin/person-requests" class="px-7 py-4 rounded-full bg-white/80 dark:bg-white/5 border border-black/5 dark:border-white/10 text-primary dark:text-accent font-black text-center">إلغاء والرجوع</a></div><% } else { %><div class="p-4 rounded-2xl bg-gray-100 dark:bg-white/5 text-center font-bold">هذا الطلب تمت مراجعته بالفعل: <%= request.status %></div><% } %>
         </form>
 
-        <% if (request.status === 'pending') { %><form method="post" action="/admin/person-requests/<%= request.id %>/reject" class="bg-card-light dark:bg-card-dark glass-panel border border-red-200 dark:border-red-500/20 rounded-3xl p-4 sm:p-6 space-y-4"><label><span class="font-bold mb-2 block text-red-700 dark:text-red-300">سبب الرفض</span><textarea name="admin_note" rows="3" class="field" placeholder="اكتب سبب الرفض أو ملاحظة للإدارة"></textarea></label><button class="px-6 py-3 rounded-full bg-red-600 text-white font-black" type="submit" onclick="return confirm('هل أنت متأكد من رفض الطلب؟')">رفض الطلب</button></form><% } %>
+        <section class="bg-card-light dark:bg-card-dark glass-panel border border-red-200 dark:border-red-500/20 rounded-3xl p-4 sm:p-6 space-y-4">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h3 class="font-black text-lg text-red-700 dark:text-red-300">حذف الطلب</h3>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">سيتم حذف سجل الطلب فقط، ولن يتم حذف الفرد من الشجرة إذا كان الطلب معتمدًا.</p>
+            </div>
+            <form method="post" action="/admin/person-requests/<%= request.id %>/delete">
+              <button class="px-6 py-3 rounded-full bg-red-600 text-white font-black" type="submit" onclick="return confirm('هل أنت متأكد من حذف هذا الطلب؟ سيتم حذف سجل الطلب فقط ولن يتم حذف الفرد من الشجرة إذا كان الطلب معتمدًا.')">حذف الطلب</button>
+            </form>
+          </div>
+        </section>
 
-        <form method="post" action="/admin/person-requests/<%= request.id %>/delete" class="bg-card-light dark:bg-card-dark glass-panel border border-red-200 dark:border-red-500/20 rounded-3xl p-4 sm:p-6 space-y-4"><div><h3 class="font-black text-lg text-red-700 dark:text-red-300 flex items-center gap-2"><span class="material-symbols-outlined">delete</span>حذف الطلب</h3><p class="text-sm text-gray-500 dark:text-gray-400 mt-2 leading-7">سيتم حذف سجل الطلب من الإدارة. إذا كان الطلب معتمدًا فلن يتم حذف الفرد الذي تم إنشاؤه داخل الشجرة.</p></div><button class="px-6 py-3 rounded-full bg-red-600 text-white font-black" type="submit" onclick="return confirm('هل أنت متأكد من حذف هذا الطلب؟ سيتم حذف سجل الطلب فقط ولن يتم حذف الفرد من الشجرة إذا كان الطلب معتمدًا.')">حذف الطلب</button></form>
+        <% if (request.status === 'pending') { %><form method="post" action="/admin/person-requests/<%= request.id %>/reject" class="bg-card-light dark:bg-card-dark glass-panel border border-red-200 dark:border-red-500/20 rounded-3xl p-4 sm:p-6 space-y-4"><label><span class="font-bold mb-2 block text-red-700 dark:text-red-300">سبب الرفض</span><textarea name="admin_note" rows="3" class="field" placeholder="اكتب سبب الرفض أو ملاحظة للإدارة"></textarea></label><button class="px-6 py-3 rounded-full bg-red-600 text-white font-black" type="submit" onclick="return confirm('هل أنت متأكد من رفض الطلب؟')">رفض الطلب</button></form><% } %>
       </div>
     </div>
   </main>
@@ -234,5 +243,29 @@
     })();
   </script>
   <script>(function(){const btn=document.getElementById('themeBtn');function setTheme(n){document.documentElement.classList.toggle('dark',n==='dark');document.documentElement.setAttribute('data-theme',n);localStorage.setItem('theme',n);if(window.initNexus)window.initNexus()}btn?.addEventListener('click',()=>{const cur=document.documentElement.classList.contains('dark')?'dark':'light';setTheme(cur==='dark'?'light':'dark')});})();(function(){const c=document.getElementById('nexusCanvas');if(!c)return;const x=c.getContext('2d');let w,h,p=[];const n=innerWidth>1024?120:65;let dc,lc;window.initNexus=function(){const d=document.documentElement.classList.contains('dark');dc=d?'rgba(229,184,105,.38)':'rgba(0,90,43,.25)';lc=d?'rgba(229,184,105,.09)':'rgba(0,90,43,.08)'};function r(){w=c.width=innerWidth;h=c.height=innerHeight}function init(){p=[];for(let i=0;i<n;i++)p.push({x:Math.random()*w,y:Math.random()*h,vx:(Math.random()-.5)*.45,vy:(Math.random()-.5)*.45,rr:Math.random()*1.8+1})}function a(){x.clearRect(0,0,w,h);p.forEach((q,i)=>{q.x+=q.vx;q.y+=q.vy;if(q.x<0||q.x>w)q.vx*=-1;if(q.y<0||q.y>h)q.vy*=-1;x.beginPath();x.arc(q.x,q.y,q.rr,0,Math.PI*2);x.fillStyle=dc;x.fill();for(let j=i+1;j<p.length;j++){const e=p[j],d=Math.hypot(q.x-e.x,q.y-e.y);if(d<120){x.beginPath();x.moveTo(q.x,q.y);x.lineTo(e.x,e.y);x.strokeStyle=lc;x.stroke()}}});requestAnimationFrame(a)}window.initNexus();r();init();a();addEventListener('resize',()=>{r();init()})})();</script>
+
+  <script>
+    (function lineageResolverInit(){
+      const inputs=document.querySelectorAll('[data-lineage-resolver]');
+      if(!inputs.length)return;
+      const timers=new Map();
+      function setFeedback(type,msg,state){
+        const el=document.querySelector(`[data-lineage-feedback="${type}"]`); if(!el)return;
+        el.textContent=msg;
+        el.className='lineage-feedback block mt-2 text-xs font-bold '+(state==='ok'?'text-green-700 dark:text-green-300':state==='warn'?'text-amber-700 dark:text-amber-300':state==='bad'?'text-red-700 dark:text-red-300':'text-gray-500 dark:text-gray-400');
+      }
+      inputs.forEach(input=>input.addEventListener('input',()=>{
+        const type=input.getAttribute('data-lineage-resolver'); clearTimeout(timers.get(input)); const q=input.value.trim();
+        if(!q)return setFeedback(type,type==='father'?'يتم مطابقة الاسم الثلاثي وربط الطلب بالأب تلقائيًا عند الاعتماد.':'اختياري: إذا كانت الأم موجودة في الشجرة سيتم ربطها تلقائيًا عند الاعتماد.','normal');
+        timers.set(input,setTimeout(async()=>{
+          try{const res=await fetch('/api/person-lineage/resolve?q='+encodeURIComponent(q)); const data=await res.json(); const result=data.result||{};
+            if(result.status==='matched')setFeedback(type,'تم العثور على: '+(result.match?.name||q)+' وسيتم الربط تلقائيًا.','ok');
+            else if(result.status==='multiple')setFeedback(type,'يوجد أكثر من شخص بنفس التسلسل. يلزم مراجعة البيانات قبل الاعتماد.','warn');
+            else setFeedback(type,result.message||'لم يتم العثور على هذا التسلسل داخل الشجرة.',type==='father'?'bad':'warn');
+          }catch(e){setFeedback(type,'تعذر التحقق الآن، سيتم التحقق عند الاعتماد.','warn')}
+        },350));
+      }));
+    })();
+  </script>
 </body>
 </html>
