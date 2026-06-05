@@ -93,7 +93,7 @@
 
     #mobileNavOverlay.hidden { display: none; }
     #mobileNavOverlay { display: block; }
-    #mobileNavDrawer { transform: translateX(110%); transition: transform .4s cubic-bezier(0.16, 1, 0.3, 1); }
+    #mobileNavDrawer { transform: translateX(-110%); transition: transform .4s cubic-bezier(0.16, 1, 0.3, 1); }
     #mobileNavDrawer.isOpen { transform: translateX(0); }
 
     .bg-primary,
@@ -151,43 +151,64 @@
     </div>
 
     <nav class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
-
       <div class="space-y-2">
-        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">البيانات الرئيسية</p>
-
-        <a href="/admin" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          <span class="material-symbols-outlined text-[22px]">group</span>
-          إدارة الأفراد
-        </a>
-
-        <a href="/admin/pages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          <span class="material-symbols-outlined text-[22px]">history_edu</span> إدارة الصفحات
-        </a>
-
-        <a href="/admin/honor" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          <span class="material-symbols-outlined text-[22px]">workspace_premium</span> السير الذاتية
-        </a>
-
-        <a href="/admin/news" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent font-bold text-sm border border-primary/20 dark:border-accent/20 transition-all relative overflow-hidden shadow-sm">
-          <div class="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-6 rounded-l-full bg-primary dark:bg-accent shadow-[0_0_10px_rgba(229,184,105,0.8)]"></div>
-          <span class="material-symbols-outlined text-[22px]">newspaper</span> الأخبار والمناسبات
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">نظرة عامة</p>
+        <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          
+          <span class="material-symbols-outlined text-[22px]">dashboard</span> لوحة الإحصائيات
         </a>
       </div>
 
       <div class="space-y-2">
-        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والموقع</p>
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">إدارة البيانات</p>
+        <a href="/admin" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          
+          <span class="material-symbols-outlined text-[22px]">group</span> إدارة الأفراد
+        </a>
+        <% if (typeof userCan === "function" && userCan("person_requests")) { %>
+        <a href="/admin/person-requests" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          
+          <span class="material-symbols-outlined text-[22px]">fact_check</span> طلبات الأفراد
+        </a>
+        <% } %>
+        <a href="/admin/pages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          
+          <span class="material-symbols-outlined text-[22px]">history_edu</span> إدارة الصفحات
+        </a>
+        <a href="/admin/honor" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          
+          <span class="material-symbols-outlined text-[22px]">workspace_premium</span> السير الذاتية
+        </a>
+        <a href="/admin/news" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent font-bold text-sm border border-primary/20 dark:border-accent/20 transition-all relative overflow-hidden shadow-sm">
+          <div class="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-6 rounded-l-full bg-primary dark:bg-accent shadow-[0_0_10px_rgba(229,184,105,0.8)]"></div>
+          <span class="material-symbols-outlined text-[22px]">newspaper</span> الأخبار والمناسبات
+        </a>
+        <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          
+          <span class="material-symbols-outlined text-[22px]">mail</span> رسائل الدعم
+        </a>
+      </div>
 
+      <div class="space-y-2">
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والصلاحيات</p>
         <% if (typeof userCan === "function" && userCan("roles")) { %>
         <a href="/admin/roles" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          
           <span class="material-symbols-outlined text-[22px]">manage_accounts</span> وظائف الأفراد
         </a>
         <% } %>
-        
-        <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          <span class="material-symbols-outlined text-[22px]">mail</span> رسائل الدعم
+        <% if (Number(admin?.is_super_admin || 0) === 1) { %>
+        <a href="/admin/activity" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          
+          <span class="material-symbols-outlined text-[22px]">manage_history</span> سجل النشاطات
         </a>
-
+        <a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          
+          <span class="material-symbols-outlined text-[22px]">construction</span> وضع الصيانة
+        </a>
+        <% } %>
         <a href="/" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          
           <span class="material-symbols-outlined text-[22px]">account_tree</span> عرض الشجرة
         </a>
       </div>
@@ -238,6 +259,8 @@
           <span class="material-symbols-outlined text-[22px]">arrow_back</span>
           <span class="hidden sm:inline">رجوع للأخبار</span>
         </a>
+        <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">dashboard</span> لوحة الإحصائيات</a>
+      <a href="/admin/person-requests" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">fact_check</span> طلبات الأفراد</a>
 
         <a href="/admin/news/comments/export.csv" class="flex items-center gap-2 px-6 h-12 rounded-2xl font-bold text-sm bg-primary dark:bg-accent text-white dark:text-black shadow-[0_5px_20px_rgba(0,90,43,0.28)] dark:shadow-[0_5px_20px_rgba(229,184,105,0.20)] hover:-translate-y-1 transition-transform">
           <span class="material-symbols-outlined text-[22px]">download</span>
@@ -393,7 +416,7 @@
     </div>
   </main>
 
-  <aside id="mobileNavDrawer" class="fixed top-0 right-0 h-full w-[320px] max-w-[85vw] bg-card-light dark:bg-card-dark glass-panel border-l border-border-light dark:border-border-dark z-[90] flex flex-col">
+  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-card-light dark:bg-card-dark glass-panel border-r border-border-light dark:border-border-dark z-[90] flex flex-col">
     <div class="h-1.5 w-full bg-primary"></div>
     <div class="flex items-center justify-between p-6 border-b border-border-light dark:border-border-dark shrink-0">
       <div>
@@ -406,13 +429,35 @@
     </div>
 
     <nav class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-3 text-sm font-bold text-gray-700 dark:text-gray-300">
-      <a href="/admin" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">group</span> إدارة الأفراد</a>
-      <a href="/admin/pages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">history_edu</span> إدارة الصفحات</a>
-      <a href="/admin/honor" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">workspace_premium</span> السير الذاتية</a>
-      <a href="/admin/news" class="flex items-center gap-3 px-4 py-4 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent transition-colors border border-primary/20 dark:border-accent/20"><span class="material-symbols-outlined">newspaper</span> الأخبار</a>
-      <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">mail</span> رسائل الدعم</a>
-      <div class="my-4 border-t border-border-light dark:border-border-dark"></div>
-      <a href="/" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">account_tree</span> العودة للموقع</a>
+    <div class="space-y-2">
+      <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">نظرة عامة</p>
+    <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">dashboard</span> لوحة الإحصائيات</a>
+    </div>
+    <div class="space-y-2 mt-4">
+      <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">إدارة البيانات</p>
+    <a href="/admin" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">group</span> إدارة الأفراد</a>
+      <% if (typeof userCan === "function" && userCan("person_requests")) { %>
+    <a href="/admin/person-requests" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">fact_check</span> طلبات الأفراد</a>
+      <% } %>
+    <a href="/admin/pages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">history_edu</span> إدارة الصفحات</a>
+    <a href="/admin/honor" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">workspace_premium</span> السير الذاتية</a>
+    <a href="/admin/news" class="flex items-center gap-3 px-4 py-4 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent transition-colors border border-primary/20 dark:border-accent/20"><span class="material-symbols-outlined">newspaper</span> الأخبار والمناسبات</a>
+    <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">mail</span> رسائل الدعم</a>
+    </div>
+    <div class="space-y-2 mt-4">
+      <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والصلاحيات</p>
+      <% if (typeof userCan === "function" && userCan("roles")) { %>
+    <a href="/admin/roles" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_accounts</span> وظائف الأفراد</a>
+      <% } %>
+      <% if (Number(admin?.is_super_admin || 0) === 1) { %>
+    <a href="/admin/activity" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_history</span> سجل النشاطات</a>
+    <a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">construction</span> وضع الصيانة</a>
+      <% } %>
+    </div>
+    <div class="my-4 border-t border-border-light dark:border-border-dark"></div>
+    <a href="/" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">account_tree</span> العودة للموقع</a>
+    
+
 
       <form method="post" action="/admin/logout" class="m-0 mt-4">
         <button type="submit" class="w-full flex items-center justify-center gap-2 px-4 py-4 rounded-2xl border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-500/10 hover:bg-red-50 transition-colors">

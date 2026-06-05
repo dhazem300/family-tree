@@ -75,6 +75,40 @@ db.serialize(() => {
   db.run(`INSERT OR IGNORE INTO site_settings (key, value, updated_at) VALUES ('maintenance_message', 'الموقع تحت الصيانة حاليًا، يرجى المحاولة لاحقًا.', CURRENT_TIMESTAMP)`);
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS person_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reference_code TEXT UNIQUE,
+      name TEXT NOT NULL,
+      gender TEXT,
+      father_id INTEGER,
+      mother_id INTEGER,
+      birth_date TEXT,
+      birth_place TEXT,
+      death_date TEXT,
+      death_place TEXT,
+      is_deceased INTEGER DEFAULT 0,
+      job TEXT,
+      mobile_phone TEXT,
+      personal_email TEXT,
+      national_address TEXT,
+      photo_url TEXT,
+      notes TEXT,
+      short_bio TEXT,
+      spouse_names TEXT,
+      children_names TEXT,
+      payload_json TEXT,
+      status TEXT DEFAULT 'pending',
+      admin_note TEXT,
+      created_person_id INTEGER,
+      reviewed_by INTEGER,
+      reviewed_at TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS persons (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,

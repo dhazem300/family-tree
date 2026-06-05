@@ -3,6 +3,7 @@ const nodemailer = require("nodemailer");
 
 const express = require("express");
 const path = require("path");
+const crypto = require("crypto");
 const fs = require("fs");
 const db = require("./db");
 const bcrypt = require("bcrypt");
@@ -131,6 +132,7 @@ const PERMISSION_GROUPS = [
   { key: "subscribers", label: "مشتركو الأخبار", description: "إدارة وتصدير المشتركين في النشرة" },
   { key: "support", label: "رسائل الدعم", description: "عرض وحذف وتصدير رسائل الدعم" },
   { key: "roles", label: "وظائف وصلاحيات الأفراد", description: "تعيين أفراد العائلة كمستخدمين في الإدارة" },
+  { key: "person_requests", label: "طلبات إضافة الأفراد", description: "مراجعة واعتماد بيانات الأفراد المرسلة من الزوار" },
 ];
 
 function userCan(admin, permission) {
@@ -150,6 +152,7 @@ function firstAllowedAdminPath(admin) {
     subscribers: "/admin/news/subscribers",
     support: "/admin/support-messages",
     roles: "/admin/roles",
+    person_requests: "/admin/person-requests",
   };
   if (!admin) return "/admin/login";
   if (Number(admin.is_super_admin) === 1) return "/admin";
@@ -603,6 +606,61 @@ async function ensureSpousesTable() {
   `);
 }
 
+async function ensurePersonRequestsTable() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS person_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reference_code TEXT UNIQUE,
+      name TEXT NOT NULL,
+      gender TEXT,
+      father_id INTEGER,
+      mother_id INTEGER,
+      birth_date TEXT,
+      birth_place TEXT,
+      death_date TEXT,
+      death_place TEXT,
+      is_deceased INTEGER DEFAULT 0,
+      job TEXT,
+      mobile_phone TEXT,
+      personal_email TEXT,
+      national_address TEXT,
+      photo_url TEXT,
+      notes TEXT,
+      short_bio TEXT,
+      spouse_names TEXT,
+      children_names TEXT,
+      payload_json TEXT,
+      status TEXT DEFAULT 'pending',
+      admin_note TEXT,
+      created_person_id INTEGER,
+      reviewed_by INTEGER,
+      reviewed_at TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const cols = await all(`PRAGMA table_info(person_requests)`);
+  const existing = new Set(cols.map((c) => c.name));
+  const extraCols = [
+    ["reference_code", "TEXT"],
+    ["payload_json", "TEXT"],
+    ["status", "TEXT DEFAULT 'pending'"],
+    ["admin_note", "TEXT"],
+    ["created_person_id", "INTEGER"],
+    ["reviewed_by", "INTEGER"],
+    ["reviewed_at", "TEXT"],
+    ["ip_address", "TEXT"],
+    ["user_agent", "TEXT"],
+    ["created_at", "TEXT DEFAULT CURRENT_TIMESTAMP"],
+  ];
+  for (const [col, definition] of extraCols) {
+    if (!existing.has(col)) await ensureColumn("person_requests", col, definition);
+  }
+  await run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_person_requests_reference_code ON person_requests(reference_code)`);
+}
+
 async function ensureAdminEnhancements() {
   await run(`
     CREATE TABLE IF NOT EXISTS admin_activity_logs (
@@ -643,6 +701,7 @@ async function bootstrap() {
   await ensurePersonsColumns();
   await ensureCmsTables();
   await ensureSpousesTable();
+  await ensurePersonRequestsTable();
   await ensureAdminEnhancements();
 }
 bootstrap().catch((err) => console.error("Bootstrap error:", err));
@@ -676,6 +735,34 @@ async function setSpouseNames(personId, names) {
     );
     ord++;
   }
+}
+
+function linesToCleanArray(value, maxItems = 30, maxLen = 160) {
+  if (Array.isArray(value)) return value.map((x) => cleanText(x, maxLen)).filter(Boolean).slice(0, maxItems);
+  return String(value || "")
+    .split(/\r?\n|\|/g)
+    .map((x) => cleanText(x, maxLen))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function listToTextarea(value) {
+  if (!value) return "";
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.join("\n");
+  } catch (e) {}
+  return String(value || "");
+}
+
+async function getRequestCounts() {
+  const rows = await all(`SELECT status, COUNT(*) AS total FROM person_requests GROUP BY status`);
+  const out = { pending: 0, approved: 0, rejected: 0, total: 0 };
+  rows.forEach((r) => {
+    out[r.status || "pending"] = Number(r.total || 0);
+    out.total += Number(r.total || 0);
+  });
+  return out;
 }
 
 /* =========================
@@ -783,6 +870,8 @@ async function getSiteStats() {
     noBirth,
     withBirth: Math.max(total - noBirth, 0),
     repeatedNames,
+    repeatedCount: repeatedNames.length,
+    repeatedPeopleCount: repeatedNames.reduce((sum, item) => sum + Number(item.count || 0), 0),
   };
 }
 
@@ -1614,6 +1703,142 @@ app.get("/api/news/latest", async (req, res) => {
 /* =========================
    Admin Auth
    ========================= */
+
+function makePersonRequestReference() {
+  const year = new Date().getFullYear();
+  const part = crypto.randomBytes(3).toString("hex").toUpperCase();
+  return `FAM-${year}-${part}`;
+}
+
+async function createUniquePersonRequestReference() {
+  for (let i = 0; i < 12; i++) {
+    const code = makePersonRequestReference();
+    const exists = await get(`SELECT id FROM person_requests WHERE reference_code = ?`, [code]);
+    if (!exists) return code;
+  }
+  return `FAM-${Date.now()}-${Math.floor(Math.random() * 9999)}`;
+}
+
+async function findPersonRequestByReference(referenceCode) {
+  const code = cleanText(referenceCode, 80).toUpperCase();
+  if (!code) return null;
+  return get(
+    `SELECT pr.id, pr.reference_code, pr.name, pr.status, pr.admin_note,
+            pr.created_person_id, pr.reviewed_at, pr.created_at, p.name AS created_person_name
+     FROM person_requests pr
+     LEFT JOIN persons p ON pr.created_person_id = p.id
+     WHERE UPPER(pr.reference_code) = ?`,
+    [code]
+  );
+}
+
+app.get("/submit-person", async (req, res) => {
+  try {
+    const persons = await all("SELECT id, name FROM persons ORDER BY name ASC");
+    const trackReference = cleanText(req.query.reference || req.query.track || "", 80);
+    const trackingResult = trackReference ? await findPersonRequestByReference(trackReference) : null;
+    res.render("public_person_request", {
+      persons,
+      submitted: req.query.submitted === "1",
+      referenceCode: cleanText(req.query.ref || "", 80),
+      trackReference,
+      trackingResult,
+      trackingSearched: Boolean(trackReference),
+      error: req.query.error || "",
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء تحميل نموذج إضافة البيانات");
+  }
+});
+
+app.post("/submit-person", upload.single("photo_file"), async (req, res) => {
+  try {
+    const body = req.body || {};
+    const name = cleanText(body.name, 180);
+    if (!name) {
+      return res.redirect("/submit-person?error=" + encodeURIComponent("اسم الفرد مطلوب"));
+    }
+
+    const spouseList = linesToCleanArray(body.spouse_names, 20, 160);
+    const childrenList = linesToCleanArray(body.children_names, 40, 160);
+    const photo_url = req.file ? `/uploads/${req.file.filename}` : null;
+    const referenceCode = await createUniquePersonRequestReference();
+
+    const payload = {
+      name,
+      gender: cleanText(body.gender, 20) || null,
+      father_id: body.father_id || null,
+      mother_id: body.mother_id || null,
+      birth_date: cleanText(body.birth_date, 40) || null,
+      birth_place: cleanText(body.birth_place, 180) || null,
+      death_date: cleanText(body.death_date, 40) || null,
+      death_place: cleanText(body.death_place, 180) || null,
+      is_deceased: Number(body.is_deceased ? 1 : 0),
+      job: cleanText(body.job, 220) || null,
+      mobile_phone: cleanText(body.mobile_phone, 80) || null,
+      personal_email: cleanText(body.personal_email, 180) || null,
+      national_address: cleanText(body.national_address, 300) || null,
+      photo_url,
+      notes: cleanText(body.notes, 3000) || null,
+      short_bio: cleanText(body.short_bio, 2000) || null,
+      spouse_names: spouseList,
+      children_names: childrenList,
+      submitted_by_name: cleanText(body.submitted_by_name, 180) || null,
+      submitted_by_phone: cleanText(body.submitted_by_phone, 80) || null,
+    };
+
+    await run(
+      `INSERT INTO person_requests (
+        reference_code, name, gender, father_id, mother_id, birth_date, birth_place,
+        death_date, death_place, is_deceased, job, mobile_phone, personal_email,
+        national_address, photo_url, notes, short_bio, spouse_names, children_names,
+        payload_json, status, ip_address, user_agent
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+      [
+        referenceCode,
+        payload.name,
+        payload.gender,
+        payload.father_id,
+        payload.mother_id,
+        payload.birth_date,
+        payload.birth_place,
+        payload.death_date,
+        payload.death_place,
+        payload.is_deceased,
+        payload.job,
+        payload.mobile_phone,
+        payload.personal_email,
+        payload.national_address,
+        payload.photo_url,
+        payload.notes,
+        payload.short_bio,
+        JSON.stringify(spouseList),
+        JSON.stringify(childrenList),
+        JSON.stringify(payload),
+        getClientIp(req),
+        req.headers["user-agent"] || "",
+      ]
+    );
+
+    return res.redirect("/submit-person?submitted=1&ref=" + encodeURIComponent(referenceCode));
+  } catch (e) {
+    console.error(e);
+    return res.redirect("/submit-person?error=" + encodeURIComponent("حدث خطأ أثناء إرسال الطلب"));
+  }
+});
+
+app.get("/track-person-request", async (req, res) => {
+  try {
+    const reference = cleanText(req.query.reference || "", 80);
+    const query = reference ? `?reference=${encodeURIComponent(reference)}` : "";
+    return res.redirect(`/submit-person${query}#track-request`);
+  } catch (e) {
+    console.error(e);
+    return res.redirect("/submit-person#track-request");
+  }
+});
+
 app.get("/admin/login", (req, res) => {
   res.render("login", { error: null });
 });
@@ -2850,6 +3075,190 @@ app.post("/admin/roles/:id/delete", isAuthed, requireSuperAdmin, async (req, res
   } catch (e) {
     console.error(e);
     res.redirect("/admin/roles?error=" + encodeURIComponent("حدث خطأ أثناء الحذف"));
+  }
+});
+
+
+app.get("/admin/person-requests", isAuthed, requirePermission("person_requests"), async (req, res) => {
+  try {
+    const status = ["pending", "approved", "rejected"].includes(req.query.status) ? req.query.status : "pending";
+    const referenceSearch = cleanText(req.query.reference || "", 80).toUpperCase();
+
+    let requests;
+    if (referenceSearch) {
+      requests = await all(
+        `SELECT pr.*, a.username AS reviewed_by_username, p.name AS created_person_name
+         FROM person_requests pr
+         LEFT JOIN admins a ON pr.reviewed_by = a.id
+         LEFT JOIN persons p ON pr.created_person_id = p.id
+         WHERE UPPER(pr.reference_code) = ?
+         ORDER BY pr.id DESC`,
+        [referenceSearch]
+      );
+    } else {
+      requests = await all(
+        `SELECT pr.*, a.username AS reviewed_by_username, p.name AS created_person_name
+         FROM person_requests pr
+         LEFT JOIN admins a ON pr.reviewed_by = a.id
+         LEFT JOIN persons p ON pr.created_person_id = p.id
+         WHERE pr.status = ?
+         ORDER BY pr.id DESC`,
+        [status]
+      );
+    }
+
+    const counts = await getRequestCounts();
+    res.render("person_requests_admin", {
+      admin: req.session.admin,
+      requests,
+      counts,
+      status,
+      searchReference: referenceSearch,
+      isReferenceSearch: Boolean(referenceSearch),
+      saved: req.query.saved === "1",
+      rejected: req.query.rejected === "1",
+      deleted: req.query.deleted === "1",
+      error: req.query.error || "",
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("خطأ في تحميل طلبات الأفراد");
+  }
+});
+
+app.get("/admin/person-requests/:id", isAuthed, requirePermission("person_requests"), async (req, res) => {
+  try {
+    const request = await get(`SELECT * FROM person_requests WHERE id = ?`, [req.params.id]);
+    if (!request) return res.redirect("/admin/person-requests");
+    const persons = await all("SELECT id, name FROM persons ORDER BY name ASC");
+    res.render("person_request_review", {
+      admin: req.session.admin,
+      request,
+      persons,
+      spouseText: listToTextarea(request.spouse_names),
+      childrenText: listToTextarea(request.children_names),
+      error: req.query.error || "",
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("خطأ في فتح طلب الفرد");
+  }
+});
+
+
+app.post("/admin/person-requests/:id/delete", isAuthed, requirePermission("person_requests"), async (req, res) => {
+  try {
+    const request = await get(`SELECT * FROM person_requests WHERE id = ?`, [req.params.id]);
+    if (!request) return res.redirect("/admin/person-requests?error=" + encodeURIComponent("الطلب غير موجود"));
+
+    await run(`DELETE FROM person_requests WHERE id = ?`, [req.params.id]);
+    await logAdminAction(req, "حذف طلب إضافة فرد", "person_request", req.params.id, {
+      reference_code: request.reference_code,
+      name: request.name,
+      status: request.status,
+      created_person_id: request.created_person_id || null,
+    });
+
+    const backStatus = ["pending", "approved", "rejected"].includes(request.status) ? request.status : "pending";
+    res.redirect(`/admin/person-requests?status=${encodeURIComponent(backStatus)}&deleted=1`);
+  } catch (e) {
+    console.error(e);
+    res.redirect("/admin/person-requests?error=" + encodeURIComponent("حدث خطأ أثناء حذف الطلب"));
+  }
+});
+
+app.post("/admin/person-requests/:id/approve", isAuthed, requirePermission("person_requests"), async (req, res) => {
+  try {
+    const request = await get(`SELECT * FROM person_requests WHERE id = ?`, [req.params.id]);
+    if (!request) return res.redirect("/admin/person-requests");
+    if (request.status !== "pending") {
+      return res.redirect("/admin/person-requests/" + req.params.id + "?error=" + encodeURIComponent("تمت مراجعة هذا الطلب مسبقًا"));
+    }
+
+    const body = req.body || {};
+    const name = cleanText(body.name || request.name, 180);
+    if (!name) {
+      return res.redirect("/admin/person-requests/" + req.params.id + "?error=" + encodeURIComponent("اسم الفرد مطلوب قبل الاعتماد"));
+    }
+
+    const gender = cleanText(body.gender || request.gender, 20) || null;
+    const spouseList = linesToCleanArray(body.spouse_names ?? request.spouse_names, 20, 160);
+    const childrenList = linesToCleanArray(body.children_names ?? request.children_names, 40, 160);
+
+    const result = await run(
+      `INSERT INTO persons (
+        name, father_id, mother_id, birth_date, birth_place,
+        death_date, death_place, is_deceased, gender,
+        job, mobile_phone, personal_email, national_address, lineage, photo_url, notes, short_bio
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        name,
+        body.father_id || null,
+        body.mother_id || null,
+        cleanText(body.birth_date, 40) || null,
+        cleanText(body.birth_place, 180) || null,
+        cleanText(body.death_date, 40) || null,
+        cleanText(body.death_place, 180) || null,
+        Number(body.is_deceased ? 1 : 0),
+        gender,
+        cleanText(body.job, 220) || null,
+        cleanText(body.mobile_phone, 80) || null,
+        cleanText(body.personal_email, 180) || null,
+        cleanText(body.national_address, 300) || null,
+        null,
+        body.photo_url || request.photo_url || null,
+        cleanText(body.notes, 3000) || null,
+        cleanText(body.short_bio, 2000) || null,
+      ]
+    );
+
+    const personId = result.lastID;
+    await setSpouseNames(personId, spouseList);
+
+    for (const childName of childrenList) {
+      const childGender = null;
+      const fatherId = gender === "male" || gender === "ذكر" ? personId : null;
+      const motherId = gender === "female" || gender === "أنثى" || gender === "انثى" ? personId : null;
+      await run(
+        `INSERT INTO persons (name, father_id, mother_id, gender, notes)
+         VALUES (?, ?, ?, ?, ?)`,
+        [childName, fatherId, motherId, childGender, "تمت إضافته تلقائيًا من طلب إضافة فرد"]
+      );
+    }
+
+    await run(
+      `UPDATE person_requests
+       SET status='approved', created_person_id=?, reviewed_by=?, reviewed_at=CURRENT_TIMESTAMP, admin_note=?
+       WHERE id=?`,
+      [personId, req.session.admin.id, cleanText(body.admin_note, 1000) || null, req.params.id]
+    );
+
+    await logAdminAction(req, "اعتماد طلب إضافة فرد", "person_request", req.params.id, { personId, name });
+    res.redirect("/admin/person-requests?saved=1");
+  } catch (e) {
+    console.error(e);
+    res.redirect("/admin/person-requests/" + req.params.id + "?error=" + encodeURIComponent("حدث خطأ أثناء اعتماد الطلب"));
+  }
+});
+
+app.post("/admin/person-requests/:id/reject", isAuthed, requirePermission("person_requests"), async (req, res) => {
+  try {
+    const request = await get(`SELECT * FROM person_requests WHERE id = ?`, [req.params.id]);
+    if (!request) return res.redirect("/admin/person-requests");
+    if (request.status !== "pending") {
+      return res.redirect("/admin/person-requests/" + req.params.id + "?error=" + encodeURIComponent("تمت مراجعة هذا الطلب مسبقًا"));
+    }
+    await run(
+      `UPDATE person_requests
+       SET status='rejected', reviewed_by=?, reviewed_at=CURRENT_TIMESTAMP, admin_note=?
+       WHERE id=?`,
+      [req.session.admin.id, cleanText(req.body.admin_note, 1000) || "تم رفض الطلب", req.params.id]
+    );
+    await logAdminAction(req, "رفض طلب إضافة فرد", "person_request", req.params.id, { reason: req.body.admin_note });
+    res.redirect("/admin/person-requests?status=rejected&rejected=1");
+  } catch (e) {
+    console.error(e);
+    res.redirect("/admin/person-requests/" + req.params.id + "?error=" + encodeURIComponent("حدث خطأ أثناء رفض الطلب"));
   }
 });
 
