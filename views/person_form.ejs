@@ -252,6 +252,20 @@
                        class="form-input w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0"/>
               </div>
 
+              <div>
+                <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-2 block">المستوى التعليمي</label>
+                <select name="education_level" class="form-input w-full rounded-xl bg-white/50 dark:bg-black/20 border border-border-light dark:border-border-dark text-gray-900 dark:text-white font-bold text-sm py-3 px-4 focus:ring-0">
+                  <% const edu = person?.education_level || ''; %>
+                  <option value="" <%= !edu ? 'selected' : '' %>>— غير محدد —</option>
+                  <option value="دراسات عليا" <%= edu === 'دراسات عليا' ? 'selected' : '' %>>دراسات عليا</option>
+                  <option value="شهادة جامعية" <%= edu === 'شهادة جامعية' ? 'selected' : '' %>>شهادة جامعية</option>
+                  <option value="ثانوي" <%= edu === 'ثانوي' ? 'selected' : '' %>>ثانوي</option>
+                  <option value="متوسط" <%= edu === 'متوسط' ? 'selected' : '' %>>متوسط</option>
+                  <option value="ابتدائي" <%= edu === 'ابتدائي' ? 'selected' : '' %>>ابتدائي</option>
+                  <option value="غير ذلك" <%= edu === 'غير ذلك' ? 'selected' : '' %>>غير ذلك</option>
+                </select>
+              </div>
+
               <div class="md:col-span-2 rounded-2xl border border-amber-300/50 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-400/20 p-4">
                 <div class="flex items-start gap-3">
                   <span class="material-symbols-outlined text-amber-600 dark:text-amber-300">admin_panel_settings</span>

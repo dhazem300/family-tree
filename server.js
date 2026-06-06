@@ -389,6 +389,7 @@ async function ensurePersonsColumns() {
     await ensureColumn("persons", "mobile_phone", "TEXT");
     await ensureColumn("persons", "personal_email", "TEXT");
     await ensureColumn("persons", "national_address", "TEXT");
+    await ensureColumn("persons", "education_level", "TEXT");
 
     await ensureColumn("persons", "photo_url", "TEXT");
     await ensureColumn("persons", "notes", "TEXT");
@@ -621,6 +622,7 @@ async function ensurePersonRequestsTable() {
       death_place TEXT,
       is_deceased INTEGER DEFAULT 0,
       job TEXT,
+      education_level TEXT,
       mobile_phone TEXT,
       personal_email TEXT,
       national_address TEXT,
@@ -645,6 +647,7 @@ async function ensurePersonRequestsTable() {
   const existing = new Set(cols.map((c) => c.name));
   const extraCols = [
     ["reference_code", "TEXT"],
+    ["education_level", "TEXT"],
     ["father_lineage_name", "TEXT"],
     ["mother_lineage_name", "TEXT"],
     ["payload_json", "TEXT"],
@@ -1250,12 +1253,2269 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
 }
 
+
+/* =========================
+   Public relationship and assistant helpers
+   ========================= */
+function genderIsFemale(person) {
+  const g = normalizeArabicForMatch(person?.gender || "");
+  return ["female", "f", "انثي", "امراه", "بنت"].includes(g);
+}
+
+function genderIsMale(person) {
+  const g = normalizeArabicForMatch(person?.gender || "");
+  return ["male", "m", "ذكر", "رجل"].includes(g);
+}
+
+function childLabel(child) {
+  return genderIsFemale(child) ? "ابنة" : "ابن";
+}
+
+function parentLabel(parent) {
+  return genderIsFemale(parent) ? "الأم" : "الأب";
+}
+
+function ancestorLabel(ancestor, distance) {
+  if (distance === 1) return genderIsFemale(ancestor) ? "الأم" : "الأب";
+  if (distance === 2) return genderIsFemale(ancestor) ? "الجدة" : "الجد";
+  return genderIsFemale(ancestor) ? `الجدة من الدرجة ${distance - 1}` : `الجد من الدرجة ${distance - 1}`;
+}
+
+function descendantLabel(descendant, distance) {
+  if (distance === 1) return genderIsFemale(descendant) ? "الابنة" : "الابن";
+  if (distance === 2) return genderIsFemale(descendant) ? "الحفيدة" : "الحفيد";
+  return genderIsFemale(descendant) ? `حفيدة من الدرجة ${distance - 1}` : `حفيد من الدرجة ${distance - 1}`;
+}
+
+async function getPersonsForRelationship() {
+  const rows = await all(`SELECT id, name, father_id, mother_id, gender, birth_date, death_date, birth_place, photo_url, job, education_level, short_bio, notes FROM persons ORDER BY id ASC`);
+  const byId = new Map(rows.map((r) => [Number(r.id), { ...r, id: Number(r.id) }]));
+  return { rows: rows.map((r) => ({ ...r, id: Number(r.id) })), byId };
+}
+
+function lineagePhraseForPerson(person, byId, max = 4) {
+  const out = [];
+  let current = person;
+  for (let i = 0; i < max && current; i++) {
+    const first = firstNameForMatch(current.name);
+    if (first) out.push(first);
+    current = current.father_id ? byId.get(Number(current.father_id)) : null;
+  }
+  return out.join(" ");
+}
+
+function matchPersonByFlexibleName(query, rows, byId) {
+  const q = normalizeArabicForMatch(query);
+  const parts = namePartsForMatch(query);
+  if (!q || parts.length < 1) return { status: "empty", matches: [] };
+
+  const scored = [];
+  for (const person of rows) {
+    const full = normalizeArabicForMatch(person.name);
+    const lineage3 = normalizeArabicForMatch(lineagePhraseForPerson(person, byId, 3));
+    const lineage4 = normalizeArabicForMatch(lineagePhraseForPerson(person, byId, 4));
+    let score = 0;
+    if (full === q) score = 100;
+    else if (lineage4 === q) score = 98;
+    else if (lineage3 === q) score = 95;
+    else if (q.length >= 3 && (full.includes(q) || lineage4.includes(q))) score = 60;
+    else {
+      const lineageParts = lineage4.split(" ").filter(Boolean);
+      const ok = parts.every((part, i) => lineageParts[i] === part || full.split(" ").includes(part));
+      if (ok) score = 40;
+    }
+    if (score) scored.push({ ...person, match_score: score, lineage_label: lineagePhraseForPerson(person, byId, 4) });
+  }
+  scored.sort((a,b)=> b.match_score - a.match_score || Number(a.id)-Number(b.id));
+  const topScore = scored[0]?.match_score || 0;
+  const top = scored.filter((x)=>x.match_score === topScore).slice(0, 8);
+  return { status: top.length === 1 ? "matched" : top.length > 1 ? "multiple" : "not_found", matches: top };
+}
+
+function ancestorMap(person, byId) {
+  const map = new Map();
+  function walk(node, dist, path) {
+    if (!node || map.has(Number(node.id))) return;
+    map.set(Number(node.id), { person: node, distance: dist, path: [...path, node] });
+    const father = node.father_id ? byId.get(Number(node.father_id)) : null;
+    const mother = node.mother_id ? byId.get(Number(node.mother_id)) : null;
+    if (father) walk(father, dist + 1, [...path, node]);
+    if (mother) walk(mother, dist + 1, [...path, node]);
+  }
+  walk(person, 0, []);
+  return map;
+}
+
+function personPathText(path) {
+  return path.map((p)=>p.name).join(" ← ");
+}
+
+function describeKinship(a, b, byId) {
+  if (!a || !b) return { ok:false, message:"لم يتم العثور على أحد الشخصين." };
+  if (Number(a.id) === Number(b.id)) {
+    return { ok:true, message:`${a.name} و ${b.name} هما نفس الشخص داخل الشجرة.`, path:[a] };
+  }
+
+  const aAnc = ancestorMap(a, byId);
+  const bAnc = ancestorMap(b, byId);
+  let best = null;
+  for (const [id, va] of aAnc.entries()) {
+    const vb = bAnc.get(id);
+    if (!vb) continue;
+    const total = va.distance + vb.distance;
+    if (!best || total < best.total) best = { id, common: va.person, a: va, b: vb, total };
+  }
+
+  if (!best) return { ok:false, message:"لا توجد صلة قرابة واضحة بين الاسمين داخل البيانات الحالية للشجرة." };
+  const dA = best.a.distance;
+  const dB = best.b.distance;
+  const common = best.common;
+  const fullPath = [...best.a.path, common, ...best.b.path.slice(0, -1).reverse()].filter(Boolean);
+
+  let relation = "";
+  if (dA === 0) {
+    relation = `${a.name} هو ${ancestorLabel(a, dB)} بالنسبة إلى ${b.name}.`;
+  } else if (dB === 0) {
+    relation = `${a.name} هو ${descendantLabel(a, dA)} بالنسبة إلى ${b.name}.`;
+  } else if (dA === 1 && dB === 1) {
+    relation = `${a.name} و ${b.name} إخوة أو أخوات، ويجمعهما ${parentLabel(common)}: ${common.name}.`;
+  } else if (dA === 1 && dB === 2) {
+    const bParent = best.b.path[1];
+    const side = bParent && Number(bParent.id) === Number(b.father_id) ? "عم" : "خال";
+    const femaleSide = side === "عم" ? "عمة" : "خالة";
+    relation = `${a.name} هو ${genderIsFemale(a) ? femaleSide : side} ${b.name}.`;
+  } else if (dA === 2 && dB === 1) {
+    const aParent = best.a.path[1];
+    const side = aParent && Number(aParent.id) === Number(a.father_id) ? (genderIsFemale(b) ? "عمة" : "عم") : (genderIsFemale(b) ? "خالة" : "خال");
+    relation = `${a.name} هو ${childLabel(a)} ${side} ${b.name}.`;
+  } else if (dA === 2 && dB === 2) {
+    relation = `${a.name} و ${b.name} أبناء عمومة/خؤولة، ويجمعهما ${ancestorLabel(common, 2)}: ${common.name}.`;
+  } else {
+    relation = `${a.name} و ${b.name} بينهما صلة قرابة عبر ${ancestorLabel(common, Math.max(dA, dB))} المشترك: ${common.name}.`;
+  }
+
+  return {
+    ok:true,
+    message:`${relation}\nمسار القرابة: ${personPathText(fullPath)}`,
+    path: fullPath.map((p)=>({ id:p.id, name:p.name })),
+    commonAncestor: { id: common.id, name: common.name },
+  };
+}
+
+async function calculateKinshipByNames(personA, personB) {
+  const { rows, byId } = await getPersonsForRelationship();
+  const aMatch = matchPersonByFlexibleName(personA, rows, byId);
+  const bMatch = matchPersonByFlexibleName(personB, rows, byId);
+  if (aMatch.status !== "matched") {
+    if (aMatch.status === "multiple") return { ok:false, message:`يوجد أكثر من شخص مطابق للاسم الأول. برجاء كتابة الاسم رباعي أو توضيح أكبر.\nالنتائج المحتملة: ${aMatch.matches.map(x=>`${x.name} (${x.lineage_label})`).join("، ")}` };
+    return { ok:false, message:"لم يتم العثور على الشخص الأول داخل الشجرة. برجاء كتابة الاسم ثلاثي أو رباعي." };
+  }
+  if (bMatch.status !== "matched") {
+    if (bMatch.status === "multiple") return { ok:false, message:`يوجد أكثر من شخص مطابق للاسم الثاني. برجاء كتابة الاسم رباعي أو توضيح أكبر.\nالنتائج المحتملة: ${bMatch.matches.map(x=>`${x.name} (${x.lineage_label})`).join("، ")}` };
+    return { ok:false, message:"لم يتم العثور على الشخص الثاني داخل الشجرة. برجاء كتابة الاسم ثلاثي أو رباعي." };
+  }
+  return describeKinship(aMatch.matches[0], bMatch.matches[0], byId);
+}
+
+
+
+function removeArabicQuestionNoise(text) {
+  return cleanText(String(text || "")
+    .replace(/[؟?]/g, " ")
+    .replace(/[،,؛;:]/g, " ")
+    .replace(/\s+/g, " "), 500);
+}
+
+function stripAssistantNameNoise(text) {
+  let value = removeArabicQuestionNoise(text);
+
+  const prefixPatterns = [
+    /^(?:ممكن\s+)?(?:تفاصيل\s+عن|معلومات\s+عن|بيانات\s+عن|نبذة\s+عن|نبذه\s+عن|سيرة\s+عن|السيرة\s+الذاتية\s+لـ?|السيرة\s+لـ?)\s+/i,
+    /^(?:من\s+هو|من\s+هوا|من\s+هوه|من\s+هي|مين\s+هو|مين\s+هوا|مين\s+هوه|مين\s+هي|مين|منو|من\s+يكون|من\s+هو\s+الذي|من\s+هي\s+التي|من)\s+/i,
+    /^(?:اعرفني\s+على|عرفني\s+على|عرّفني\s+على|اخبرني\s+عن|أخبرني\s+عن|قول\s+لي\s+عن|قولي\s+عن|كلمتك\s+عن|عايز\s+اعرف\s+عن|عايز\s+تفاصيل\s+عن|اريد\s+معرفة|أريد\s+معرفة|ابغى\s+اعرف\s+عن|وش\s+تعرف\s+عن|ما\s+تعرف\s+عن)\s+/i,
+    /^(?:تفاصيل|سيرة|السيرة\s+الذاتية|نبذة|نبذه|معلومات|بيانات|موقع|مكان|فين|أين|اين|شاهد|اعرض|عرض)\s+/i,
+    /^(?:عن|لـ|ل|هو|هوا|هوه|هي)\s+/i
+  ];
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const re of prefixPatterns) {
+      const next = value.replace(re, "").trim();
+      if (next !== value) { value = next; changed = true; }
+    }
+  }
+
+  value = value
+    .replace(/\s+(?:في\s+الشجرة|داخل\s+الشجرة|من\s+الشجرة|بالشجرة|على\s+الشجرة|السيرة\s+الذاتية|سيرته|سيرتها|نبذته|نبذتها|بياناته|بياناتها|تفاصيله|تفاصيلها|موقعه|موقعها)$/i, "")
+    .replace(/^(?:عن|لـ|ل)\s+/i, "");
+
+  return cleanText(value, 220);
+}
+
+function isLikelyPersonLookupQuestion(question) {
+  const raw = removeArabicQuestionNoise(question);
+  const n = normalizeArabicForMatch(raw);
+  if (!n) return false;
+  const triggers = [
+    "من هو", "من هوا", "من هوه", "من هي", "مين", "منو", "من يكون", "من ",
+    "اخبرني عن", "أخبرني عن", "قول لي عن", "قولي عن", "عرفني على", "اعرفني على",
+    "تفاصيل", "تفاصيل عن", "سيرة", "السيرة الذاتية", "نبذة", "نبذه", "معلومات", "معلومات عن", "بيانات", "بيانات عن",
+    "موقع", "مكان", "فين", "اين", "أين", "اعرض", "شاهد"
+  ];
+  if (triggers.some((t) => n.includes(normalizeArabicForMatch(t)))) return true;
+  const stripped = stripAssistantNameNoise(raw);
+  return isProbablyNameText(stripped);
+}
+
+function isProbablyNameText(text) {
+  const parts = namePartsForMatch(text);
+  if (parts.length < 2) return false;
+  const n = normalizeArabicForMatch(text);
+  const generalWords = ["كره", "كرة", "رياضه", "رياضة", "اخبار", "أخبار", "طقس", "سعر", "مباراه", "مباراة", "ما هي", "ما هو", "كيف", "لماذا", "ليه", "ايه معنى", "اشرح", "تعريف"];
+  return !generalWords.some((w) => n.includes(normalizeArabicForMatch(w)));
+}
+
+function clarifyAssistantAnswer() {
+  return { answer: "لم أفهم سؤالك بشكل كافٍ. وضّح المطلوب أكثر، أو اكتب اسم الشخص ثلاثي/رباعي، أو اكتب مثلًا: من هو فلان؟ أو ما صلة القرابة بين فلان وفلان؟" };
+}
+
+
+function arabicNumber(value) {
+  return String(value).replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)]);
+}
+
+function normalizeMonthQuery(value) {
+  return normalizeArabicForMatch(String(value || "").replace(/شهر\s+/g, "").trim());
+}
+
+const HIJRI_MONTHS = [
+  { n: 1, names: ["محرم", "محرم الحرام"] },
+  { n: 2, names: ["صفر"] },
+  { n: 3, names: ["ربيع الاول", "ربيع الأول", "ربيع اول"] },
+  { n: 4, names: ["ربيع الثاني", "ربيع الاخر", "ربيع الآخر", "ربيع ثاني"] },
+  { n: 5, names: ["جمادى الاولى", "جمادى الأولى", "جمادي الاولى", "جمادي الأولى"] },
+  { n: 6, names: ["جمادى الاخرة", "جمادى الآخرة", "جمادى الثاني", "جمادي الاخرة", "جمادي الثاني"] },
+  { n: 7, names: ["رجب"] },
+  { n: 8, names: ["شعبان"] },
+  { n: 9, names: ["رمضان"] },
+  { n: 10, names: ["شوال"] },
+  { n: 11, names: ["ذو القعدة", "ذو القعده", "ذو القعدة"] },
+  { n: 12, names: ["ذو الحجة", "ذو الحجه"] },
+];
+
+const GREGORIAN_MONTHS = [
+  { n: 0, names: ["يناير", "كانون الثاني", "january", "jan"] },
+  { n: 1, names: ["فبراير", "شباط", "february", "feb"] },
+  { n: 2, names: ["مارس", "آذار", "اذار", "march", "mar"] },
+  { n: 3, names: ["ابريل", "أبريل", "نيسان", "april", "apr"] },
+  { n: 4, names: ["مايو", "ايار", "أيار", "may"] },
+  { n: 5, names: ["يونيو", "حزيران", "june", "jun"] },
+  { n: 6, names: ["يوليو", "تموز", "july", "jul"] },
+  { n: 7, names: ["اغسطس", "أغسطس", "آب", "اب", "august", "aug"] },
+  { n: 8, names: ["سبتمبر", "ايلول", "أيلول", "september", "sep"] },
+  { n: 9, names: ["اكتوبر", "أكتوبر", "تشرين الاول", "تشرين الأول", "october", "oct"] },
+  { n: 10, names: ["نوفمبر", "تشرين الثاني", "november", "nov"] },
+  { n: 11, names: ["ديسمبر", "كانون الاول", "كانون الأول", "december", "dec"] },
+];
+
+function getNowInRiyadh() {
+  return new Date();
+}
+
+function formatGregorianDateArabic(date = new Date()) {
+  return new Intl.DateTimeFormat("ar-SA-u-ca-gregory", {
+    timeZone: "Asia/Riyadh",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  }).format(date);
+}
+
+function formatTimeArabic(date = new Date()) {
+  return new Intl.DateTimeFormat("ar-SA", {
+    timeZone: "Asia/Riyadh",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  }).format(date);
+}
+
+function formatHijriDateArabic(date = new Date()) {
+  try {
+    return new Intl.DateTimeFormat("ar-SA-u-ca-islamic-umalqura", {
+      timeZone: "Asia/Riyadh",
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    }).format(date);
+  } catch (_) {
+    return "غير متاح بدقة على هذا الخادم";
+  }
+}
+
+function getHijriMonthNumber(date) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura", {
+      timeZone: "Asia/Riyadh",
+      month: "numeric"
+    }).formatToParts(date);
+    const month = Number(parts.find((p) => p.type === "month")?.value || 0);
+    return month || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function findNextHijriMonthStart(targetMonthNumber) {
+  const now = new Date();
+  let previous = getHijriMonthNumber(now);
+  for (let i = 0; i <= 370; i++) {
+    const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+    const m = getHijriMonthNumber(d);
+    if (m === targetMonthNumber && (i === 0 || previous !== targetMonthNumber)) return { date: d, days: i };
+    previous = m;
+  }
+  return null;
+}
+
+function findNextGregorianMonthStart(targetMonthIndex) {
+  const now = new Date();
+  const riyadhParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Riyadh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(now).reduce((acc, p) => (acc[p.type] = p.value, acc), {});
+  const year = Number(riyadhParts.year);
+  const currentMonth = Number(riyadhParts.month) - 1;
+  const currentDay = Number(riyadhParts.day);
+  let targetYear = year;
+  if (targetMonthIndex < currentMonth || (targetMonthIndex === currentMonth && currentDay > 1)) targetYear += 1;
+  const start = new Date(Date.UTC(targetYear, targetMonthIndex, 1, 0, 0, 0));
+  const todayStart = new Date(Date.UTC(year, currentMonth, currentDay, 0, 0, 0));
+  const days = Math.max(0, Math.ceil((start - todayStart) / (24 * 60 * 60 * 1000)));
+  return { date: start, days };
+}
+
+function detectMonthCountdown(question) {
+  const nq = normalizeArabicForMatch(question);
+  if (!(nq.includes("كم باقي") || nq.includes("كم متبقي") || nq.includes("متى") || nq.includes("موعد") || nq.includes("باقي على") || nq.includes("باقي ل"))) return null;
+
+  for (const item of HIJRI_MONTHS) {
+    if (item.names.some((name) => nq.includes(normalizeMonthQuery(name)))) {
+      const next = findNextHijriMonthStart(item.n);
+      if (!next) return { answer: "لا أستطيع حساب هذا الشهر الهجري بدقة على الخادم الحالي." };
+      return {
+        answer: `باقي على ${item.names[0]} تقريبًا ${arabicNumber(next.days)} يوم.\nالتاريخ المتوقع لبداية الشهر: ${formatGregorianDateArabic(next.date)}.\nملاحظة: الأشهر الهجرية تعتمد على الرؤية الشرعية، لذلك قد يختلف التاريخ يومًا بالزيادة أو النقصان.`
+      };
+    }
+  }
+  for (const item of GREGORIAN_MONTHS) {
+    if (item.names.some((name) => nq.includes(normalizeMonthQuery(name)))) {
+      const next = findNextGregorianMonthStart(item.n);
+      return {
+        answer: `باقي على شهر ${item.names[0]} ${arabicNumber(next.days)} يوم تقريبًا.\nبدايته تكون في ${formatGregorianDateArabic(next.date)}.`
+      };
+    }
+  }
+  return null;
+}
+
+function answerGreetingQuestion(question) {
+  const nq = normalizeArabicForMatch(question);
+  const greetings = ["هلا", "هلا والله", "مرحبا", "السلام عليكم", "كيف الحال", "وش اخبارك", "وش علومك", "صباح الخير", "مساء الخير", "اهلا", "أهلا"];
+  if (!greetings.some((x) => nq.includes(normalizeArabicForMatch(x)))) return null;
+  if (nq.includes("السلام عليكم")) return { answer: "وعليكم السلام ورحمة الله وبركاته، حيّاك الله. أبشر، اسألني عن أي فرد في الشجرة، صلة قرابة، تاريخ العائلة، أو طريقة استخدام الموقع." };
+  if (nq.includes("صباح")) return { answer: "صباح النور والسرور، حيّاك الله. وش تبي تعرف عن العائلة أو الموقع؟" };
+  if (nq.includes("مساء")) return { answer: "مساء الخير، يا هلا والله. اسألني عن أي شخص في الشجرة أو صلة قرابة بين اسمين." };
+  return { answer: "يا هلا والله، أبشر. أنا مساعد الموقع، أقدر أساعدك في الشجرة، تاريخ العائلة، صلة القرابة، تتبع الطلبات، وأي سؤال واضح تكتبه لي." };
+}
+
+function answerDateTimeQuestion(question) {
+  const nq = normalizeArabicForMatch(question);
+  const wantsDate = ["تاريخ اليوم", "اي تاريخ اليوم", "كم التاريخ", "النهارده كام", "اليوم كام", "تاريخ هجري", "التاريخ الهجري", "التاريخ الميلادي"].some((x) => nq.includes(normalizeArabicForMatch(x)));
+  const wantsTime = ["كم الساعة", "كم الساعه", "الساعة كم", "الساعه كم", "الوقت الان", "الوقت الآن", "اي وقت", "الوقت كام"].some((x) => nq.includes(normalizeArabicForMatch(x)));
+  const monthCountdown = detectMonthCountdown(question);
+  if (monthCountdown) return monthCountdown;
+  if (!wantsDate && !wantsTime) return null;
+  const now = new Date();
+  const parts = [];
+  if (wantsTime) parts.push(`الوقت الآن حسب توقيت السعودية: ${formatTimeArabic(now)}.`);
+  if (wantsDate) {
+    parts.push(`التاريخ الميلادي: ${formatGregorianDateArabic(now)}.`);
+    parts.push(`التاريخ الهجري: ${formatHijriDateArabic(now)}.`);
+  }
+  return { answer: parts.join("\n") };
+}
+
+function calculateAgeFromDate(dateValue) {
+  if (!dateValue) return null;
+  const raw = String(dateValue).trim();
+  const m = raw.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if (!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]), d = Number(m[3]);
+  if (!y || !mo || !d) return null;
+  const birth = new Date(Date.UTC(y, mo - 1, d));
+  const now = new Date();
+  let age = now.getUTCFullYear() - birth.getUTCFullYear();
+  const thisMonth = now.getUTCMonth() + 1;
+  const thisDay = now.getUTCDate();
+  if (thisMonth < mo || (thisMonth === mo && thisDay < d)) age -= 1;
+  return age >= 0 && age < 140 ? age : null;
+}
+
+function extractNameAfterPatterns(question, patterns) {
+  let q = removeArabicQuestionNoise(question);
+  for (const re of patterns) {
+    const m = q.match(re);
+    if (m && m[1]) return stripAssistantNameNoise(m[1]);
+  }
+  return stripAssistantNameNoise(q);
+}
+
+function isAgeQuestion(question) {
+  const nq = normalizeArabicForMatch(question);
+  return ["كم عمر", "عمر", "سن", "مواليد", "متى ولد", "تاريخ ميلاد"].some((x) => nq.includes(normalizeArabicForMatch(x)));
+}
+
+function isChildrenCountQuestion(question) {
+  const nq = normalizeArabicForMatch(question);
+  return (["كم ابناء", "كم أبناء", "كم ولد", "كم بنت", "عنده كم", "عندها كم", "عدد ابناء", "عدد أبناء", "ابناء", "أبناء", "اولاد", "أولاد", "بنات"].some((x) => nq.includes(normalizeArabicForMatch(x))) && !nq.includes("احصائيات"));
+}
+
+async function answerPersonAgeQuestion(question) {
+  const { rows, byId } = await getPersonsForRelationship();
+  const name = extractNameAfterPatterns(question, [
+    /(?:كم\s+عمر|عمر|سن)\s+(.+)$/i,
+    /(?:مواليد|متى\s+ولد|تاريخ\s+ميلاد)\s+(.+)$/i,
+    /(.+?)\s+(?:كم\s+عمره|كم\s+عمرها|عمره\s+كم|عمرها\s+كم|مواليد\s+كم)$/i
+  ]);
+  const match = matchPersonByFlexibleName(name, rows, byId);
+  if (match.status === "matched") {
+    const person = match.matches[0];
+    if (!person.birth_date) return { answer: `وجدت ${person.name}، لكن تاريخ الميلاد غير مسجل، لذلك لا أستطيع حساب العمر.`, actions: [{ label: "عرض موقعه في الشجرة", url: `/?focus=${person.id}` }] };
+    const age = calculateAgeFromDate(person.birth_date);
+    if (age === null) return { answer: `تاريخ ميلاد ${person.name} مسجل بالشكل التالي: ${person.birth_date}، لكن لا يمكن حساب العمر منه بدقة.` };
+    return { answer: `${person.name} عمره تقريبًا ${arabicNumber(age)} سنة.\nتاريخ الميلاد المسجل: ${person.birth_date}.`, actions: [{ label: "عرض موقعه في الشجرة", url: `/?focus=${person.id}` }] };
+  }
+  if (match.status === "multiple") return { answer: `وجدت أكثر من شخص بهذا الاسم. اكتب الاسم رباعي لتحديد الشخص بدقة:\n${match.matches.map((x,i)=>`${i+1}- ${x.name} (${x.lineage_label})`).join("\n")}` };
+  return null;
+}
+
+async function answerChildrenCountQuestion(question) {
+  const { rows, byId } = await getPersonsForRelationship();
+  const name = extractNameAfterPatterns(question, [
+    /(?:كم\s+ابناء|كم\s+أبناء|كم\s+اولاد|كم\s+أولاد|كم\s+ولد|كم\s+بنت|عدد\s+ابناء|عدد\s+أبناء|ابناء|أبناء|اولاد|أولاد|بنات)\s+(.+)$/i,
+    /(.+?)\s+(?:عنده|عندها)\s+كم\s+(?:ولد|بنت|ابن|ابنة|أبناء|ابناء|أولاد|اولاد)$/i,
+    /(.+?)\s+(?:كم\s+عنده|كم\s+عندها)\s+(?:ولد|بنت|ابن|ابنة|أبناء|ابناء|أولاد|اولاد)$/i,
+    /(.+?)\s+(?:عنده|عندها)\s+(?:اولاد|أولاد|ابناء|أبناء|بنات)$/i
+  ]);
+  const match = matchPersonByFlexibleName(name, rows, byId);
+  if (match.status === "matched") {
+    const person = match.matches[0];
+    const children = rows.filter((x)=>Number(x.father_id)===Number(person.id)||Number(x.mother_id)===Number(person.id));
+    const sons = children.filter((c)=>genderIsMale(c));
+    const daughters = children.filter((c)=>genderIsFemale(c));
+    const unknown = children.length - sons.length - daughters.length;
+    const lines = [`${person.name} لديه/لديها ${arabicNumber(children.length)} من الأبناء المسجلين في الشجرة.`];
+    lines.push(`الأولاد: ${arabicNumber(sons.length)}.`);
+    lines.push(`البنات: ${arabicNumber(daughters.length)}.`);
+    if (unknown > 0) lines.push(`غير محدد النوع: ${arabicNumber(unknown)}.`);
+    if (children.length) lines.push(`الأسماء: ${children.map(c=>c.name).join("، ")}.`);
+    return { answer: lines.join("\n"), actions: [{ label: "عرض موقعه في الشجرة", url: `/?focus=${person.id}` }] };
+  }
+  if (match.status === "multiple") return { answer: `وجدت أكثر من شخص بهذا الاسم. اكتب الاسم رباعي لتحديد الشخص بدقة:\n${match.matches.map((x,i)=>`${i+1}- ${x.name} (${x.lineage_label})`).join("\n")}` };
+  return null;
+}
+
+function normalizeDigitsToLatin(value) {
+  const map = { "٠":"0","١":"1","٢":"2","٣":"3","٤":"4","٥":"5","٦":"6","٧":"7","٨":"8","٩":"9","۰":"0","۱":"1","۲":"2","۳":"3","۴":"4","۵":"5","۶":"6","۷":"7","۸":"8","۹":"9" };
+  return String(value || "").replace(/[٠-٩۰-۹]/g, (d) => map[d] || d);
+}
+
+function answerSimpleMathQuestion(question) {
+  let q = normalizeDigitsToLatin(normalizeArabicForMatch(question || ""));
+  const original = q;
+  q = q.replace(/اضربلي|اضرب|احسبلي|احسب|بكام|يساوي|يساوى|كام|كم|ايش|وش|يعني/g, " ").replace(/\s+/g, " ").trim();
+  const mult = q.match(/(-?\d+(?:\.\d+)?)\s*(?:في|x|×|\*)\s*(-?\d+(?:\.\d+)?)/i) || original.match(/(-?\d+(?:\.\d+)?)\s*(?:في|x|×|\*)\s*(-?\d+(?:\.\d+)?)/i);
+  if (mult) {
+    const a = Number(mult[1]);
+    const b = Number(mult[2]);
+    if (Number.isFinite(a) && Number.isFinite(b)) return { answer: `${arabicNumber(a)} × ${arabicNumber(b)} = ${arabicNumber(a * b)}.` };
+  }
+  const plus = q.match(/(-?\d+(?:\.\d+)?)\s*(?:\+|زائد|جمع|مع)\s*(-?\d+(?:\.\d+)?)/i);
+  if (plus) {
+    const a = Number(plus[1]);
+    const b = Number(plus[2]);
+    if (Number.isFinite(a) && Number.isFinite(b)) return { answer: `${arabicNumber(a)} + ${arabicNumber(b)} = ${arabicNumber(a + b)}.` };
+  }
+  const minus = q.match(/(-?\d+(?:\.\d+)?)\s*(?:\-|ناقص|طرح)\s*(-?\d+(?:\.\d+)?)/i);
+  if (minus) {
+    const a = Number(minus[1]);
+    const b = Number(minus[2]);
+    if (Number.isFinite(a) && Number.isFinite(b)) return { answer: `${arabicNumber(a)} - ${arabicNumber(b)} = ${arabicNumber(a - b)}.` };
+  }
+  const div = q.match(/(-?\d+(?:\.\d+)?)\s*(?:\/|÷|على|قسمه|قسمة)\s*(-?\d+(?:\.\d+)?)/i);
+  if (div) {
+    const a = Number(div[1]);
+    const b = Number(div[2]);
+    if (Number.isFinite(a) && Number.isFinite(b)) {
+      if (b === 0) return { answer: "لا يمكن القسمة على صفر." };
+      return { answer: `${arabicNumber(a)} ÷ ${arabicNumber(b)} = ${arabicNumber(Number((a / b).toFixed(4)))}.` };
+    }
+  }
+  return null;
+}
+
+const ASSISTANT_APPROX_WEATHER = {
+  "الرياض": [20, 23, 27, 32, 38, 42, 43, 43, 40, 34, 27, 21],
+  "جدة": [27, 28, 30, 32, 35, 37, 38, 38, 37, 35, 32, 29],
+  "مكة": [29, 31, 34, 38, 42, 44, 44, 44, 42, 38, 34, 30],
+  "المدينة": [22, 25, 29, 34, 39, 43, 43, 43, 40, 34, 28, 23],
+  "الدمام": [22, 24, 28, 33, 39, 43, 44, 43, 40, 35, 29, 24],
+  "الطائف": [19, 21, 24, 27, 31, 34, 34, 34, 32, 28, 24, 20],
+  "القاهرة": [19, 21, 24, 29, 33, 35, 36, 35, 33, 29, 25, 20],
+  "الإسكندرية": [18, 19, 21, 24, 28, 31, 32, 32, 30, 27, 23, 19]
+};
+
+function answerApproxWeatherQuestion(question) {
+  const q = normalizeArabicForMatch(question || "");
+  const hasWeather = [
+    "كم درجة الحرارة", "درجة الحرارة", "درجه الحراره", "حرارة اليوم", "الجو اليوم", "الطقس اليوم", "كم الحراره", "كم الحرارة", "وش الجو", "ايش الجو", "الجو كيف", "كيف الجو", "حرارة الرياض", "درجة الجو", "الحرارة اليوم"
+  ].some((p)=>q.includes(normalizeArabicForMatch(p)));
+  if (!hasWeather) return null;
+
+  const cityProfiles = [
+    { city:"الرياض", aliases:["الرياض", "رياض"] },
+    { city:"جدة", aliases:["جدة", "جده"] },
+    { city:"مكة", aliases:["مكة", "مكه", "مكة المكرمة", "مكه المكرمه"] },
+    { city:"المدينة", aliases:["المدينة", "المدينه", "المدينة المنورة", "المدينه المنوره"] },
+    { city:"بريدة", aliases:["بريدة", "بريده"] },
+    { city:"القصيم", aliases:["القصيم", "قصيم", "عنيزة", "عنيزه", "الرس", "المذنب"] },
+    { city:"حاير", aliases:["حاير", "الحائر", "الحاير"] },
+    { city:"الخرج", aliases:["الخرج", "خرج"] },
+    { city:"الدمام", aliases:["الدمام", "الخبر", "الشرقية", "الشرقيه", "الظهران"] },
+    { city:"الطائف", aliases:["الطائف", "طايف"] },
+    { city:"القاهرة", aliases:["القاهرة", "القاهره", "مصر", "مصر الجديدة"] },
+    { city:"الإسكندرية", aliases:["الإسكندرية", "الاسكندرية", "اسكندرية", "اسكندريه"] }
+  ];
+
+  const averages = {
+    "الرياض": [20, 23, 27, 32, 38, 42, 43, 43, 40, 34, 27, 21],
+    "جدة": [27, 28, 30, 32, 35, 37, 38, 38, 37, 35, 32, 29],
+    "مكة": [29, 31, 34, 38, 42, 44, 44, 44, 42, 38, 34, 30],
+    "المدينة": [22, 25, 29, 34, 39, 43, 43, 43, 40, 34, 28, 23],
+    "بريدة": [17, 20, 25, 31, 37, 42, 43, 42, 39, 32, 24, 18],
+    "القصيم": [17, 20, 25, 31, 37, 42, 43, 42, 39, 32, 24, 18],
+    "حاير": [20, 23, 27, 33, 39, 43, 44, 43, 40, 34, 27, 21],
+    "الخرج": [20, 23, 28, 34, 40, 44, 45, 44, 41, 35, 27, 21],
+    "الدمام": [22, 24, 28, 33, 39, 43, 44, 43, 40, 35, 29, 24],
+    "الطائف": [19, 21, 24, 27, 31, 34, 34, 34, 32, 28, 24, 20],
+    "القاهرة": [19, 21, 24, 29, 33, 35, 36, 35, 33, 29, 25, 20],
+    "الإسكندرية": [18, 19, 21, 24, 28, 31, 32, 32, 30, 27, 23, 19]
+  };
+
+  let city = "الرياض";
+  for (const item of cityProfiles) {
+    if (item.aliases.some(alias => q.includes(normalizeArabicForMatch(alias)))) {
+      city = item.city;
+      break;
+    }
+  }
+
+  const avg = (averages[city] || averages["الرياض"])[new Date().getMonth()];
+  return { answer: `درجة الحرارة في ${city} اليوم تقريبًا ${arabicNumber(avg)}°C.` };
+}
+
+
+
+function answerWebsiteFAQ(question) {
+  const q = cleanText(question || "", 1200);
+  const nq = normalizeArabicForMatch(q);
+  if (!nq) return null;
+  const hasAny = (...words) => words.some((w) => nq.includes(normalizeArabicForMatch(w)));
+
+  if (hasAny("الية عمل الموقع", "آلية عمل الموقع", "ازاي الموقع شغال", "كيف يعمل الموقع", "طريقة عمل الموقع", "شرح الموقع", "الموقع بيشتغل ازاي", "استخدم الموقع ازاي", "كيفية استخدام الموقع", "ايه فكره الموقع", "فكرة الموقع")) {
+    return {
+      answer: "آلية عمل الموقع باختصار:\n1- يعرض شجرة العائلة التفاعلية حتى يستطيع الزائر تصفح أفراد العائلة ومعرفة أماكنهم داخل الشجرة.\n2- يمكن البحث عن شخص بالاسم ثم الانتقال مباشرة إلى موقعه في الشجرة.\n3- يمكن إرسال طلب إضافة بيانات فرد جديد من صفحة إضافة بياناتك، ولا يظهر الطلب في الشجرة إلا بعد مراجعة الإدارة واعتماده.\n4- بعد إرسال الطلب يحصل المستخدم على رقم مرجعي لتتبع حالة الطلب.\n5- توجد صفحات للأخبار والمناسبات والسير الذاتية ورسائل الدعم وصلة القرابة.\n6- لوحة الإدارة مخصصة للمسؤولين لاعتماد الطلبات وتحديث البيانات والمحتوى.",
+      actions: [
+        { label: "فتح الشجرة", url: "/" },
+        { label: "إضافة بياناتك", url: "/submit-person" },
+        { label: "صلة القرابة", url: "/kinship" }
+      ]
+    };
+  }
+
+  if (hasAny("من يدير الموقع", "مين يدير الموقع", "مين مدير الموقع", "من مدير الموقع", "ادارة الموقع", "إدارة الموقع", "المسؤول عن الموقع", "المسؤولين عن الموقع", "من المسؤول", "مين المسؤول")) {
+    return {
+      answer: "يدير الموقع مسؤولو العائلة المصرّح لهم من خلال لوحة إدارة خاصة. الإدارة مسؤولة عن مراجعة طلبات إضافة الأفراد، تحديث بيانات الشجرة، نشر الأخبار والمناسبات، وإدارة السير الذاتية ورسائل الدعم.\nللحفاظ على الخصوصية لا يتم عرض بيانات حسابات الإدارة أو بياناتهم الخاصة للعامة.",
+      actions: [
+        { label: "التواصل مع الإدارة", url: "/support" },
+        { label: "إرسال بيانات فرد", url: "/submit-person" }
+      ]
+    };
+  }
+
+  if (hasAny("كيف نتواصل", "كيف اتواصل", "ازاي اتواصل", "التواصل مع الادارة", "التواصل مع الإدارة", "كلم الادارة", "اكلم الادارة", "راسل الادارة", "رسائل الدعم", "الدعم", "تواصل معنا", "رقم الادارة", "رقم الإدارة", "ايميل الادارة", "بريد الادارة")) {
+    return {
+      answer: "يمكنك التواصل مع إدارة الموقع من خلال صفحة رسائل الدعم. اكتب اسمك ووسيلة التواصل ورسالتك، وستصل للإدارة داخل لوحة التحكم لمراجعتها والرد عليك حسب المتاح.\nلا أنصح بكتابة بيانات حساسة داخل الرسالة إلا عند الضرورة.",
+      link: "/support",
+      linkLabel: "فتح صفحة الدعم",
+      actions: [
+        { label: "التواصل مع الإدارة", url: "/support" }
+      ]
+    };
+  }
+
+  if (hasAny("هل بياناتي تظهر", "متى تظهر بياناتي", "امتى يظهر اسمي", "ليش اسمي ما ظهر", "لماذا اسمي لا يظهر", "لم يظهر اسمي", "طلبي لم يظهر", "بياناتي لم تظهر", "مراجعة الطلب")) {
+    return {
+      answer: "بياناتك لا تظهر مباشرة بعد الإرسال. الطلب يذهب أولًا إلى إدارة الموقع للمراجعة. إذا تمت الموافقة، يتم إنشاء الفرد داخل الشجرة ويصبح ظاهرًا. إذا تم الرفض، تظهر لك حالة الرفض وسبب الرفض عند تتبع الطلب بالرقم المرجعي.",
+      actions: [
+        { label: "تتبع الطلب", url: "/submit-person#track-request" },
+        { label: "إضافة بياناتك", url: "/submit-person" }
+      ]
+    };
+  }
+
+  if (hasAny("الرقم المرجعي", "رمز التتبع", "كود التتبع", "رقم الطلب", "انسخ الرقم", "نسيت الرقم", "كيف اتابع", "ازاي اتابع", "حالة الطلب")) {
+    return {
+      answer: "بعد إرسال طلب إضافة البيانات يظهر لك رقم مرجعي خاص بطلبك. احتفظ به واستخدمه في قسم تتبع الطلب لمعرفة هل الطلب قيد المراجعة أو تمت الموافقة عليه أو تم رفضه مع سبب الرفض. إذا تمت الموافقة يظهر لك زر للانتقال إلى موقعك في الشجرة.",
+      actions: [
+        { label: "تتبع الطلب", url: "/submit-person#track-request" }
+      ]
+    };
+  }
+
+  if (hasAny("كيف اضيف بياناتي", "كيف أضيف بياناتي", "ازاي اضيف بياناتي", "اضافة بياناتي", "إضافة بياناتي", "اضيف نفسي", "أضيف نفسي", "اسجل في الشجرة", "انضم للشجرة", "اضافة فرد")) {
+    return {
+      answer: "لإضافة بياناتك: افتح صفحة إضافة بياناتك، املأ البيانات المطلوبة مثل الاسم، الأب، الأم، تاريخ الميلاد، الصورة، العمل، المستوى التعليمي، العنوان، الزوج/الزوجة والأبناء إن وجدوا، ثم اضغط إرسال للمراجعة. بعد الإرسال سيظهر لك رقم مرجعي لتتبع الطلب.",
+      actions: [
+        { label: "إضافة بياناتك", url: "/submit-person" },
+        { label: "تتبع الطلب", url: "/submit-person#track-request" }
+      ]
+    };
+  }
+
+  if (hasAny("خصوصية", "الخصوصية", "بيانات خاصة", "رقم الجوال", "رقم الهاتف", "الايميل", "الإيميل", "العنوان", "هل يظهر جوالي", "هل يظهر رقمي", "هل يظهر عنواني")) {
+    return {
+      answer: "الموقع يحافظ على خصوصية البيانات الحساسة. بيانات مثل رقم الجوال والبريد الإلكتروني والعنوان مخصصة للإدارة فقط ولا تظهر للعامة في صفحات الموقع أو الشجرة، إلا إذا قررت الإدارة تغيير ذلك صراحة.",
+      actions: [
+        { label: "التواصل مع الإدارة", url: "/support" }
+      ]
+    };
+  }
+
+  if (hasAny("صلة القرابة", "صله القرابه", "هذه قريبي", "قريبي", "اعرف القرابة", "معرفة القرابة")) {
+    return {
+      answer: "يمكنك معرفة صلة القرابة بكتابة السؤال مباشرة مثل: ما صلة القرابة بين فلان وفلان؟ وسأحاول حسابها من بيانات الشجرة. ويمكنك أيضًا استخدام صفحة صلة القرابة وكتابة الاسمين ثلاثي أو رباعي للحصول على نتيجة أوضح.",
+      actions: [
+        { label: "فتح صفحة صلة القرابة", url: "/kinship" }
+      ]
+    };
+  }
+
+  if (hasAny("السيرة الذاتية", "السير الذاتية", "نبذة", "نبذه", "سيرة", "سيرته", "سيرتها")) {
+    return {
+      answer: "صفحة السير الذاتية تعرض نبذات وتفاصيل مميزة عن أفراد العائلة المسجلين. يمكنك سؤالي عن شخص باسمه، وإذا كان له بيانات أو سيرة ذاتية سأعرض لك ملخصًا وروابط لفتح سيرته أو موقعه في الشجرة.",
+      actions: [
+        { label: "فتح السير الذاتية", url: "/honor" }
+      ]
+    };
+  }
+
+  if (hasAny("الاخبار", "الأخبار", "المناسبات", "مناسبة", "خبر", "اخر اخبار العائلة", "آخر أخبار العائلة")) {
+    return {
+      answer: "صفحة الأخبار والمناسبات تعرض ما تنشره إدارة الموقع من أخبار العائلة والمناسبات. يمكنك أن تسألني عن آخر خبر منشور، أو تفتح صفحة الأخبار للاطلاع على كل الأخبار المتاحة.",
+      actions: [
+        { label: "فتح الأخبار والمناسبات", url: "/news" }
+      ]
+    };
+  }
+
+  if (hasAny("مشجر", "ملف الشجرة", "pdf", "بي دي اف", "تحميل الشجرة", "عرض الشجرة")) {
+    return {
+      answer: "يمكنك تصفح الشجرة التفاعلية من الصفحة الرئيسية. وإذا كانت إدارة الموقع أضافت ملف مشجر أو PDF، يمكنك فتح صفحة مشجرة العائلة للاطلاع عليه أو تحميله حسب المتاح.",
+      actions: [
+        { label: "الشجرة التفاعلية", url: "/" },
+        { label: "مشجرة العائلة", url: "/tree-pdf" }
+      ]
+    };
+  }
+
+  if (hasAny("تسجيل الدخول", "دخول الادارة", "دخول الإدارة", "لوحة الادارة", "لوحة الإدارة", "انا ادمن", "أنا أدمن")) {
+    return {
+      answer: "تسجيل الدخول مخصص للمسؤولين والمصرح لهم فقط. إذا كنت من الإدارة يمكنك الدخول من زر تسجيل الدخول. أما الزوار فيمكنهم استخدام صفحات إضافة البيانات وتتبع الطلب والتواصل مع الإدارة دون دخول.",
+      actions: [
+        { label: "تسجيل الدخول", url: "/admin/login" },
+        { label: "إضافة بياناتك", url: "/submit-person" }
+      ]
+    };
+  }
+
+  return null;
+}
+
+
+
+function stripHtmlForAssistant(value, max = 1400) {
+  return cleanText(String(value || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">"), max);
+}
+
+function isFamilyHistoryQuestion(question) {
+  const nq = normalizeArabicForMatch(question);
+  const phrases = [
+    "تاريخ العائلة", "تاريخ العائله", "تاريخ الاسرة", "تاريخ الأسرة", "قصة العائلة", "قصة العائله", "قصة الاسرة", "قصة الأسرة",
+    "نبذة العائلة", "نبذه العائله", "نبذة عن العائلة", "نبذه عن العائله", "عن العائلة", "عن العائله",
+    "المحطات الزمنية", "المحطات الزمنيه", "الخط الزمني", "محطات العائلة", "محطات العائله",
+    "احكيلي تاريخ", "احكي لي تاريخ", "احكي عن تاريخ", "عرفني بتاريخ", "ملخص تاريخ العائلة", "لمحة تاريخية"
+  ].map(normalizeArabicForMatch);
+  return phrases.some((x) => nq.includes(x));
+}
+
+async function getFamilyHistoryAssistantAnswer() {
+  const page = await get(`SELECT title, subtitle, content FROM site_pages WHERE slug='about'`).catch(() => null);
+  const timeline = await all(`SELECT title, description, date FROM timeline_events WHERE COALESCE(visible, 1)=1 ORDER BY "order" ASC, id ASC`).catch(() => []);
+
+  const title = cleanText(page?.title || "تاريخ العائلة", 120);
+  const subtitle = cleanText(page?.subtitle || "", 180);
+  const content = stripHtmlForAssistant(page?.content || "", 1200);
+
+  const lines = [];
+  lines.push(`هذا ملخص ${title} كما هو مسجل في صفحة النبذة داخل الموقع.`);
+  if (subtitle) lines.push(`\n${subtitle}`);
+  if (content) lines.push(`\n${content}`);
+  else lines.push("\nلم يتم إضافة نص تفصيلي في صفحة النبذة بعد، لذلك أعرض لك المحطات الزمنية المتاحة إن وجدت.");
+
+  if (timeline.length) {
+    lines.push("\nأبرز المحطات الزمنية:");
+    timeline.slice(0, 10).forEach((item, index) => {
+      const date = cleanText(item.date || "", 80);
+      const itemTitle = cleanText(item.title || "محطة زمنية", 120);
+      const desc = stripHtmlForAssistant(item.description || "", 220);
+      lines.push(`${index + 1}. ${date ? date + " - " : ""}${itemTitle}${desc ? `: ${desc}` : ""}`);
+    });
+    if (timeline.length > 10) lines.push(`\nوهناك ${timeline.length - 10} محطة أخرى يمكنك الاطلاع عليها من صفحة النبذة.`);
+  } else {
+    lines.push("\nلا توجد محطات زمنية منشورة حاليًا في صفحة النبذة.");
+  }
+
+  return {
+    answer: lines.join("\n"),
+    actions: [
+      { label: "فتح صفحة النبذة", url: "/about" },
+      { label: "عرض الشجرة", url: "/" }
+    ]
+  };
+}
+
+function cleanKinshipNamePart(value) {
+  return cleanText(String(value || "")
+    .replace(/^(?:من|عن|اسم|الاسم|الشخص|هو|هوا|هوه|هي|الأول|الاول|الثاني|التاني)\s+/i, "")
+    .replace(/\s+(?:من\s+العائلة|في\s+الشجرة|داخل\s+الشجرة|بالشجرة)$/i, "")
+    .trim(), 220);
+}
+
+function extractKinshipNamesFromQuestion(question) {
+  let q = removeArabicQuestionNoise(question);
+  q = q
+    .replace(/إيه/g, "ايه")
+    .replace(/أيه/g, "ايه")
+    .replace(/اي\s+/g, "ايه ")
+    .replace(/ما\s+هي\s+/g, "")
+    .replace(/ما\s+هو\s+/g, "")
+    .replace(/ما\s+/g, "")
+    .replace(/صلة\s+القرابة/g, "صلة القرابة")
+    .replace(/صله\s+القرابه/g, "صلة القرابة")
+    .replace(/صلة\s+القربى/g, "صلة القرابة")
+    .replace(/قرابيه|قرابة|قرايب|قرايبين/g, "قرابة");
+
+  const patterns = [
+    /(?:صلة\s+القرابة|صلة|قرابة)\s+(?:بين\s+)?(.+?)\s+(?:و|وبين|مع)\s+(.+)$/i,
+    /(?:ايه|ما)\s+(?:صلة\s+)?(?:قرابة|صلة)\s+(.+?)\s+(?:و|وبين|مع)\s+(.+)$/i,
+    /(?:بين\s+)?(.+?)\s+(?:و|وبين|مع)\s+(.+?)\s+(?:ايه|ما)\s*(?:صلة|قرابة|يقربوا|يقربو|يقربان)?$/i,
+    /(.+?)\s+(?:يقرب|تقرب|قريب|قريبة|قريبي)\s+(?:ايه\s+)?(?:من|لـ|ل)?\s+(.+)$/i,
+    /(.+?)\s+(?:ايه|ما)\s+(?:يقرب|تقرب|صلة|قرابة)\s+(?:من|لـ|ل)?\s+(.+)$/i,
+    /(.+?)\s+(?:ابن\s+مين|ابن\s+من|قريب\s+من)\s+(.+)$/i
+  ];
+
+  for (const re of patterns) {
+    const m = q.match(re);
+    if (m && m[1] && m[2]) {
+      const a = cleanKinshipNamePart(m[1]);
+      const b = cleanKinshipNamePart(m[2]);
+      if (namePartsForMatch(a).length >= 1 && namePartsForMatch(b).length >= 1) return { a, b };
+    }
+  }
+  return null;
+}
+
+async function buildPersonAssistantAnswer(person, rows, byId) {
+  const father = person.father_id ? byId.get(Number(person.father_id)) : null;
+  const mother = person.mother_id ? byId.get(Number(person.mother_id)) : null;
+  const children = rows.filter((x)=>Number(x.father_id)===Number(person.id)||Number(x.mother_id)===Number(person.id));
+  const spouses = await all(`SELECT spouse_name FROM person_spouses WHERE person_id = ? ORDER BY ord ASC, id ASC`, [person.id]).catch(()=>[]);
+  const honor = await get(`SELECT id, field, bio, achievement FROM honor_items WHERE person_id = ? ORDER BY ord ASC, id ASC LIMIT 1`, [person.id]).catch(()=>null);
+
+  const lines = [`وجدت الشخص: ${person.name}`];
+  if (father) lines.push(`الأب: ${father.name}`);
+  if (mother) lines.push(`الأم: ${mother.name}`);
+  if (person.birth_date) lines.push(`تاريخ الميلاد: ${person.birth_date}`);
+  if (person.death_date) lines.push(`تاريخ الوفاة: ${person.death_date}`);
+  if (person.birth_place) lines.push(`مكان الميلاد: ${person.birth_place}`);
+  if (person.job) lines.push(`العمل: ${person.job}`);
+  if (person.education_level) lines.push(`المستوى التعليمي: ${person.education_level}`);
+  if (spouses.length) lines.push(`الزوج/الزوجة: ${spouses.map(s=>s.spouse_name).filter(Boolean).join("، ")}`);
+  lines.push(`عدد الأبناء المسجلين: ${children.length}`);
+  if (children.length) lines.push(`من الأبناء المسجلين: ${children.slice(0, 6).map(c=>c.name).join("، ")}${children.length > 6 ? "..." : ""}`);
+  const bio = honor?.bio || person.short_bio || person.notes;
+  if (bio) lines.push(`نبذة: ${cleanText(bio, 320)}`);
+  if (honor?.achievement) lines.push(`إنجاز/تفاصيل: ${cleanText(honor.achievement, 220)}`);
+
+  return {
+    answer: lines.join("\n"),
+    link: `/?focus=${person.id}`,
+    linkLabel: "عرض موقعه في الشجرة",
+    actions: [
+      { label: "عرض موقعه في الشجرة", url: `/?focus=${person.id}` },
+      { label: "فتح سيرته الذاتية", url: `/honor?personId=${encodeURIComponent(person.id)}` }
+    ]
+  };
+}
+
+function freeGeneralKnowledgeAnswer(question) {
+  const q = cleanText(question, 1200);
+  const nq = normalizeArabicForMatch(q);
+  if (!q) return { answer: "اكتب سؤالك أولًا." };
+
+  const hasAny = (...words) => words.some((w) => nq.includes(normalizeArabicForMatch(w)));
+
+  const numericExpression = q.replace(/[٠-٩]/g, (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d)).match(/^[\s\d+\-*/().,%]+$/);
+  if (numericExpression && /[+\-*/]/.test(q)) {
+    try {
+      const safe = q.replace(/,/g, ".").replace(/%/g, "/100");
+      if (/^[\s\d+\-*/().]+$/.test(safe)) {
+        const result = Function(`"use strict"; return (${safe});`)();
+        if (Number.isFinite(result)) return { answer: `ناتج العملية هو: ${result}` };
+      }
+    } catch (_) {}
+  }
+
+  const greeting = answerGreetingQuestion(q);
+  if (greeting) return greeting;
+
+  const dateTime = answerDateTimeQuestion(q);
+  if (dateTime) return dateTime;
+
+  if (hasAny("انت مين", "من انت", "ما وظيفتك", "تقدر تعمل ايه")) {
+    return { answer: "أنا مساعد الموقع الذكي. أستطيع البحث في بيانات العائلة، شرح طريقة إضافة البيانات وتتبع الطلبات، حساب صلة القرابة، والإجابة على أسئلة عامة بسيطة بدون مفاتيح أو اشتراكات. الأسئلة اللحظية مثل أخبار اليوم أو نتائج المباريات المباشرة تحتاج مصدر خارجي محدث." };
+  }
+
+  if (hasAny("رياضه", "رياضة", "كره", "كرة", "مباراه", "مباراة", "الدوري", "كاس", "كأس")) {
+    return { answer: "أقدر أساعدك في معلومات رياضية عامة مثل شرح القوانين والبطولات والمراكز وطريقة احتساب النقاط. لكن النتائج المباشرة أو أخبار اليوم لا أستطيع تأكيدها بدون مصدر خارجي محدث. اكتب سؤالك الرياضي بالتحديد وسأجيبك بما أستطيع." };
+  }
+
+  if (hasAny("اخبار", "أخبار", "خبر اليوم", "اخر الاخبار", "آخر الأخبار")) {
+    return { answer: "أستطيع عرض أخبار الموقع المنشورة من قاعدة البيانات. أما أخبار العالم الحالية أو العاجلة فلا يمكنني ضمانها بدون اتصال بمصدر أخبار مباشر. اسألني عن أخبار العائلة أو الأخبار المنشورة في الموقع وسأعرضها لك." };
+  }
+
+  if (hasAny("السعوديه", "السعودية", "مصر", "القاهره", "القاهرة", "الرياض", "جده", "جدة")) {
+    return { answer: "أقدر أساعدك بمعلومات عامة مستقرة عن الدول والمدن، لكن أي بيانات متغيرة مثل الطقس والأسعار والأخبار الحالية تحتاج مصدر محدث. اكتب السؤال بشكل محدد مثل: ما عاصمة السعودية؟ أو ما معنى العنوان الوطني؟" };
+  }
+
+  if (hasAny("الذكاء الاصطناعي", "ai", "artificial intelligence")) {
+    return { answer: "الذكاء الاصطناعي هو أنظمة وبرامج تستطيع تحليل البيانات وفهم النصوص أو الصور واتخاذ قرارات أو توليد إجابات بناءً على أنماط تعلمتها. في هذا الموقع أعمل كمساعد داخلي يربط بين أسئلة المستخدم وبيانات العائلة والموقع." };
+  }
+
+  if (hasAny("نصيحه", "نصيحة", "اعمل ايه", "أعمل إيه", "ما رأيك", "رايك")) {
+    return { answer: "أقدر أساعدك بنصيحة عامة، لكن الأفضل تكتب لي تفاصيل أكثر: الموضوع، الهدف، والاختيارات المتاحة. لو السؤال طبي أو قانوني أو مالي، اعتبر إجابتي توجيهًا عامًا وليس بديلًا عن مختص." };
+  }
+
+  if (hasAny("شكرا", "شكر", "تسلم", "تمام")) {
+    return { answer: "العفو، تحت أمرك دائمًا." };
+  }
+
+  return clarifyAssistantAnswer();
+}
+
+async function answerGeneralAssistant(question) {
+  const q = cleanText(question, 1200);
+  if (!q) return { answer: "اكتب سؤالك أولًا." };
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return freeGeneralKnowledgeAnswer(q);
+  }
+
+  if (typeof fetch !== "function") {
+    return freeGeneralKnowledgeAnswer(q);
+  }
+
+  const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+  const systemPrompt = [
+    "أنت مساعد عربي لموقع شجرة عائلة.",
+    "أجب بوضوح وباختصار مفيد.",
+    "عند السؤال عن الموقع أو العائلة اعتمد فقط على البيانات التي يقدمها النظام في الردود الداخلية ولا تخترع بيانات عائلية.",
+    "عند السؤال العام خارج الموقع يمكنك الإجابة كمساعد عام.",
+    "لا تعرض بيانات خاصة مثل رقم الجوال أو البريد أو العنوان إلا إذا كانت متاحة صراحة للعامة."
+  ].join(" ");
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model,
+        input: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: q }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      console.error("OpenAI assistant error:", response.status, errText.slice(0, 500));
+      return freeGeneralKnowledgeAnswer(q);
+    }
+
+    const data = await response.json();
+    const outputText = data.output_text || (Array.isArray(data.output) ? data.output.flatMap((item) => item.content || []).map((c) => c.text || "").join("\n").trim() : "");
+    return { answer: outputText || freeGeneralKnowledgeAnswer(q).answer };
+  } catch (err) {
+    console.error("General AI assistant failed:", err);
+    return freeGeneralKnowledgeAnswer(q);
+  }
+}
+
+async function answerSiteAssistant(question) {
+  const q = cleanText(question, 600);
+  const nq = normalizeArabicForMatch(q);
+  if (!q) return { answer: "اكتب سؤالك أولًا عن الموقع أو العائلة." };
+
+  const greetingAnswer = answerGreetingQuestion(q);
+  if (greetingAnswer) return greetingAnswer;
+
+  const dateTimeAnswer = answerDateTimeQuestion(q);
+  if (dateTimeAnswer) return dateTimeAnswer;
+
+  const mathAnswer = answerSimpleMathQuestion(q);
+  if (mathAnswer) return mathAnswer;
+
+  if (isFamilyHistoryQuestion(q)) {
+    return await getFamilyHistoryAssistantAnswer();
+  }
+
+  if (isAgeQuestion(q)) {
+    const ageAnswer = await answerPersonAgeQuestion(q);
+    if (ageAnswer) return ageAnswer;
+  }
+
+  if (isChildrenCountQuestion(q)) {
+    const childrenAnswer = await answerChildrenCountQuestion(q);
+    if (childrenAnswer) return childrenAnswer;
+  }
+
+  const faqAnswer = answerWebsiteFAQ(q);
+  if (faqAnswer) return faqAnswer;
+
+  const ref = q.match(/FAM-\d{4}-[A-Z0-9]+/i)?.[0];
+  if (ref || nq.includes("طلب") || nq.includes("تتبع")) {
+    if (ref) {
+      const request = await findPersonRequestByReference(ref);
+      if (!request) return { answer: "لم يتم العثور على طلب بهذا الرقم المرجعي. تأكد من كتابة الرمز بشكل صحيح.", link: "/submit-person#track-request", linkLabel: "فتح تتبع الطلب" };
+      const statusMap = { pending:"قيد المراجعة", approved:"تمت الموافقة", rejected:"تم الرفض" };
+      let answer = `حالة طلب ${request.name}: ${statusMap[request.status] || request.status}.`;
+      if (request.status === "rejected") answer += `\nسبب الرفض: ${request.admin_note || "لم يتم ذكر سبب محدد."}`;
+      if (request.status === "approved") answer += `\nتمت إضافة الاسم إلى الشجرة.`;
+      return { answer, link: request.created_person_id ? `/?focus=${request.created_person_id}` : "/submit-person#track-request", linkLabel: request.created_person_id ? "شاهد موقعك في الشجرة" : "فتح صفحة التتبع" };
+    }
+    return { answer: "لتتبع طلب إضافة البيانات، افتح صفحة إضافة بياناتك ثم اكتب الرقم المرجعي في قسم تتبع الطلب.", link: "/submit-person#track-request", linkLabel: "تتبع الطلب" };
+  }
+
+  const kinshipNames = extractKinshipNamesFromQuestion(q);
+  if (kinshipNames) {
+    const result = await calculateKinshipByNames(kinshipNames.a, kinshipNames.b);
+    return {
+      answer: result.message || "لم أتمكن من حساب صلة القرابة من البيانات الحالية.",
+      link: `/kinship?person_a=${encodeURIComponent(kinshipNames.a)}&person_b=${encodeURIComponent(kinshipNames.b)}`,
+      linkLabel: "فتح صفحة صلة القرابة",
+      actions: [
+        { label: "عرض الحساب في صفحة صلة القرابة", url: `/kinship?person_a=${encodeURIComponent(kinshipNames.a)}&person_b=${encodeURIComponent(kinshipNames.b)}` }
+      ]
+    };
+  }
+
+  if (nq.includes("صله") || nq.includes("قرابه") || nq.includes("قريبي")) {
+    return { answer: "اكتب السؤال بصيغة: ما صلة القرابة بين الاسم الأول والاسم الثاني، وسأحسبها لك مباشرة من بيانات الشجرة. مثال: ما صلة القرابة بين أحمد محمد علي وخالد يوسف علي.", link: "/kinship", linkLabel: "فتح صفحة صلة القرابة" };
+  }
+
+  if (nq.includes("اضيف") || nq.includes("اضافه") || nq.includes("بياناتي")) {
+    return { answer: "يمكنك إرسال بياناتك من صفحة إضافة بياناتك. بعد الإرسال سيظهر لك رقم مرجعي، احتفظ به لتتبع حالة الطلب حتى تتم مراجعته من الإدارة.", link: "/submit-person", linkLabel: "إضافة بياناتك" };
+  }
+
+  if (nq.includes("عدد") || nq.includes("احصائيات") || nq.includes("كم")) {
+    const stats = await getSiteStats();
+    return { answer: `إحصائيات الموقع الحالية:\nإجمالي الأفراد: ${stats.total}\nعدد الذكور: ${stats.males}\nعدد الإناث: ${stats.females}\nالأسماء المكررة: ${stats.duplicateNames || 0}\nالسير الذاتية: ${stats.honorItems || 0}\nالأخبار المنشورة: ${stats.activeNews || 0}` };
+  }
+
+  if (nq.includes("خبر") || nq.includes("اخبار")) {
+    const latest = await get(`SELECT id,title,summary FROM news_posts WHERE COALESCE(is_active,1)=1 ORDER BY COALESCE(is_pinned,0) DESC, id DESC LIMIT 1`);
+    if (!latest) return { answer: "لا توجد أخبار منشورة حاليًا.", link: "/news", linkLabel: "فتح الأخبار" };
+    return { answer: `آخر خبر منشور: ${latest.title}\n${cleanText(latest.summary || "", 180)}`, link: `/news/${latest.id}`, linkLabel: "قراءة الخبر" };
+  }
+
+  const { rows, byId } = await getPersonsForRelationship();
+  const personQuery = stripAssistantNameNoise(q);
+  const shouldSearchPerson = isLikelyPersonLookupQuestion(q) || isProbablyNameText(personQuery);
+  const match = shouldSearchPerson ? matchPersonByFlexibleName(personQuery || q, rows, byId) : { status: "not_found", matches: [] };
+  if (match.status === "matched") {
+    return await buildPersonAssistantAnswer(match.matches[0], rows, byId);
+  }
+  if (match.status === "multiple") {
+    return {
+      answer: `وجدت أكثر من نتيجة محتملة. اختر الشخص المقصود من الروابط التالية أو اكتب الاسم رباعي لتحديده بدقة:\n${match.matches.map((x, i)=>`${i+1}- ${x.name} (${x.lineage_label})`).join("\n")}`,
+      actions: match.matches.flatMap((x)=>[
+        { label: `موقع ${x.name} في الشجرة`, url: `/?focus=${x.id}` },
+        { label: `سيرة ${x.name}`, url: `/honor?personId=${encodeURIComponent(x.id)}` }
+      ]).slice(0, 10)
+    };
+  }
+  if (shouldSearchPerson) {
+    return {
+      answer: `لم أجد شخصًا مطابقًا لاسم "${personQuery || q}" داخل الشجرة. برجاء كتابة الاسم ثلاثي أو رباعي، أو التأكد من طريقة كتابة الاسم.`
+    };
+  }
+
+  return { answer: "", general: true };
+}
+
+
+/* =========================
+   Assistant precision fixes: Saudi-style names, Ramadan countdown, person children questions
+   ========================= */
+function namePartsForMatch(value) {
+  const stop = new Set(["بن", "ابن", "بنت", "ال", "آل", "ال", "خاشقجي", "الخاشقجي"]);
+  return normalizeArabicForMatch(value)
+    .split(" ")
+    .filter(Boolean)
+    .filter((part) => !stop.has(part));
+}
+
+function firstNameForMatch(value) {
+  return namePartsForMatch(value)[0] || "";
+}
+
+function assistantHasMonthCountdownIntent(question) {
+  const nq = normalizeArabicForMatch(question);
+  const hasCountdownWords = ["باقي", "متبقي", "متي", "موعد", "يبدا", "يبدأ", "كم يوم", "كم شهر"].some((w) => nq.includes(normalizeArabicForMatch(w)));
+  const hasMonth = [...HIJRI_MONTHS, ...GREGORIAN_MONTHS].some((item) => item.names.some((name) => nq.includes(normalizeMonthQuery(name))));
+  return hasCountdownWords && hasMonth;
+}
+
+function detectMonthCountdown(question) {
+  const nq = normalizeArabicForMatch(question);
+  if (!assistantHasMonthCountdownIntent(question)) return null;
+
+  for (const item of HIJRI_MONTHS) {
+    if (item.names.some((name) => nq.includes(normalizeMonthQuery(name)))) {
+      const next = findNextHijriMonthStart(item.n);
+      if (!next) return { answer: "لا أستطيع حساب هذا الشهر الهجري بدقة على الخادم الحالي." };
+      const dayWord = next.days === 0 ? "اليوم" : `${arabicNumber(next.days)} يوم`;
+      return {
+        answer: `باقي على ${item.names[0]} تقريبًا ${dayWord}.\nالتاريخ المتوقع لبداية الشهر: ${formatGregorianDateArabic(next.date)}.\nملاحظة: الأشهر الهجرية تعتمد على الرؤية الشرعية، لذلك قد يختلف التاريخ يومًا بالزيادة أو النقصان.`
+      };
+    }
+  }
+
+  for (const item of GREGORIAN_MONTHS) {
+    if (item.names.some((name) => nq.includes(normalizeMonthQuery(name)))) {
+      const next = findNextGregorianMonthStart(item.n);
+      const dayWord = next.days === 0 ? "اليوم" : `${arabicNumber(next.days)} يوم`;
+      return {
+        answer: `باقي على شهر ${item.names[0]} ${dayWord} تقريبًا.\nبدايته تكون في ${formatGregorianDateArabic(next.date)}.`
+      };
+    }
+  }
+  return null;
+}
+
+function extractNameFromChildrenQuestion(question) {
+  let q = removeArabicQuestionNoise(question);
+  q = q
+    .replace(/\b(?:كم\s+عدد|كم|عدد)\s+(?:ولد|بنت|ابن|ابنة|اولاد|أولاد|ابناء|أبناء|عيال|اطفال|أطفال)\b/gi, " ")
+    .replace(/\b(?:وكم|و\s+كم)\s*(?:عدد\s+)?(?:ولد|بنت|ابن|ابنة|اولاد|أولاد|ابناء|أبناء)\b/gi, " ")
+    .replace(/\b(?:عنده|عندها|لديه|لديها|له|لها|معه|معها)\b/gi, " ")
+    .replace(/\b(?:من|ل|لـ)\b$/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const prefixPatterns = [
+    /^(?:كم\s+عدد\s+ابناء|كم\s+عدد\s+أبناء|كم\s+عدد\s+اولاد|كم\s+عدد\s+أولاد|كم\s+عدد\s+ولد|كم\s+عدد\s+بنت|كم\s+ابناء|كم\s+أبناء|كم\s+اولاد|كم\s+أولاد|كم\s+ولد|كم\s+بنت|عدد\s+ابناء|عدد\s+أبناء|عدد\s+اولاد|عدد\s+أولاد|عدد\s+ولد|عدد\s+بنت|اولاد|أولاد|ابناء|أبناء|بنات|عيال)\s+/i,
+    /^(?:اعرض|قول\s+لي|قولي|ابي|ابغى|اريد|عايز)\s+/i,
+  ];
+  for (const re of prefixPatterns) q = q.replace(re, "").trim();
+  return stripAssistantNameNoise(q);
+}
+
+async function answerChildrenCountQuestion(question) {
+  const { rows, byId } = await getPersonsForRelationship();
+  const name = extractNameFromChildrenQuestion(question);
+  const match = matchPersonByFlexibleName(name, rows, byId);
+  if (match.status === "matched") {
+    const person = match.matches[0];
+    const children = rows.filter((x)=>Number(x.father_id)===Number(person.id)||Number(x.mother_id)===Number(person.id));
+    const sons = children.filter((c)=>genderIsMale(c));
+    const daughters = children.filter((c)=>genderIsFemale(c));
+    const unknown = children.length - sons.length - daughters.length;
+    const lines = [`${person.name} لديه/لديها ${arabicNumber(children.length)} من الأبناء المسجلين في الشجرة.`];
+    lines.push(`الأولاد: ${arabicNumber(sons.length)}.`);
+    lines.push(`البنات: ${arabicNumber(daughters.length)}.`);
+    if (unknown > 0) lines.push(`غير محدد النوع: ${arabicNumber(unknown)}.`);
+    if (children.length) lines.push(`الأسماء: ${children.map(c=>c.name).join("، ")}.`);
+    return { answer: lines.join("\n"), actions: [{ label: "عرض موقعه في الشجرة", url: `/?focus=${person.id}` }] };
+  }
+  if (match.status === "multiple") return { answer: `وجدت أكثر من شخص بهذا الاسم. اكتب الاسم رباعي لتحديد الشخص بدقة:\n${match.matches.map((x,i)=>`${i+1}- ${x.name} (${x.lineage_label})`).join("\n")}` };
+  return null;
+}
+
+function extractNameAfterPatterns(question, patterns) {
+  let q = removeArabicQuestionNoise(question);
+  q = q.replace(/\b(بن|ابن)\b/g, " ").replace(/\s+/g, " ").trim();
+  for (const re of patterns) {
+    const m = q.match(re);
+    if (m && m[1]) return stripAssistantNameNoise(m[1]);
+  }
+  return stripAssistantNameNoise(q);
+}
+
+function cleanKinshipNamePart(value) {
+  return cleanText(String(value || "")
+    .replace(/^(?:من|عن|اسم|الاسم|الشخص|هو|هوا|هوه|هي|الأول|الاول|الثاني|التاني)\s+/i, "")
+    .replace(/\s+(?:من\s+العائلة|في\s+الشجرة|داخل\s+الشجرة|بالشجرة)$/i, "")
+    .trim(), 220);
+}
+
+function extractKinshipNamesFromQuestion(question) {
+  let q = removeArabicQuestionNoise(question);
+  q = q
+    .replace(/إيه/g, "ايه")
+    .replace(/أيه/g, "ايه")
+    .replace(/اي\s+/g, "ايه ")
+    .replace(/ما\s+هي\s+/g, "")
+    .replace(/ما\s+هو\s+/g, "")
+    .replace(/ما\s+/g, "")
+    .replace(/صلة\s+القرابة|صله\s+القرابه|صلة\s+القربى/g, "صلة القرابة")
+    .replace(/قرابيه|قرابة|قرايب|قرايبين/g, "قرابة");
+
+  const patterns = [
+    /(?:صلة\s+القرابة|صلة|قرابة)\s+(?:بين\s+)?(.+?)\s+(?:و|وبين|مع)\s+(.+)$/i,
+    /(?:ايه|ما)\s+(?:صلة\s+)?(?:قرابة|صلة)\s+(.+?)\s+(?:و|وبين|مع)\s+(.+)$/i,
+    /(?:بين\s+)?(.+?)\s+(?:و|وبين|مع)\s+(.+?)\s+(?:ايه|ما)\s*(?:صلة|قرابة|يقربوا|يقربو|يقربان)?$/i,
+    /(.+?)\s+(?:يقرب|تقرب|قريب|قريبة|قريبي)\s+(?:ايه\s+)?(?:من|لـ|ل)?\s+(.+)$/i,
+    /(.+?)\s+(?:ايه|ما)\s+(?:يقرب|تقرب|صلة|قرابة)\s+(?:من|لـ|ل)?\s+(.+)$/i,
+    /(.+?)\s+(?:وش|ايش|ايه)\s+(?:قرابته|قرابتها|صلته|صلتها)\s+(?:من|مع|لـ|ل)\s+(.+)$/i
+  ];
+
+  for (const re of patterns) {
+    const m = q.match(re);
+    if (m && m[1] && m[2]) {
+      const a = cleanKinshipNamePart(m[1]);
+      const b = cleanKinshipNamePart(m[2]);
+      if (namePartsForMatch(a).length >= 1 && namePartsForMatch(b).length >= 1) return { a, b };
+    }
+  }
+  return null;
+}
+
+async function answerSiteAssistant(question) {
+  const q = cleanText(question, 600);
+  const nq = normalizeArabicForMatch(q);
+  if (!q) return { answer: "اكتب سؤالك أولًا عن الموقع أو العائلة." };
+
+  const greetingAnswer = answerGreetingQuestion(q);
+  if (greetingAnswer) return greetingAnswer;
+
+  const dateTimeAnswer = answerDateTimeQuestion(q);
+  if (dateTimeAnswer) return dateTimeAnswer;
+
+  const mathAnswer = answerSimpleMathQuestion(q);
+  if (mathAnswer) return mathAnswer;
+
+  if (isFamilyHistoryQuestion(q)) {
+    return await getFamilyHistoryAssistantAnswer();
+  }
+
+  const ref = q.match(/FAM-\d{4}-[A-Z0-9]+/i)?.[0];
+  if (ref || nq.includes("طلب") || nq.includes("تتبع")) {
+    if (ref) {
+      const request = await findPersonRequestByReference(ref);
+      if (!request) return { answer: "لم يتم العثور على طلب بهذا الرقم المرجعي. تأكد من كتابة الرمز بشكل صحيح.", link: "/submit-person#track-request", linkLabel: "فتح تتبع الطلب" };
+      const statusMap = { pending:"قيد المراجعة", approved:"تمت الموافقة", rejected:"تم الرفض" };
+      let answer = `حالة طلب ${request.name}: ${statusMap[request.status] || request.status}.`;
+      if (request.status === "rejected") answer += `\nسبب الرفض: ${request.admin_note || "لم يتم ذكر سبب محدد."}`;
+      if (request.status === "approved") answer += `\nتمت إضافة الاسم إلى الشجرة.`;
+      return { answer, link: request.created_person_id ? `/?focus=${request.created_person_id}` : "/submit-person#track-request", linkLabel: request.created_person_id ? "شاهد موقعك في الشجرة" : "فتح صفحة التتبع" };
+    }
+    return { answer: "لتتبع طلب إضافة البيانات، افتح صفحة إضافة بياناتك ثم اكتب الرقم المرجعي في قسم تتبع الطلب.", link: "/submit-person#track-request", linkLabel: "تتبع الطلب" };
+  }
+
+  const kinshipNames = extractKinshipNamesFromQuestion(q);
+  if (kinshipNames) {
+    const result = await calculateKinshipByNames(kinshipNames.a, kinshipNames.b);
+    return {
+      answer: result.message || "لم أتمكن من حساب صلة القرابة من البيانات الحالية.",
+      actions: [
+        { label: "عرض الحساب في صفحة صلة القرابة", url: `/kinship?person_a=${encodeURIComponent(kinshipNames.a)}&person_b=${encodeURIComponent(kinshipNames.b)}` }
+      ]
+    };
+  }
+
+  if (isAgeQuestion(q)) {
+    const ageAnswer = await answerPersonAgeQuestion(q);
+    if (ageAnswer) return ageAnswer;
+  }
+
+  if (isChildrenCountQuestion(q)) {
+    const childrenAnswer = await answerChildrenCountQuestion(q);
+    if (childrenAnswer) return childrenAnswer;
+    return { answer: "اكتب اسم الشخص ثلاثي أو رباعي بعد السؤال. مثال: وسيم بن إبراهيم بن حسن عنده كم ولد وكم بنت؟" };
+  }
+
+  const faqAnswer = answerWebsiteFAQ(q);
+  if (faqAnswer) return faqAnswer;
+
+  if (nq.includes("صله") || nq.includes("قرابه") || nq.includes("قريبي")) {
+    return { answer: "اكتب اسمين واضحين لأحسب صلة القرابة مباشرة. مثال: ما صلة القرابة بين فلان بن فلان وفلان بن فلان؟", link: "/kinship", linkLabel: "فتح صفحة صلة القرابة" };
+  }
+
+  if (nq.includes("اضيف") || nq.includes("اضافه") || nq.includes("بياناتي")) {
+    return { answer: "يمكنك إرسال بياناتك من صفحة إضافة بياناتك. بعد الإرسال سيظهر لك رقم مرجعي، احتفظ به لتتبع حالة الطلب حتى تتم مراجعته من الإدارة.", link: "/submit-person", linkLabel: "إضافة بياناتك" };
+  }
+
+  if (nq.includes("خبر") || nq.includes("اخبار")) {
+    const latest = await get(`SELECT id,title,summary FROM news_posts WHERE COALESCE(is_active,1)=1 ORDER BY COALESCE(is_pinned,0) DESC, id DESC LIMIT 1`);
+    if (!latest) return { answer: "لا توجد أخبار منشورة حاليًا.", link: "/news", linkLabel: "فتح الأخبار" };
+    return { answer: `آخر خبر منشور: ${latest.title}\n${cleanText(latest.summary || "", 180)}`, link: `/news/${latest.id}`, linkLabel: "قراءة الخبر" };
+  }
+
+  const { rows, byId } = await getPersonsForRelationship();
+  const personQuery = stripAssistantNameNoise(q);
+  const shouldSearchPerson = isLikelyPersonLookupQuestion(q) || isProbablyNameText(personQuery);
+  const match = shouldSearchPerson ? matchPersonByFlexibleName(personQuery || q, rows, byId) : { status: "not_found", matches: [] };
+  if (match.status === "matched") return await buildPersonAssistantAnswer(match.matches[0], rows, byId);
+  if (match.status === "multiple") {
+    return {
+      answer: `وجدت أكثر من نتيجة محتملة. اختر الشخص المقصود من الروابط التالية أو اكتب الاسم رباعي لتحديده بدقة:\n${match.matches.map((x, i)=>`${i+1}- ${x.name} (${x.lineage_label})`).join("\n")}`,
+      actions: match.matches.flatMap((x)=>[
+        { label: `موقع ${x.name} في الشجرة`, url: `/?focus=${x.id}` },
+        { label: `سيرة ${x.name}`, url: `/honor?personId=${encodeURIComponent(x.id)}` }
+      ]).slice(0, 10)
+    };
+  }
+  if (shouldSearchPerson) {
+    return { answer: `لم أجد شخصًا مطابقًا لاسم "${personQuery || q}" داخل الشجرة. جرّب كتابته بالصيغة السعودية مثل: الاسم بن الأب بن الجد، أو اكتب الاسم ثلاثي/رباعي بدون لقب العائلة.` };
+  }
+
+  const explicitStats = ["احصائيات", "إحصائيات", "عدد افراد", "عدد أفراد", "كم عدد افراد", "كم عدد أفراد", "كم شخص", "كم فرد", "اجمالي الافراد", "إجمالي الأفراد"].some((x)=>nq.includes(normalizeArabicForMatch(x)));
+  if (explicitStats) {
+    const stats = await getSiteStats();
+    return { answer: `إحصائيات الموقع الحالية:\nإجمالي الأفراد: ${stats.total}\nعدد الذكور: ${stats.males}\nعدد الإناث: ${stats.females}\nالأسماء المكررة: ${stats.duplicateNames || 0}\nالسير الذاتية: ${stats.honorItems || 0}\nالأخبار المنشورة: ${stats.activeNews || 0}` };
+  }
+
+  return { answer: "لم أفهم سؤالك بشكل كافٍ. وضّح المطلوب أكثر، أو اكتب اسم الشخص ثلاثي/رباعي، أو اكتب مثلًا: من هو فلان؟ أو ما صلة القرابة بين فلان وفلان؟" };
+}
+
+
+
+/* =========================
+   Enhanced Saudi/Egyptian assistant dictionary
+   ========================= */
+function assistantIncludesAnyNormalized(question, phrases) {
+  const nq = normalizeArabicForMatch(question || "");
+  return phrases.some((p) => nq.includes(normalizeArabicForMatch(p)));
+}
+
+function pickSaudiResponse(list) {
+  if (!Array.isArray(list) || !list.length) return { answer: "حياك الله، تفضل وش تحتاج؟" };
+  const idx = Math.floor(Math.random() * list.length);
+  return { answer: list[idx] };
+}
+
+function assistantIsOnlyGreeting(question) {
+  const nq = normalizeArabicForMatch(question || "").trim();
+  const cleaned = nq.replace(/\s+/g, " ");
+  const greetings = [
+    "سلام", "السلام عليكم", "سلام عليكم", "السلامو عليكم", "السلام عليكم ورحمه الله", "هلا", "هلا والله", "يا هلا", "مرحبا", "اهلا", "أهلا", "اهلين", "أهلين", "حياك", "حي الله", "صباح الخير", "مساء الخير", "كيف الحال", "كيف حالك", "كيفك", "شلونك", "وش اخبارك", "وش علومك", "عامل ايه", "ازيك", "إزيك", "اخبارك ايه"
+  ].map(normalizeArabicForMatch);
+  return greetings.some((g) => cleaned === g || cleaned.startsWith(g + " "));
+}
+
+function answerGreetingQuestion(question) {
+  const nq = normalizeArabicForMatch(question || "");
+  if (!assistantIsOnlyGreeting(question)) return null;
+  if (nq.includes(normalizeArabicForMatch("السلام")) || nq.includes(normalizeArabicForMatch("سلام عليكم"))) {
+    return { answer: "وعليكم السلام ورحمة الله وبركاته، يا هلا ومرحبا. أنا سعود، مساعد الموقع. أبشر، اسألني عن أي فرد في الشجرة، صلة القرابة، تاريخ العائلة، تتبع الطلبات، أو طريقة استخدام الموقع." };
+  }
+  if (nq.includes(normalizeArabicForMatch("صباح"))) {
+    return { answer: "صباح النور والسرور، حيّاك الله. أنا سعود، حاضر أساعدك في الشجرة، الأسماء، صلة القرابة، الطلبات، أو أي استفسار عن الموقع." };
+  }
+  if (nq.includes(normalizeArabicForMatch("مساء"))) {
+    return { answer: "مساء الخير والنور، يا هلا والله. تفضل اسألني عن العائلة، صلة القرابة، تاريخ الموقع، أو أي شخص داخل الشجرة." };
+  }
+  if (nq.includes(normalizeArabicForMatch("كيف")) || nq.includes(normalizeArabicForMatch("شلون")) || nq.includes(normalizeArabicForMatch("ازيك")) || nq.includes(normalizeArabicForMatch("عامل ايه"))) {
+    return { answer: "بخير ونعمة، الله يسلمك. حيّاك الله، وش تبي تعرف؟ أقدر أساعدك في بيانات العائلة، صلة القرابة، تاريخ العائلة، أو تتبع طلبك." };
+  }
+  return { answer: "يا هلا والله، حيّاك الله. أنا سعود، مساعدك داخل الموقع. اسألني عن شخص في الشجرة، صلة قرابة، تاريخ العائلة، أو طريقة إضافة بياناتك." };
+}
+
+function answerDateTimeQuestion(question) {
+  const nq = normalizeArabicForMatch(question || "");
+  const monthCountdown = detectMonthCountdown(question);
+  if (monthCountdown) return monthCountdown;
+
+  const wantsHijri = assistantIncludesAnyNormalized(question, [
+    "كم اليوم في التاريخ الهجري", "تاريخ اليوم هجري", "التاريخ الهجري", "كم التاريخ الهجري", "اليوم هجري", "النهارده هجري", "تاريخ هجري"
+  ]);
+  const wantsGregorian = assistantIncludesAnyNormalized(question, [
+    "كم اليوم في التاريخ الميلادي", "تاريخ اليوم ميلادي", "التاريخ الميلادي", "كم التاريخ الميلادي", "اليوم ميلادي", "النهارده ميلادي", "تاريخ ميلادي"
+  ]);
+  const wantsDayOrDate = assistantIncludesAnyNormalized(question, [
+    "كم اليوم", "انهارده اي", "النهارده اي", "اليوم اي", "اليوم ايه", "النهارده كام", "اليوم كام", "تاريخ اليوم", "اي تاريخ اليوم", "كم التاريخ", "وش تاريخ اليوم", "ايش تاريخ اليوم"
+  ]);
+  const wantsTime = assistantIncludesAnyNormalized(question, [
+    "كم الساعة", "كم الساعه", "الساعة كم", "الساعه كم", "الوقت الان", "الوقت الآن", "اي وقت", "الوقت كام", "الساعة كام", "الساعه كام", "كام الساعة", "كام الساعه", "الوقت الحين", "الساعه الحين", "كم الوقت"
+  ]);
+
+  if (!wantsHijri && !wantsGregorian && !wantsDayOrDate && !wantsTime) return null;
+  const now = new Date();
+  const parts = [];
+  if (wantsTime) parts.push(`الوقت الآن حسب توقيت السعودية: ${formatTimeArabic(now)}.`);
+  if (wantsHijri) parts.push(`التاريخ الهجري اليوم: ${formatHijriDateArabic(now)}.`);
+  if (wantsGregorian) parts.push(`التاريخ الميلادي اليوم: ${formatGregorianDateArabic(now)}.`);
+  if (wantsDayOrDate && !wantsHijri && !wantsGregorian) {
+    parts.push(`اليوم: ${formatGregorianDateArabic(now)}.`);
+    parts.push(`وبالهجري: ${formatHijriDateArabic(now)}.`);
+  }
+  return { answer: parts.join("\n") };
+}
+
+
+
+/* =========================
+   Expanded Saud assistant dictionary from user-provided FAQ
+   ========================= */
+function answerSaudExtendedDictionary(question) {
+  const q = cleanText(question || "", 1400);
+  const nq = normalizeArabicForMatch(q);
+  if (!nq) return null;
+  const hasAny = (...words) => words.some((w) => nq.includes(normalizeArabicForMatch(w)));
+  const startsAny = (...words) => words.some((w) => nq.startsWith(normalizeArabicForMatch(w)));
+
+  // تعريف سعود وشخصيته
+  if (hasAny("يا سعود", "سعود ساعدني", "هل انت مثل شات جي بي تي", "هل أنت مثل chatgpt", "هل انت تابع للموقع", "هل ترد باللهجة السعودية", "تعرف لهجات السعودية", "كيف استخدمك")) {
+    return { answer: "يا هلا والله، أنا سعود، مساعد ذكي لموقع أسرة خاشقجي. أقدر أساعدك في شجرة العائلة، صلة القرابة، تاريخ العائلة، الأخبار والمناسبات، كتابة النصوص والتهاني والقصائد، الحسابات، التلخيص، وإرشادك لاستخدام الموقع خطوة بخطوة." };
+  }
+
+  // شرح الموقع العام
+  if (hasAny("وش هذا الموقع", "ايش هذا الموقع", "ايه الموقع ده", "ما هو موقع اسرة خاشقجي", "موقع اسرة خاشقجي", "وصف الموقع", "اقترح وصف للموقع", "رسالة ترحيب للموقع")) {
+    return { answer: "هذا موقع خاص بأسرة خاشقجي، هدفه تنظيم شجرة العائلة، توثيق الأسماء والروابط العائلية، نشر الأخبار والمناسبات، حفظ السير الذاتية والنبذات، وتعزيز صلة الرحم بين أفراد الأسرة." };
+  }
+
+  if (hasAny("وين شجرة العائلة", "فين شجرة العائلة", "افتح الشجرة", "ابي اشوف الشجرة", "ابغى اشوف كامل الشجرة", "شجرة العائلة فين")) {
+    return { answer: "تقدر تشوف شجرة العائلة من الصفحة الرئيسية. استخدم البحث لكتابة اسم الشخص، وإذا وجدت النتيجة ينتقل الموقع مباشرة إلى مكانه داخل الشجرة.", link: "/", linkLabel: "فتح شجرة العائلة" };
+  }
+
+  if (hasAny("كيف ابحث عن شخص", "كيف أبحث عن شخص", "ابحث عن فلان", "ما لقيت الاسم", "الاسم ما يظهر", "كيف ابحث بالجوال", "كيف أجد تفاصيل فرد")) {
+    return { answer: "للبحث عن شخص، اكتب اسمه أو جزءًا من اسمه في خانة البحث داخل الشجرة. إذا كان الاسم مكررًا أو غير واضح، جرّب كتابته ثلاثي أو رباعي، أو بصيغة: الاسم بن الأب بن الجد. إذا لم يظهر فقد يكون غير مضاف أو مكتوبًا بطريقة مختلفة." };
+  }
+
+  // صلة القرابة والأنساب
+  if (hasAny("ما معنى شجرة العائلة", "ايش معنى شجرة العائلة", "وش معنى شجرة العائلة")) {
+    return { answer: "شجرة العائلة هي عرض منظم يوضح العلاقة بين أفراد الأسرة: الآباء، الأبناء، الإخوة، الأجداد، الأحفاد، والفروع المختلفة." };
+  }
+
+  if (hasAny("من هو جد الاسرة", "جد الاسرة", "اصل العائلة", "اصل الاسرة", "نسب العائلة", "نسب الاسرة")) {
+    return { answer: "هذه المعلومة تعتمد على البيانات الموثقة داخل الموقع وصفحة النبذة. أقدر أساعدك بما هو مسجل في الموقع، وإذا كانت المعلومة غير موجودة تحتاج مراجعة من الإدارة أو من موثقي الأسرة." };
+  }
+
+  if (hasAny("كيف ابلغ عن خطا في النسب", "خطا في النسب", "غلط في النسب", "تصحيح النسب", "النسب غير صحيح")) {
+    return { answer: "إذا لاحظت خطأ في النسب، تواصل مع الإدارة واذكر الاسم الحالي والتصحيح المطلوب، ويفضل إضافة توضيح أو مصدر. الإدارة تراجع التعديل قبل اعتماده حفاظًا على دقة الشجرة.", link: "/support", linkLabel: "إبلاغ الإدارة" };
+  }
+
+  if (hasAny("كيف اضيف مولود", "اضافة مولود", "مولود جديد", "كيف اضيف زواج", "اضافة زواج", "توثيق زواج")) {
+    return { answer: "لإضافة مولود أو زواج، أرسل طلب إضافة بيانات من الموقع أو تواصل مع الإدارة، واكتب الأسماء كاملة والتاريخ إن وجد وأي بيانات داعمة. الإدارة تراجع البيانات قبل ظهورها في الشجرة.", link: "/submit-person", linkLabel: "إضافة بيانات" };
+  }
+
+  if (hasAny("كيف احذف فرد", "حذف فرد", "امسح شخص", "حذف شخص من الشجرة")) {
+    return { answer: "حذف فرد من الشجرة إجراء حساس لأنه يؤثر على النسب والروابط العائلية. لذلك يتم فقط من الإدارة وبعد مراجعة السبب والتأكد من صحة الطلب.", link: "/support", linkLabel: "التواصل مع الإدارة" };
+  }
+
+  // إنشاء محتوى: قصائد وتهاني وتعازي وأخبار
+  if (hasAny("اكتب قصيدة", "قصيدة عن", "اكتب شعر", "بيت شعر", "قصيدة فخر", "قصيدة ترحيب", "قصيدة عن خاشقجي", "قصيدة افتتاح", "شعر باللهجة السعودية")) {
+    return { answer: "أبشر، هذه قصيدة قصيرة:\nيا خاشقجي يا اسم عزٍ ومقدار\nيا رمز طيبٍ بالوفا دوم مذكور\nتاريخكم نورٍ على كل الأقطار\nومجدكم باقي على مر العصور\n\nوإذا تبيها لاسم شخص أو مناسبة معينة، اكتب لي الاسم والمناسبة وأصيغها لك بشكل أخص." };
+  }
+
+  if (hasAny("اكتب تهنئة زواج", "تهنئة زواج")) {
+    return { answer: "نبارك للعروسين زواجهما المبارك، ونسأل الله أن يجمع بينهما في خير، ويرزقهما السعادة والمودة والذرية الصالحة." };
+  }
+  if (hasAny("اكتب تهنئة مولود", "تهنئة مولود", "مولود جديد")) {
+    return { answer: "نبارك لكم المولود الجديد، ونسأل الله أن يجعله من مواليد السعادة ومن الذرية الصالحة، وأن يقر به عين والديه." };
+  }
+  if (hasAny("اكتب تهنئة تخرج", "تهنئة تخرج", "تهنئة نجاح", "مبروك النجاح")) {
+    return { answer: "نبارك لكم هذا الإنجاز المشرّف، ونسأل الله أن يجعله بداية لمستقبل مليء بالنجاح والتوفيق والتميز." };
+  }
+  if (hasAny("اكتب تهنئة عيد", "تهنئة عيد", "اكتب تهنئة رمضان", "تهنئة رمضان", "مبارك عليكم الشهر")) {
+    return { answer: "كل عام وأنتم بخير، أعاده الله عليكم وعلى أسرة خاشقجي الكريمة بالخير واليمن والبركات، وتقبل الله منا ومنكم صالح الأعمال." };
+  }
+  if (hasAny("اكتب تعزية", "تعزية", "رسالة مواساة", "خبر وفاة", "دعاء للمتوفى", "اعلان عزاء")) {
+    return { answer: "إنا لله وإنا إليه راجعون. أحسن الله عزاءكم، وغفر لفقيدكم، وأسكنه فسيح جناته، وألهم أهله وذويه الصبر والسلوان." };
+  }
+  if (hasAny("اكتب خبر عن مولود", "اكتب خبر زواج", "اكتب خبر تخرج", "اكتب خبر اجتماع", "اكتب خبر افتتاح", "اكتب خبر تكريم", "اكتب عنوان خبر", "اكتب وصف خبر", "صياغة خبر")) {
+    return { answer: "أبشر، أقدر أجهز لك خبر مناسب للنشر. أرسل لي: نوع الخبر، اسم الشخص أو المناسبة، التاريخ إن وجد، وأي تفاصيل مهمة، وسأصيغ لك خبرًا رسميًا مرتبًا." };
+  }
+
+  // إعادة صياغة وتلخيص وترجمة
+  if (startsAny("عدل", "صحح", "لخص", "اختصر", "ترجم", "اشرح", "اقترح", "اكتب لي", "اكتب رسالة", "اكتب اعلان", "اكتب منشور", "اكتب دعاء", "اكتب كلمة")) {
+    if (hasAny("عدل هذه الجملة", "صحح النص", "خليه رسمي", "خليه باللهجة السعودية", "خليه اقصر", "خليه أفخم", "خليه مناسب للنشر", "خليه واتساب", "إعادة صياغة")) {
+      return { answer: "أبشر، أرسل النص المطلوب تعديله وسأعيد صياغته لك بشكل أوضح وأنسب للنشر أو للواتساب حسب طلبك." };
+    }
+    if (hasAny("لخص", "تلخيص", "اختصر الكلام", "استخرج النقاط", "حول الكلام لنقاط", "خلاصة")) {
+      return { answer: "أرسل النص، وسألخصه لك بنقاط واضحة ومختصرة مع الحفاظ على المعنى." };
+    }
+    if (hasAny("ترجم للانجليزي", "ترجم للإنجليزي", "ترجم للعربي", "ترجمة")) {
+      return { answer: "أرسل النص وحدد اللغة المطلوبة، وسأترجمه لك بأسلوب واضح ومفهوم." };
+    }
+    if (hasAny("اكتب لي رسالة رسمية", "اكتب رسالة", "اكتب اعلان", "اكتب إعلان", "اكتب منشور", "اقترح عنوان", "اكتب وصف", "اكتب رد واتساب", "اكتب دعاء", "اكتب كلمة قصيرة")) {
+      return { answer: "أبشر، اكتب لي تفاصيل المطلوب: المناسبة، الاسم أو الجهة، وهل تريده رسمي أو ودي أو باللهجة السعودية، وسأجهزه لك بشكل مرتب." };
+    }
+  }
+
+  // مساعدة إدارية داخل الموقع
+  if (hasAny("كيف اضيف خبر من الادارة", "كيف أضيف خبر من الإدارة", "كيف اعدل خبر", "كيف احذف خبر", "كيف اضيف مناسبة", "كيف اضيف ناشر الخبر", "كيف اعرف نشاط الادارة", "سجل النشاط", "كيف اخلي بيانات خاصة")) {
+    return { answer: "من لوحة الإدارة يمكنك إدارة الأخبار والصفحات والأفراد والسير الذاتية وطلبات الأفراد. اختر القسم المطلوب من القائمة الجانبية، ثم إضافة أو تعديل أو حذف حسب صلاحيتك. البيانات الحساسة مثل الجوال والبريد والعنوان تظهر للإدارة فقط." };
+  }
+
+  if (hasAny("كيف اراجع طلب تعديل", "كيف اراجع طلب", "طلبات الافراد", "مراجعة الطلبات", "اعتماد الطلب", "رفض الطلب")) {
+    return { answer: "لمراجعة طلبات الأفراد، ادخل لوحة الإدارة ثم طلبات الأفراد. افتح الطلب، راجع البيانات، ثم اختر اعتماد لإضافته للشجرة أو رفض مع كتابة سبب واضح للمستخدم.", link: "/admin/person-requests", linkLabel: "طلبات الأفراد" };
+  }
+
+  // أفكار للموقع
+  if (hasAny("اقترح تطوير للموقع", "كيف نخلي الموقع افضل", "اقترح اقسام جديدة", "افكار للموقع", "افكار محتوى", "كيف نزيد التفاعل", "اقترح شعار", "اقترح اسم لقسم")) {
+    return { answer: "أقترح تطويرات مفيدة للموقع مثل: تنبيهات للطلبات الجديدة، أرشيف صور العائلة، صفحة إنجازات الأفراد، تحسين البحث في الشجرة، سجل تغييرات للأفراد، ونسخ احتياطي دوري لقاعدة البيانات والصور." };
+  }
+
+  // الخصوصية والصلاحيات
+  if (hasAny("ليه ما اقدر اشوف رقم الجوال", "من يقدر يعدل البيانات", "هل اقدر اشوف عنوان شخص", "هل الموقع امن", "هل اقدر اطلب حذف بياناتي", "من يشوف بريدي", "هل اقدر ارسل مستند اثبات")) {
+    return { answer: "حفاظًا على الخصوصية، البيانات الحساسة مثل الجوال والبريد والعنوان لا تظهر للعامة، وتكون للإدارة فقط. ويمكنك طلب تعديل أو حذف بياناتك من الإدارة للمراجعة.", link: "/support", linkLabel: "التواصل مع الإدارة" };
+  }
+
+  // أعطال ومشاكل تقنية
+  if (hasAny("الصفحة لا تعمل", "ظهرت لي رسالة خطا", "ظهرت لي رسالة خطأ", "لا استطيع تسجيل الدخول", "نسيت كلمة المرور", "لم يصلني كود", "الصورة لا ترفع", "لا استطيع حفظ التعديل", "ظهرت بيانات خاطئة", "الرابط لا يفتح")) {
+    return { answer: "جرّب تحديث الصفحة أو فتحها من متصفح آخر. وإذا استمرت المشكلة، أرسل صورة الخطأ أو نص الرسالة لإدارة الموقع مع اسم الصفحة ونوع جهازك.", link: "/support", linkLabel: "التواصل مع الإدارة" };
+  }
+
+  // ردود ختامية متنوعة
+  if (hasAny("الله يوفقك", "ابشر", "تسلم", "مع السلامة", "الله يسعدك", "ما قصرت", "جزاك الله خير", "يعطيك العافية", "شكرا", "تمام")) {
+    return pickSaudiResponse([
+      "الله يسلمك ويحييك، أي خدمة ثانية أنا حاضر.",
+      "وإياك يا رب، تفضل بأي وقت.",
+      "العفو، سعدت بخدمتك. إذا احتجت شيء بالموقع أو العائلة اسألني مباشرة.",
+      "في أمان الله، وحياك الله بأي وقت.",
+      "الله يبشرك بالخير، أنا حاضر لأي استفسار ثاني."
+    ]);
+  }
+
+  return null;
+}
+
+
+function answerWebsiteFAQ(question) {
+  const q = cleanText(question || "", 1200);
+  const nq = normalizeArabicForMatch(q);
+  if (!nq) return null;
+  const hasAny = (...words) => words.some((w) => nq.includes(normalizeArabicForMatch(w)));
+
+  const weatherAnswer = answerApproxWeatherQuestion(q);
+  if (weatherAnswer) return weatherAnswer;
+
+  const extendedDictAnswer = answerSaudExtendedDictionary(q);
+  if (extendedDictAnswer) return extendedDictAnswer;
+
+  // قاموس سعودي/مصري عام مختصر للمساعد داخل الموقع
+  if (hasAny("ابي مساعدة", "أبي مساعدة", "ممكن تساعدني", "عندي استفسار", "ابي اسأل", "أبي أسأل", "احتاج خدمة", "عندي مشكلة", "تكفى ساعدني", "الله يسعدك ساعدني")) {
+    return pickSaudiResponse([
+      "أبشر، اكتب لي طلبك أو المشكلة بالتفصيل وبمشي معك خطوة بخطوة.",
+      "حياك الله، أنا معك. وضّح لي وش تحتاج وبساعدك بأوضح طريقة.",
+      "ولا يهمك، اشرح لي المطلوب أو ارسل اسم الشخص/الرقم المرجعي وأنا أساعدك."
+    ]);
+  }
+
+  if (hasAny("ما فهمت", "مافهمت", "وش تقصد", "وضح اكثر", "وضّح أكثر", "كيف يعني", "ممكن تعيد", "بالله فهمني", "اختصر لي", "عطني الزبدة", "وش الحل النهائي")) {
+    return pickSaudiResponse([
+      "أبشر، بوضحها لك ببساطة: اكتب لي هل سؤالك عن شخص في الشجرة، صلة قرابة، طلب إضافة بيانات، أو تواصل مع الإدارة؟",
+      "ولا يهمك، خلنا نمشيها خطوة خطوة. اكتب اسم الشخص ثلاثي/رباعي أو الرقم المرجعي أو المشكلة اللي ظهرت لك.",
+      "الزبدة: حدد لي المطلوب بكلمة واحدة مثل: شخص، قرابة، طلب، صورة، تعديل بيانات، وأنا أوجهك مباشرة."
+    ]);
+  }
+
+  if (hasAny("الموقع ما يفتح", "الصفحة بيضاء", "الرابط ما يشتغل", "يطلع لي خطأ", "ما اقدر ارفع صورة", "ما أقدر أرفع صورة", "الموقع بطيء", "الخيارات ما تظهر")) {
+    return { answer: "جرّب تحديث الصفحة أو فتح الموقع من متصفح آخر. لو المشكلة مستمرة، أرسل صورة الخطأ أو اسم الصفحة لإدارة الموقع من صفحة الدعم، ووضح نوع جهازك." , link: "/support", linkLabel: "التواصل مع الإدارة" };
+  }
+
+  if (hasAny("عندي شكوى", "الخدمة سيئة", "مو راضي", "برفع شكوى", "ما احد رد", "محد يرد", "عندي ملاحظة", "عندي اقتراح")) {
+    return { answer: "نعتذر لك إذا واجهت مشكلة. اكتب تفاصيل الشكوى أو الملاحظة من صفحة الدعم، وستصل لإدارة الموقع لمراجعتها." , link: "/support", linkLabel: "إرسال رسالة للإدارة" };
+  }
+
+  if (hasAny("اسمك اي", "اسمك ايه", "ايش اسمك", "وش اسمك", "من انت", "انت مين", "مين انت", "تعرف نفسك", "اسم المساعد")) {
+    return {
+      answer: "أنا سعود، مساعد موقع شجرة العائلة. موجود هنا عشان أساعد الزوار في معرفة الأشخاص داخل الشجرة، صلة القرابة، تاريخ العائلة، تتبع طلبات إضافة البيانات، وطريقة استخدام الموقع."
+    };
+  }
+
+  if (hasAny("ايش بتقدملي يا سعود", "وش تقدم لي", "ايش تقدم", "تقدر تساعدني في ايه", "تقدر تساعدني بايش", "ايش تقدر تسوي", "تعمل ايه", "بتعمل ايه", "ماذا تقدم")) {
+    return {
+      answer: "أبشر، أقدر أقدم لك الآتي:\n1- أبحث لك عن أي فرد داخل الشجرة وأعرض معلوماته المتاحة للعامة.\n2- أحسب صلة القرابة بين اسمين من بيانات الشجرة.\n3- أشرح تاريخ العائلة والمحطات الزمنية من صفحة النبذة.\n4- أساعدك ترسل طلب إضافة بياناتك وتتابعه بالرقم المرجعي.\n5- أجاوب على أسئلة استخدام الموقع والصفحات والأخبار والسير الذاتية.\n6- أعطيك التاريخ والوقت وبعض الإجابات العامة البسيطة بدون عرض بيانات خاصة."
+    };
+  }
+
+  if (hasAny("ايش فايدتك", "وش فايدتك", "فايدتك ايه", "اهميتك ايه", "انت مفيد في ايه", "ليش استخدمك", "ليه اكلمك")) {
+    return {
+      answer: "فايدتي إني أختصر عليك البحث داخل الموقع. بدل ما تنتقل بين الصفحات، تقدر تسألني مباشرة عن شخص، صلة قرابة، تاريخ العائلة، طريقة إضافة بياناتك، أو حالة طلبك، وأنا أجاوبك من بيانات الموقع بشكل واضح."
+    };
+  }
+
+  if (hasAny("ايش فايدة الموقع", "وش فايدة الموقع", "فايدة الموقع", "فائدة الموقع", "اهمية الموقع", "أهمية الموقع", "الموقع ليه", "ليه الموقع", "موقع العائلة يفيد بايش", "ايه فائدة الموقع")) {
+    return {
+      answer: "فائدة الموقع أنه يجمع بيانات العائلة في مكان واحد بشكل منظم: شجرة تفاعلية، سير ذاتية، أخبار ومناسبات، تاريخ العائلة، وصفحة لمعرفة صلة القرابة. كما يسمح لأفراد العائلة بإرسال بياناتهم للمراجعة قبل ظهورها، وهذا يساعد في حفظ النسب والذاكرة العائلية للأجيال القادمة."
+    };
+  }
+
+  if (hasAny("اسم اخوي مو موجود", "اسم أخوي مو موجود", "اخوي مو موجود", "اخي مو موجود", "اسم اخويا مش موجود", "اخويا مش موجود", "اسم اختي مو موجود", "أختي مو موجود", "اختي مو موجود", "اختي مش موجودة", "اسم اختي مش موجود")) {
+    return { answer: "إذا اسم أخوك أو أختك غير موجود في الشجرة، أرسل طلب إضافة فرد جديد واكتب بياناته كاملة مع اسم الأب والأم ثلاثي. ويمكنك أيضًا إرسال رسالة للإدارة تذكر فيها أسماء الإخوة/الأخوات غير المذكورين للمراجعة.", link: "/submit-person", linkLabel: "إضافة فرد جديد" };
+  }
+
+  if (hasAny("ليش اسمي مو موجود", "ليه اسمي مش موجود", "اسمي مو موجود", "اسمي مش موجود", "اسمي غير موجود", "اسمي مهو موجود", "ما لقيت اسمي", "مش لاقي اسمي")) {
+    return { answer: "إذا اسمك مو موجود في الشجرة، غالبًا لم تتم إضافته بعد أو لم يتم اعتماد طلبك من الإدارة. تقدر ترسل بياناتك من صفحة إضافة بياناتك، وبعد الإرسال احتفظ بالرقم المرجعي لتتبع حالة الطلب.", link: "/submit-person", linkLabel: "إضافة بياناتك" };
+  }
+
+  if (hasAny("كيف اضيف اسمي في الشجرة", "كيف أضيف اسمي في الشجرة", "ابغى اضيف اسمي", "ابي اضيف اسمي", "عايز اضيف اسمي", "اضافة اسمي للشجرة", "اضيف نفسي في الشجرة")) {
+    return { answer: "تقدر تضيف اسمك من صفحة إضافة بياناتك. اكتب بياناتك واسم الأب والأم ثلاثي، وارفع صورتك إن وجدت، ثم أرسل الطلب للمراجعة. بعد الإرسال سيظهر لك رقم مرجعي لتتبع الطلب.", link: "/submit-person", linkLabel: "إضافة بياناتك" };
+  }
+
+  if (hasAny("اسمي خطا", "اسمي خطأ", "اسمي غلط", "احتاج اعدل اسمي", "ابغى اعدل اسمي", "عايز اعدل اسمي", "تعديل اسمي")) {
+    return { answer: "إذا اسمك مكتوب بشكل غير صحيح، تواصل مع إدارة الموقع من صفحة الدعم واذكر الاسم الحالي والاسم الصحيح، أو أرسل طلب تحديث بياناتك مع توضيح الخطأ. الإدارة تراجع التعديل قبل اعتماده.", link: "/support", linkLabel: "التواصل مع الإدارة" };
+  }
+
+  if (hasAny("عندي نبذة ابغى اضيفها", "ابغى اضيف نبذة", "ابي اضيف نبذة", "عايز اضيف نبذة", "اضافة نبذة", "تعديل النبذة", "عندي سيرة ذاتية", "اضافة سيرة")) {
+    return { answer: "لإضافة نبذة أو سيرة عنك، أرسلها لإدارة الموقع من صفحة التواصل أو ضمن طلب إضافة/تحديث بياناتك. الإدارة تراجع النص والصور ثم تنشرها في صفحة السير الذاتية إذا كانت مناسبة.", link: "/support", linkLabel: "إرسال النبذة للإدارة" };
+  }
+
+  if (hasAny("في خطا في معلوماتي", "في خطأ في معلوماتي", "معلوماتي غلط", "بياناتي غلط", "المعلومات الي ادخلتها خطا", "المعلومات اللي ادخلتها غلط", "ايش اسوي الحين", "ماذا افعل اذا البيانات خطا")) {
+    return { answer: "إذا اكتشفت خطأ في بياناتك بعد الإرسال، احتفظ بالرقم المرجعي وتواصل مع الإدارة من صفحة الدعم موضحًا التصحيح المطلوب. لو الطلب ما زال قيد المراجعة ستتم مراجعته قبل الاعتماد، ولو تم اعتماده يمكن للإدارة تعديله من لوحة التحكم.", link: "/support", linkLabel: "التواصل مع الإدارة" };
+  }
+
+  if (hasAny("عندي اخوة غير مذكورين", "اخواني غير مذكورين", "اخوتي غير مذكورين", "كيف اضيف اخواني", "كيف اضيف اخوتي", "اضافة الاخوة", "اضافة اخوان", "ابغى اضيف اخواني")) {
+    return { answer: "إذا عندك إخوة غير مذكورين، الأفضل إرسال طلب إضافة لكل شخص منهم مع كتابة اسم الأب والأم ثلاثي حتى يتم ربطهم بنفس الوالدين داخل الشجرة. ويمكنك أيضًا إرسال رسالة للإدارة توضّح أسماء الإخوة الناقصين لمراجعتهم.", link: "/submit-person", linkLabel: "إضافة فرد جديد" };
+  }
+
+  if (hasAny("من الي صمم ونفذ الموقع", "من اللي صمم ونفذ الموقع", "مين صمم الموقع", "من صمم الموقع", "مين نفذ الموقع", "من نفذ الموقع", "مبرمج الموقع", "مصمم الموقع", "مين عمل الموقع")) {
+    return { answer: "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803." };
+  }
+
+  if (hasAny("كيف اغير صورتي", "كيف أغير صورتي", "ابغى اغير صورتي", "ابي اغير صورتي", "عايز اغير صورتي", "تغيير صورتي", "الصورة غلط", "صورتي خطا", "صورتي خطأ")) {
+    return { answer: "لتغيير صورتك، تواصل مع إدارة الموقع من صفحة الدعم وأرسل الاسم المسجل والصورة الجديدة، أو أرسل طلب تحديث بياناتك. الإدارة ستراجع الصورة وتستبدلها في الشجرة بعد الاعتماد.", link: "/support", linkLabel: "إرسال الصورة للإدارة" };
+  }
+
+  if (hasAny("الية عمل الموقع", "آلية عمل الموقع", "كيف يعمل الموقع", "الموقع بيشتغل ازاي", "طريقة عمل الموقع", "شرح الموقع", "كيفية استخدام الموقع", "كيف استخدم الموقع", "استخدم الموقع ازاي", "فكرة الموقع", "ايش فكرة الموقع", "وش فكرة الموقع")) {
+    return {
+      answer: "آلية عمل الموقع باختصار:\n1- يعرض شجرة العائلة بشكل تفاعلي يمكن البحث والتنقل فيها.\n2- يتيح للزائر معرفة صلة القرابة بين شخصين من داخل الشجرة.\n3- يسمح لأفراد العائلة بإرسال بياناتهم وصورتهم وبيانات الأب والأم للمراجعة.\n4- الإدارة تراجع الطلب ثم توافق أو ترفض مع سبب.\n5- عند الموافقة يظهر الشخص داخل الشجرة.\n6- الموقع يحتوي كذلك على صفحة النبذة، الأخبار، السير الذاتية، ومشجرة العائلة PDF."
+    };
+  }
+
+  if (hasAny("من يدير الموقع", "مين يدير الموقع", "مين المسؤول", "المسؤول عن الموقع", "ادارة الموقع", "إدارة الموقع", "مين ماسك الموقع")) {
+    return {
+      answer: "الموقع تديره إدارة العائلة أو المسؤولون المصرح لهم داخل لوحة الإدارة. هم من يراجعون طلبات إضافة الأفراد، يحدثون البيانات، ينشرون الأخبار، ويديرون السير الذاتية والصفحات العامة."
+    };
+  }
+
+  if (hasAny("كيف نتواصل مع ادارة الموقع", "كيف نتواصل مع إدارة الموقع", "اتواصل مع الادارة", "تواصل مع الادارة", "اكلم الادارة", "ازاي اكلم الادارة", "كيف ارسل رسالة", "الدعم", "رسائل الدعم", "تواصل معنا")) {
+    return {
+      answer: "تقدر تتواصل مع إدارة الموقع من خلال صفحة تواصل معنا / الدعم الموجودة في الموقع. اكتب رسالتك وبيانات التواصل المتاحة، وستصل للإدارة لمراجعتها والرد عليها حسب الآلية المعتمدة.",
+      link: "/support",
+      linkLabel: "فتح صفحة التواصل"
+    };
+  }
+
+  if (hasAny("كيف اضيف بياناتي", "كيف أضيف بياناتي", "اضيف بياناتي", "إضافة بياناتي", "ابغى اضيف اسمي", "ابي اضيف اسمي", "عايز اضيف نفسي", "ازاي اضيف نفسي", "ارسال بيانات", "طلب اضافة فرد")) {
+    return {
+      answer: "لإضافة بياناتك افتح صفحة إضافة بياناتك، املأ البيانات المطلوبة مثل الاسم، الصورة، الأب والأم، تاريخ الميلاد، المستوى التعليمي، وأي معلومات متاحة، ثم اضغط إرسال للمراجعة. سيظهر لك رقم مرجعي احتفظ به لتتبع الطلب.",
+      link: "/submit-person",
+      linkLabel: "إضافة بياناتك"
+    };
+  }
+
+  if (hasAny("كيف اتابع طلبي", "كيف أتابع طلبي", "تتبع الطلب", "متابعة الطلب", "رقم مرجعي", "الرقم المرجعي", "فين طلبي", "حالة الطلب")) {
+    return {
+      answer: "لتتبع طلبك افتح صفحة إضافة بياناتك، ثم انزل إلى قسم تتبع الطلب واكتب الرقم المرجعي الذي ظهر لك بعد الإرسال. ستظهر الحالة: قيد المراجعة، تمت الموافقة، أو تم الرفض مع السبب.",
+      link: "/submit-person#track-request",
+      linkLabel: "تتبع الطلب"
+    };
+  }
+
+  if (hasAny("ليه اسمي ما ظهر", "لماذا لا يظهر اسمي", "اسمي ماظهر", "اسمي لم يظهر", "متى يظهر اسمي", "ليه البيانات ما ظهرت", "لم تظهر بياناتي")) {
+    return {
+      answer: "الاسم لا يظهر مباشرة بعد الإرسال لأن الإدارة تراجع الطلب أولًا للحفاظ على دقة بيانات العائلة. بعد الموافقة يظهر الفرد داخل الشجرة، وإذا تم الرفض يظهر سبب الرفض عند تتبع الطلب بالرقم المرجعي."
+    };
+  }
+
+  if (hasAny("هل رقم الجوال يظهر", "هل الايميل يظهر", "هل العنوان يظهر", "خصوصية", "البيانات الخاصة", "رقم الجوال للعامة", "البريد للعامة", "العنوان للعامة")) {
+    return {
+      answer: "لا، البيانات الخاصة مثل رقم الجوال والبريد الإلكتروني والعنوان مخصصة للإدارة فقط ولا تظهر للعامة، حفاظًا على خصوصية أفراد العائلة."
+    };
+  }
+
+  if (hasAny("صلة القرابة", "صله القرابه", "معرفة صلة", "هذا قريبي", "هذه قريبي", "احسب القرابة", "اعرف القرابة")) {
+    return {
+      answer: "أقدر أحسب صلة القرابة مباشرة لو كتبت اسمين واضحين. مثال: ما صلة القرابة بين فلان بن فلان وفلان بن فلان؟ كما يمكنك استخدام صفحة صلة القرابة لإدخال الاسمين يدويًا.",
+      link: "/kinship",
+      linkLabel: "فتح صفحة صلة القرابة"
+    };
+  }
+
+  if (hasAny("الشجرة", "شجرة العائلة", "الشجرة التفاعلية", "ابحث في الشجرة", "موقع الشخص في الشجرة", "مكانه في الشجرة")) {
+    return {
+      answer: "الشجرة التفاعلية تعرض أفراد العائلة وروابط الأبناء والآباء. يمكنك البحث عن الشخص بالاسم، أو اسألني باسم الشخص وسأعرض بياناته وروابط موقعه في الشجرة إن كان مسجلًا.",
+      link: "/",
+      linkLabel: "فتح الشجرة"
+    };
+  }
+
+  if (hasAny("السير الذاتية", "السيرة الذاتية", "النبذة", "النبذه", "التكريم", "الشخصيات", "اعلام العائلة")) {
+    return {
+      answer: "صفحة السير الذاتية تعرض نبذات وصور وتفاصيل عن بعض أفراد العائلة أو الشخصيات المضافة من الإدارة. يمكنك فتح الصفحة أو سؤالي عن اسم شخص محدد داخل الشجرة.",
+      link: "/honor",
+      linkLabel: "فتح السير الذاتية"
+    };
+  }
+
+  if (hasAny("اخبار", "أخبار", "المناسبات", "الأخبار", "آخر خبر", "اخر خبر", "جديد العائلة")) {
+    return null;
+  }
+
+  if (hasAny("مشجرة", "pdf", "بي دي اف", "تحميل الشجرة", "ملف الشجرة")) {
+    return {
+      answer: "صفحة المشجرة تعرض ملف الشجرة أو نسخة PDF إن كانت الإدارة قد أضافتها. يمكنك فتحها من رابط مشجرة العائلة.",
+      link: "/treepdf",
+      linkLabel: "فتح مشجرة العائلة"
+    };
+  }
+
+  if (hasAny("رمضان", "شوال", "محرم", "صفر", "ربيع", "رجب", "شعبان", "ذو القعدة", "ذو الحجة", "اكتوبر", "أكتوبر", "نوفمبر", "ديسمبر", "يناير", "فبراير", "مارس", "ابريل", "أبريل", "مايو", "يونيو", "يوليو", "اغسطس", "أغسطس", "سبتمبر")) {
+    const countdown = detectMonthCountdown(q);
+    if (countdown) return countdown;
+  }
+
+  if (hasAny("شكرا", "شكر", "تسلم", "يعطيك العافيه", "يعطيك العافية", "ما قصرت", "جزاك الله خير", "الله يوفقك", "تمام", "حلو", "خلاص شكرا", "مع السلامة")) {
+    return pickSaudiResponse([
+      "العفو، حيّاك الله في أي وقت.",
+      "الله يعافيك، سعدت بخدمتك.",
+      "ما سوّينا إلا الواجب، تفضل بأي وقت.",
+      "وإياك يا رب، تحت أمرك.",
+      "تمام، أي خدمة ثانية أنا حاضر."
+    ]);
+  }
+
+  return null;
+}
+
+
+/* =========================
+   Saud assistant uploaded command dictionary expansion
+   Covers all commands from the latest supplied dictionary plus designer variants.
+   ========================= */
+const SAUD_UPLOADED_COMMANDS = [
+  {
+    "q": "اكتب خبر عن مولود جديد",
+    "a": "رزق [اسم الأب] بمولود جديد أسماه [اسم المولود]، سائلين الله أن يجعله من مواليد السعادة، وأن يقرّ به عين والديه، وأن ينبته نباتًا حسنًا."
+  },
+  {
+    "q": "اكتب خبر عن زواج",
+    "a": "احتفلت أسرة خاشقجي بزواج [اسم العريس] على كريمة [اسم العائلة/الأب]، في أجواء مفعمة بالفرح والسرور، سائلين الله أن يبارك لهما ويجمع بينهما في خير."
+  },
+  {
+    "q": "اكتب خبر عن خطوبة",
+    "a": "تتقدم أسرة خاشقجي بالتهنئة إلى [اسم الشخص] بمناسبة الخطوبة، سائلين الله أن يتمم لهما على خير، وأن يكتب لهما السعادة والتوفيق."
+  },
+  {
+    "q": "اكتب خبر عن تخرج",
+    "a": "تتقدم أسرة خاشقجي بأجمل التهاني إلى [اسم الخريج] بمناسبة تخرجه، سائلين الله له دوام النجاح والتوفيق في حياته العلمية والعملية."
+  },
+  {
+    "q": "اكتب خبر عن ترقية",
+    "a": "تبارك أسرة خاشقجي لـ [الاسم] بمناسبة ترقيته إلى [المنصب]، متمنين له مزيدًا من التقدم والنجاح."
+  },
+  {
+    "q": "اكتب خبر عن تكريم أحد أفراد الأسرة",
+    "a": "تم تكريم [الاسم] تقديرًا لجهوده وإنجازاته، وتفخر أسرة خاشقجي بهذا التميز المشرف، سائلين الله له دوام التوفيق."
+  },
+  {
+    "q": "اكتب خبر عن اجتماع عائلي",
+    "a": "أقيم اجتماع عائلي جمع عددًا من أفراد أسرة خاشقجي في أجواء من المحبة وصلة الرحم، تأكيدًا على روح الترابط والتواصل بين أفراد الأسرة."
+  },
+  {
+    "q": "اكتب خبر عن زيارة عائلية",
+    "a": "في أجواء يسودها الود والمحبة، تمت زيارة عائلية جمعت عددًا من أفراد أسرة خاشقجي، تأكيدًا على روابط القربى وصلة الرحم."
+  },
+  {
+    "q": "اكتب خبر عن افتتاح موقع أسرة خاشقجي",
+    "a": "تم بحمد الله إطلاق موقع أسرة خاشقجي، ليكون منصة عائلية تجمع أفراد الأسرة، وتوثق أخبارهم ومناسباتهم، وتحفظ شجرة العائلة بروح عصرية ومنظمة."
+  },
+  {
+    "q": "اكتب خبر عن مناسبة سعيدة",
+    "a": "شاركت أسرة خاشقجي فرحة [اسم المناسبة] في أجواء عائلية جميلة، سائلين الله أن يديم الأفراح والمسرات على الجميع."
+  },
+  {
+    "q": "اكتب خبر عن نجاح أحد أفراد الأسرة",
+    "a": "تبارك أسرة خاشقجي لـ [الاسم] بمناسبة نجاحه، متمنين له مستقبلًا مشرقًا ومزيدًا من التفوق والإنجاز."
+  },
+  {
+    "q": "اكتب خبر عن عودة أحد أفراد الأسرة من السفر",
+    "a": "عاد بحمد الله [الاسم] من السفر سالمًا، ونسأل الله أن يجعل عودته مباركة وأن يديم عليه الصحة والعافية."
+  },
+  {
+    "q": "اكتب خبر عن حفل عائلي",
+    "a": "أقيم حفل عائلي جمع أفراد أسرة خاشقجي في أجواء من الفرح والبهجة، وسط حضور الأهل والأحباب."
+  },
+  {
+    "q": "اكتب خبر عن إنجاز شخص من الأسرة",
+    "a": "تفخر أسرة خاشقجي بإنجاز [الاسم] في مجال [المجال]، سائلين الله له دوام التوفيق والنجاح."
+  },
+  {
+    "q": "اكتب خبر وفاة بصيغة محترمة",
+    "a": "بقلوب مؤمنة بقضاء الله وقدره، تنعى أسرة خاشقجي فقيدها [اسم المتوفى]، سائلين الله أن يتغمده بواسع رحمته، وأن يسكنه فسيح جناته، ويلهم أهله وذويه الصبر والسلوان."
+  },
+  {
+    "q": "اكتب تهنئة بمولود جديد",
+    "a": "نبارك لكم قدوم المولود الجديد [اسم المولود]، ونسأل الله أن يجعله من مواليد السعادة، وأن يقرّ به أعين والديه."
+  },
+  {
+    "q": "اكتب تهنئة زواج رسمية",
+    "a": "نبارك لـ [اسم العريس] زواجه المبارك، ونسأل الله أن يبارك لهما ويبارك عليهما ويجمع بينهما في خير."
+  },
+  {
+    "q": "اكتب تهنئة تخرج قصيرة",
+    "a": "ألف مبروك التخرج يا [الاسم]، ومنها للأعلى بإذن الله، ونسأل الله لك مستقبلًا مليئًا بالنجاح."
+  },
+  {
+    "q": "اكتب تهنئة عيد الفطر",
+    "a": "تتقدم أسرة خاشقجي بأجمل التهاني بمناسبة عيد الفطر المبارك، أعاده الله علينا وعليكم بالخير واليمن والبركات."
+  },
+  {
+    "q": "اكتب تهنئة عيد الأضحى",
+    "a": "كل عام وأنتم بخير بمناسبة عيد الأضحى المبارك، ونسأل الله أن يعيده على أسرة خاشقجي والأمة الإسلامية بالخير والبركة."
+  },
+  {
+    "q": "اكتب تهنئة رمضان",
+    "a": "مبارك عليكم شهر رمضان المبارك، ونسأل الله أن يعيننا وإياكم على الصيام والقيام وصالح الأعمال."
+  },
+  {
+    "q": "اكتب تهنئة بالترقية",
+    "a": "نبارك لـ [الاسم] هذه الترقية المستحقة، ونسأل الله أن يجعلها عونًا له على الخير ومزيدًا من النجاح."
+  },
+  {
+    "q": "اكتب تهنئة بالنجاح",
+    "a": "ألف مبروك النجاح يا [الاسم]، فرحتنا بك كبيرة، ونسأل الله أن يوفقك دائمًا لما يحب ويرضى."
+  },
+  {
+    "q": "اكتب تهنئة افتتاح الموقع",
+    "a": "نبارك افتتاح موقع أسرة خاشقجي، ونسأل الله أن يكون منصة نافعة تجمع الأسرة وتحفظ تاريخها ومناسباتها."
+  },
+  {
+    "q": "اكتب رسالة مباركة للعائلة",
+    "a": "نبارك لأسرة خاشقجي هذه المناسبة السعيدة، ونسأل الله أن يديم الأفراح والمحبة والترابط بين الجميع."
+  },
+  {
+    "q": "اكتب تعزية رسمية",
+    "a": "بقلوب مؤمنة بقضاء الله وقدره، نتقدم بخالص العزاء والمواساة في وفاة [اسم المتوفى]، سائلين الله أن يغفر له ويرحمه ويسكنه فسيح جناته."
+  },
+  {
+    "q": "اكتب تعزية قصيرة للواتساب",
+    "a": "عظم الله أجركم، وأحسن عزاءكم، وغفر لميتكم، وأسكنه فسيح جناته."
+  },
+  {
+    "q": "اكتب دعاء للمتوفى",
+    "a": "اللهم اغفر له وارحمه، وعافه واعف عنه، وأكرم نزله، ووسّع مدخله، واجعل قبره روضة من رياض الجنة."
+  },
+  {
+    "q": "اكتب رد على رسالة تعزية",
+    "a": "شكر الله سعيكم، وجزاكم الله خيرًا، ولا أراكم الله مكروهًا في عزيز."
+  },
+  {
+    "q": "اكتب إعلان عزاء باسم الأسرة",
+    "a": "تتقدم أسرة خاشقجي بخالص العزاء والمواساة لذوي الفقيد [اسم المتوفى]، سائلين الله أن يتغمده بواسع رحمته، وأن يلهم أهله الصبر والسلوان."
+  },
+  {
+    "q": "اكتب قصيدة عن أسرة خاشقجي",
+    "a": "يا خاشقجي يا اسم عزٍ ومقدار، يا رمز طيبٍ بالوفا دوم مذكور، تاريخكم نورٍ على كل الأقطار، ومجدكم باقي على مر العصور."
+  },
+  {
+    "q": "اكتب قصيدة فخر عائلية",
+    "a": "حنا عيال المجد والطيب عنوان، نسلٍ تربّى عالوفا والمروّة، تاريخنا عالي وله قدر ومكان، واسم العائلة يبقى رمز قوة."
+  },
+  {
+    "q": "اكتب بيت شعر ترحيبي",
+    "a": "يا مرحبا باللي حضر بين الأحباب، نورت دارٍ بالوفا دوم عامرة."
+  },
+  {
+    "q": "اكتب قصيدة عن لمّة العائلة",
+    "a": "يا زين لمّة أهلنا في محبة، قلوبٍ على الطيب والوفا تجتمع، قرب القرايب نعمةٍ مستحبة، وبنورهم كل الحزن ينقشع."
+  },
+  {
+    "q": "اكتب قصيدة عن الجد",
+    "a": "يا جدنا يا أصل فخر ومهابة، ذكرك على روس المعالي مقام، منك الوفا والطيب وأحلى كتابة، ومنك تعلمنا المراجل تمام."
+  },
+  {
+    "q": "اكتب قصيدة زواج",
+    "a": "يا عريس الخير يا بدر التمام، نبارك لك فرحة العمر السعيدة، جعل أيامك محبة وسلام، وحياتك بالهنا دوم مديدة."
+  },
+  {
+    "q": "اكتب قصيدة تخرج",
+    "a": "رفعت راس أهلك بطيب الإنجاز، واليوم نفرح بك ونفخر بممشاك، يا جعل دربك للمفاخر والأعزاز، والنجاح دوم رفيقك بمسعاك."
+  },
+  {
+    "q": "اكتب قصيدة عن صلة الرحم",
+    "a": "صلة الرحم نورٍ يضوي دروبنا، ومن جمع الأهل عاش بعز وسعادة، قرب القرايب راحةٍ في قلوبنا، وطيب التواصل مكرمة وعبادة."
+  },
+  {
+    "q": "اكتب أبيات قصيرة عن العائلة",
+    "a": "يا عزوتي يا فخر الأيام، بكم تحلى سنيني، أنتم هل الطيب والأنعام، وأنتم نور عيني."
+  },
+  {
+    "q": "اكتب قصيدة افتتاح الموقع",
+    "a": "افتحوا باب الوفا باسم الجماعة، واجمعوا تاريخنا بين السطور، موقعٍ يحفظ لنا أصل ومكانة، ويجمع الأحباب في أحلى حضور."
+  },
+  {
+    "q": "احسب 15% من 2000",
+    "a": "15% من 2000 تساوي 300."
+  },
+  {
+    "q": "احسب الضريبة 15% على 500 ريال",
+    "a": "قيمة الضريبة 75 ريال، والإجمالي بعد إضافة الضريبة 575 ريال."
+  },
+  {
+    "q": "احسب المبلغ بعد خصم 20%",
+    "a": "إذا كان المبلغ [المبلغ] والخصم 20%، فالخصم يساوي [المبلغ × 0.20]، والمبلغ بعد الخصم يساوي [المبلغ - قيمة الخصم]."
+  },
+  {
+    "q": "قسم 1200 ريال على 4 أشخاص",
+    "a": "نصيب كل شخص هو 300 ريال."
+  },
+  {
+    "q": "احسب عمر شخص مولود سنة 1990",
+    "a": "إذا كنا في عام 2026، فعمر الشخص تقريبًا 36 سنة."
+  },
+  {
+    "q": "كم سنة بين 1980 و2026؟",
+    "a": "الفرق بين 1980 و2026 هو 46 سنة."
+  },
+  {
+    "q": "احسب عدد الطاولات إذا الحضور 150 وكل طاولة 10 أشخاص",
+    "a": "تحتاجون 15 طاولة، لأن 150 ÷ 10 = 15."
+  },
+  {
+    "q": "احسب تكلفة مناسبة إذا الشخص بـ 120 ريال وعدد الحضور 80",
+    "a": "التكلفة الإجمالية 9600 ريال، لأن 120 × 80 = 9600."
+  },
+  {
+    "q": "احسب المتوسط بين 80 و90 و70",
+    "a": "المتوسط هو 80، لأن مجموع الأرقام 240، و240 ÷ 3 = 80."
+  },
+  {
+    "q": "احسب الباقي من 1000 بعد دفع 350",
+    "a": "الباقي هو 650."
+  },
+  {
+    "q": "صحح هذا النص",
+    "a": "أبشر، أرسل النص وسأصححه لك لغويًا مع الحفاظ على المعنى."
+  },
+  {
+    "q": "أعد صياغة هذا الخبر",
+    "a": "أرسل نص الخبر، وسأعيد صياغته بأسلوب واضح ومناسب للنشر."
+  },
+  {
+    "q": "خليه رسمي",
+    "a": "حاضر، سأعيد صياغة النص بأسلوب رسمي ومرتب."
+  },
+  {
+    "q": "خليه باللهجة السعودية",
+    "a": "أبشر، سأعيد كتابته بلهجة سعودية واضحة ومناسبة."
+  },
+  {
+    "q": "خليه مختصر",
+    "a": "حاضر، سأختصر النص مع الحفاظ على المعنى الأساسي."
+  },
+  {
+    "q": "خليه مناسب للنشر في الموقع",
+    "a": "أبشر، سأجعله بصياغة مرتبة ورسمية مناسبة للنشر في موقع أسرة خاشقجي."
+  },
+  {
+    "q": "خليه مناسب للواتساب",
+    "a": "حاضر، سأجعله مختصرًا وواضحًا ومناسبًا للإرسال عبر واتساب."
+  },
+  {
+    "q": "اكتب عنوان جذاب لهذا الخبر",
+    "a": "أرسل نص الخبر، وسأقترح لك عنوانًا واضحًا وجذابًا يناسب النشر."
+  },
+  {
+    "q": "اكتب وصف مختصر لهذا الخبر",
+    "a": "أرسل الخبر، وسأكتب لك وصفًا مختصرًا يعبر عنه بشكل مناسب."
+  },
+  {
+    "q": "حول النص إلى نقاط",
+    "a": "أبشر، أرسل النص وسأرتبه لك على شكل نقاط واضحة."
+  },
+  {
+    "q": "كيف أبحث عن شخص في شجرة العائلة؟",
+    "a": "يمكنك البحث عن الشخص من خلال خانة البحث داخل شجرة العائلة، بكتابة الاسم كاملًا أو جزء منه."
+  },
+  {
+    "q": "كيف أضيف فرد جديد؟",
+    "a": "إذا كانت لديك صلاحية، يمكنك إضافة فرد جديد من لوحة التحكم. وإذا لم تكن لديك صلاحية، يمكنك إرسال البيانات للإدارة لمراجعتها."
+  },
+  {
+    "q": "كيف أعدل بيانات شخص؟",
+    "a": "يمكن تعديل البيانات من خلال صفحة الشخص إذا كانت لديك صلاحية، أو إرسال طلب تعديل للإدارة."
+  },
+  {
+    "q": "كيف أبلغ عن خطأ في الاسم؟",
+    "a": "أرسل الاسم الحالي والاسم الصحيح، وسيتم مراجعة الطلب من الإدارة قبل التعديل."
+  },
+  {
+    "q": "كيف أضيف مولود جديد في الشجرة؟",
+    "a": "أرسل اسم المولود، اسم الأب، تاريخ الميلاد إن وجد، وأي بيانات إضافية، ليتم مراجعتها وإضافتها."
+  },
+  {
+    "q": "كيف أضيف مناسبة؟",
+    "a": "يمكنك إرسال عنوان المناسبة، التاريخ، المكان، والوصف، وسيتم نشرها بعد المراجعة حسب سياسة الموقع."
+  },
+  {
+    "q": "أين أجد أخبار الأسرة؟",
+    "a": "يمكنك العثور على أخبار الأسرة من قسم الأخبار في الموقع أو من الصفحة الرئيسية إذا كانت الأخبار مضافة هناك."
+  },
+  {
+    "q": "كيف أرسل خبر للإدارة؟",
+    "a": "أرسل نص الخبر مع الاسم والتفاصيل والصورة إن وجدت، وسيتم مراجعته من الإدارة قبل النشر."
+  },
+  {
+    "q": "لماذا لا تظهر بعض البيانات؟",
+    "a": "حفاظًا على الخصوصية، بعض البيانات لا تظهر إلا للإدارة أو للأعضاء أصحاب الصلاحية."
+  },
+  {
+    "q": "كيف أحافظ على خصوصية بياناتي؟",
+    "a": "يمكنك عدم مشاركة بياناتك الحساسة، وطلب إخفاء بعض المعلومات من الإدارة إذا كانت ظاهرة للعامة."
+  },
+  {
+    "q": "يا سعود ساعدني",
+    "a": "أبشر، اكتب لي طلبك بوضوح، وسأساعدك خطوة بخطوة."
+  },
+  {
+    "q": "يا سعود اشرح لي هذا النص",
+    "a": "أرسل النص، وسأشرحه لك بطريقة سهلة وواضحة."
+  },
+  {
+    "q": "يا سعود لخص لي هذا الكلام",
+    "a": "أرسل الكلام، وسألخصه لك في نقاط مختصرة."
+  },
+  {
+    "q": "يا سعود ترجم للإنجليزي",
+    "a": "أرسل النص العربي، وسأترجمه لك إلى الإنجليزية."
+  },
+  {
+    "q": "يا سعود ترجم للعربي",
+    "a": "أرسل النص الإنجليزي، وسأترجمه لك إلى العربية."
+  },
+  {
+    "q": "يا سعود اكتب رسالة رسمية",
+    "a": "أبشر، اكتب لي موضوع الرسالة والجهة المرسلة إليها، وسأصيغها لك."
+  },
+  {
+    "q": "يا سعود اكتب منشور عائلي",
+    "a": "حاضر، أرسل المناسبة أو الفكرة، وسأكتب لك منشورًا مناسبًا للأسرة."
+  },
+  {
+    "q": "يا سعود اقترح أفكار للموقع",
+    "a": "أقترح إضافة أقسام مثل: المناسبات، ألبوم الصور، إنجازات أفراد الأسرة، أرشيف الأخبار، والتنبيهات العائلية."
+  },
+  {
+    "q": "يا سعود اكتب دعوة لحضور مناسبة",
+    "a": "تتشرف أسرة خاشقجي بدعوتكم لحضور [اسم المناسبة]، وذلك في يوم [اليوم] الموافق [التاريخ]، في [المكان]. حضوركم يسعدنا ويزيد المناسبة شرفًا."
+  },
+  {
+    "q": "يا سعود اكتب رسالة شكر للحضور",
+    "a": "تتقدم أسرة خاشقجي بخالص الشكر والتقدير لكل من حضر وشاركنا هذه المناسبة، فقد كان لحضوركم أثر جميل زاد فرحتنا وبهجتنا."
+  },
+  {
+    "q": "اكتب نبذة عن أسرة خاشقجي",
+    "a": "أسرة خاشقجي من الأسر العريقة التي يحرص أفرادها على الترابط وصلة الرحم وحفظ التاريخ العائلي، ويأتي هذا الموقع ليكون منصة تجمع أخبار الأسرة ومناسباتها وشجرة العائلة."
+  },
+  {
+    "q": "اكتب رسالة ترحيب لزوار الموقع",
+    "a": "أهلًا وسهلًا بكم في موقع أسرة خاشقجي، منصة تجمع أفراد الأسرة على المحبة، وتوثق الأخبار والمناسبات، وتحفظ الروابط العائلية."
+  },
+  {
+    "q": "اكتب وصف لقسم شجرة العائلة",
+    "a": "يتيح قسم شجرة العائلة استعراض الروابط العائلية بين أفراد أسرة خاشقجي بطريقة منظمة وواضحة، مع الحفاظ على خصوصية البيانات."
+  },
+  {
+    "q": "اكتب وصف لقسم الأخبار",
+    "a": "يعرض قسم الأخبار آخر المستجدات والمناسبات الخاصة بأسرة خاشقجي، من تهاني وإنجازات واجتماعات وأحداث عائلية."
+  },
+  {
+    "q": "اكتب وصف لقسم المناسبات",
+    "a": "يضم قسم المناسبات أهم المناسبات العائلية، مثل الزواج، التخرج، المواليد، الاجتماعات، والتهاني العامة."
+  },
+  {
+    "q": "اكتب رسالة عند عدم وجود نتائج بحث",
+    "a": "لم يتم العثور على نتائج مطابقة. يرجى تجربة كتابة الاسم بطريقة مختلفة أو استخدام جزء من الاسم."
+  },
+  {
+    "q": "اكتب رسالة خطأ عامة",
+    "a": "نعتذر، حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى أو التواصل مع إدارة الموقع إذا استمرت المشكلة."
+  },
+  {
+    "q": "اكتب رسالة نجاح الإرسال",
+    "a": "تم إرسال طلبك بنجاح، وسيتم مراجعته من الإدارة في أقرب وقت."
+  },
+  {
+    "q": "اكتب رسالة رفض تعديل",
+    "a": "نعتذر، لم يتم اعتماد التعديل لعدم اكتمال البيانات أو لعدم توفر ما يثبت صحة المعلومة."
+  },
+  {
+    "q": "اكتب رسالة قبول تعديل",
+    "a": "تم اعتماد التعديل بنجاح بعد مراجعته من الإدارة. نشكر لكم تعاونكم في تحديث بيانات الأسرة."
+  },
+  {
+    "q": "أبغى أكتب خبر مولود باسم أحمد",
+    "a": "أبشر، هذه صيغة مناسبة: رزق [اسم الأب] بمولود جديد أسماه أحمد، نسأل الله أن يجعله من مواليد السعادة وأن يقرّ به عين والديه."
+  },
+  {
+    "q": "اكتب خبر زواج قصير",
+    "a": "نبارك لـ [اسم العريس] زواجه المبارك، ونسأل الله أن يبارك لهما ويجمع بينهما في خير."
+  },
+  {
+    "q": "اكتب تهنئة تخرج باسم خالد",
+    "a": "نبارك لـ خالد تخرجه، ونسأل الله له دوام التوفيق والنجاح، وأن تكون هذه البداية لمستقبل مشرق بإذن الله."
+  },
+  {
+    "q": "اكتب تعزية مختصرة",
+    "a": "عظم الله أجركم، وأحسن عزاءكم، وغفر لميتكم، وأسكنه فسيح جناته."
+  },
+  {
+    "q": "اكتب قصيدة قصيرة عن العائلة",
+    "a": "يا عزوتي يا فخر الأيام، بكم تحلى سنيني، أنتم هل الطيب والأنعام، وأنتم نور عيني."
+  },
+  {
+    "q": "احسب تكلفة 100 شخص كل شخص 150 ريال",
+    "a": "التكلفة الإجمالية 15000 ريال، لأن 100 × 150 = 15000."
+  },
+  {
+    "q": "اكتب دعوة زواج",
+    "a": "يسرنا دعوتكم لحضور حفل زواج [اسم العريس]، وذلك في يوم [اليوم] الموافق [التاريخ] في [المكان]. حضوركم شرف لنا."
+  },
+  {
+    "q": "اكتب شكر بعد مناسبة",
+    "a": "شكرًا لكل من شاركنا فرحتنا وحضر مناسبتنا، فقد زاد حضوركم الفرح جمالًا، ونسأل الله أن يديم المحبة بيننا."
+  },
+  {
+    "q": "اكتب إعلان اجتماع عائلي",
+    "a": "تعلن أسرة خاشقجي عن إقامة اجتماع عائلي في يوم [اليوم] الموافق [التاريخ]، وذلك في [المكان]، سائلين الله أن يجمعنا على المحبة وصلة الرحم."
+  },
+  {
+    "q": "اكتب رسالة للإدارة لتعديل اسم",
+    "a": "السلام عليكم، أرجو تعديل اسم [الاسم الحالي] إلى [الاسم الصحيح] في شجرة العائلة، شاكرين لكم جهودكم."
+  },
+  {
+    "q": "مين الي صمم الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "مين اللي صمم الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "من الي صمم الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "من الذي صمم الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "من صنع الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "مين صنع الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "من عمل الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "مين عمل الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "من نفذ الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "من برمج الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "مين برمج الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "مين مطور الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "من مطور الموقع",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "من المبرمج",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  },
+  {
+    "q": "مين المبرمج",
+    "a": "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803."
+  }
+];
+
+function saudCommandSimilarity(questionNorm, commandNorm) {
+  if (!questionNorm || !commandNorm) return 0;
+  if (questionNorm === commandNorm) return 100;
+  if (questionNorm.includes(commandNorm)) return 98;
+  if (commandNorm.includes(questionNorm) && questionNorm.length >= 6) return 88;
+  const qParts = questionNorm.split(" ").filter(Boolean);
+  const cParts = commandNorm.split(" ").filter(Boolean);
+  if (!qParts.length || !cParts.length) return 0;
+  const cSet = new Set(cParts);
+  const qSet = new Set(qParts);
+  let overlap = 0;
+  qParts.forEach((p) => { if (cSet.has(p)) overlap++; });
+  const ratioQ = overlap / qParts.length;
+  const ratioC = overlap / cParts.length;
+  const firstOk = qParts[0] && cSet.has(qParts[0]);
+  const important = ["اكتب","احسب","صحح","ترجم","لخص","اقترح","كيف","من","مين","وش","يا","عيد","تهنئه","تعزيه","قصيده","خبر"].some(w => questionNorm.includes(w) && commandNorm.includes(w));
+  let score = Math.round((ratioQ * 60) + (ratioC * 30) + (firstOk ? 5 : 0) + (important ? 5 : 0));
+  return score;
+}
+
+function answerUploadedSaudCommand(question) {
+  const nq = normalizeArabicForMatch(question);
+  if (!nq) return null;
+
+  const designerWords = ["صمم", "صنع", "عمل", "نفذ", "برمج", "طور", "مطور", "مصمم", "مبرمج", "مطور"].some(w => nq.includes(normalizeArabicForMatch(w)));
+  const siteWords = ["الموقع", "موقع", "المنصه", "المنصة"].some(w => nq.includes(normalizeArabicForMatch(w)));
+  if (designerWords && siteWords && ["من", "مين", "مينو", "مين اللي", "مين الي", "من اللي", "من الي", "من الذي"].some(w => nq.includes(normalizeArabicForMatch(w)))) {
+    return { answer: "تم تصميم وتنفيذ الموقع بواسطة مهندس مصري اسمه حازم النجار. رقم التواصل: +201063718803." };
+  }
+
+  let best = null;
+  let bestScore = 0;
+  for (const item of SAUD_UPLOADED_COMMANDS) {
+    const cn = normalizeArabicForMatch(item.q);
+    const score = saudCommandSimilarity(nq, cn);
+    if (score > bestScore) { best = item; bestScore = score; }
+  }
+  if (best && bestScore >= 82) {
+    return { answer: best.a };
+  }
+  return null;
+}
+
+const __saudPreviousWebsiteFAQ = answerWebsiteFAQ;
+answerWebsiteFAQ = function(question) {
+  const uploaded = answerUploadedSaudCommand(question);
+  if (uploaded) return uploaded;
+  return __saudPreviousWebsiteFAQ(question);
+};
+
+const __saudPreviousGeneralKnowledge = freeGeneralKnowledgeAnswer;
+freeGeneralKnowledgeAnswer = function(question) {
+  const uploaded = answerUploadedSaudCommand(question);
+  if (uploaded) return uploaded;
+  return __saudPreviousGeneralKnowledge(question);
+};
+
 /* =========================
    Public Routes
    ========================= */
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+
+app.get("/kinship", async (req, res) => {
+  try {
+    const personA = cleanText(req.query.person_a || "", 220);
+    const personB = cleanText(req.query.person_b || "", 220);
+    const result = personA && personB ? await calculateKinshipByNames(personA, personB) : null;
+    res.render("public_kinship", { slug: "kinship", personA, personB, result });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء حساب صلة القرابة");
+  }
+});
+
+app.post("/api/kinship", async (req, res) => {
+  try {
+    const personA = cleanText(req.body?.person_a || req.body?.personA || "", 220);
+    const personB = cleanText(req.body?.person_b || req.body?.personB || "", 220);
+    if (!personA || !personB) return res.status(400).json({ ok:false, message:"اكتب اسم الشخصين أولًا." });
+    const result = await calculateKinshipByNames(personA, personB);
+    res.json(result);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok:false, message:"حدث خطأ أثناء حساب صلة القرابة." });
+  }
+});
+
+app.post("/api/site-assistant", async (req, res) => {
+  try {
+    const question = req.body?.question || "";
+    const siteAnswer = await answerSiteAssistant(question);
+    if (siteAnswer && siteAnswer.general) {
+      const generalAnswer = await answerGeneralAssistant(question);
+      return res.json({ ok:true, mode:"general", ...generalAnswer });
+    }
+    res.json({ ok:true, mode:"site", ...siteAnswer });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok:false, answer:"حدث خطأ أثناء تشغيل المساعد." });
+  }
 });
 
 app.get("/timeline", async (req, res) => {
@@ -1665,7 +3925,7 @@ app.get("/api/tree", async (req, res) => {
     const rows = await all(`
       SELECT
         id, name, father_id, mother_id, birth_date, birth_place,
-        death_date, death_place, is_deceased, gender, job, lineage,
+        death_date, death_place, is_deceased, gender, job, education_level, lineage,
         photo_url, notes, short_bio
       FROM persons
       ORDER BY id ASC
@@ -1683,7 +3943,7 @@ app.get("/api/person/:id", async (req, res) => {
     const row = await get(`
       SELECT
         id, name, father_id, mother_id, birth_date, birth_place,
-        death_date, death_place, is_deceased, gender, job, lineage,
+        death_date, death_place, is_deceased, gender, job, education_level, lineage,
         photo_url, notes, short_bio
       FROM persons
       WHERE id = ?
@@ -1881,6 +4141,7 @@ app.post("/submit-person", upload.single("photo_file"), async (req, res) => {
       death_place: cleanText(body.death_place, 180) || null,
       is_deceased: Number(body.is_deceased ? 1 : 0),
       job: cleanText(body.job, 220) || null,
+      education_level: cleanText(body.education_level, 120) || null,
       mobile_phone: cleanText(body.mobile_phone, 80) || null,
       personal_email: cleanText(body.personal_email, 180) || null,
       national_address: cleanText(body.national_address, 300) || null,
@@ -1903,10 +4164,10 @@ app.post("/submit-person", upload.single("photo_file"), async (req, res) => {
     await run(
       `INSERT INTO person_requests (
         reference_code, name, gender, father_id, mother_id, father_lineage_name, mother_lineage_name, birth_date, birth_place,
-        death_date, death_place, is_deceased, job, mobile_phone, personal_email,
+        death_date, death_place, is_deceased, job, education_level, mobile_phone, personal_email,
         national_address, photo_url, notes, short_bio, spouse_names, children_names,
         payload_json, status, ip_address, user_agent
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
       [
         referenceCode,
         payload.name,
@@ -1921,6 +4182,7 @@ app.post("/submit-person", upload.single("photo_file"), async (req, res) => {
         payload.death_place,
         payload.is_deceased,
         payload.job,
+        payload.education_level,
         payload.mobile_phone,
         payload.personal_email,
         payload.national_address,
@@ -2156,6 +4418,7 @@ app.post("/admin/person/new", isAuthed, requirePermission("persons"), async (req
       is_deceased,
       gender,
       job,
+      education_level,
       mobile_phone,
       personal_email,
       national_address,
@@ -2175,9 +4438,9 @@ app.post("/admin/person/new", isAuthed, requirePermission("persons"), async (req
       `INSERT INTO persons (
         name, father_id, mother_id, birth_date, birth_place,
         death_date, death_place, is_deceased, gender,
-        job, mobile_phone, personal_email, national_address, lineage, photo_url, notes, short_bio
+        job, education_level, mobile_phone, personal_email, national_address, lineage, photo_url, notes, short_bio
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         String(name || "").trim(),
         resolvedFather.id || null,
@@ -2189,6 +4452,7 @@ app.post("/admin/person/new", isAuthed, requirePermission("persons"), async (req
         Number(is_deceased ? 1 : 0),
         gender || null,
         job || null,
+        education_level || null,
         mobile_phone || null,
         personal_email || null,
         national_address || null,
@@ -2248,6 +4512,7 @@ app.post("/admin/person/:id/edit", isAuthed, requirePermission("persons"), async
       is_deceased,
       gender,
       job,
+      education_level,
       mobile_phone,
       personal_email,
       national_address,
@@ -2276,6 +4541,7 @@ app.post("/admin/person/:id/edit", isAuthed, requirePermission("persons"), async
          is_deceased = ?,
          gender = ?,
          job = ?,
+         education_level = ?,
          mobile_phone = ?,
          personal_email = ?,
          national_address = ?,
@@ -2294,6 +4560,7 @@ app.post("/admin/person/:id/edit", isAuthed, requirePermission("persons"), async
         Number(is_deceased ? 1 : 0),
         gender || null,
         job || null,
+        education_level || null,
         mobile_phone || null,
         personal_email || null,
         national_address || null,
@@ -3331,8 +5598,8 @@ app.post("/admin/person-requests/:id/approve", isAuthed, requirePermission("pers
       `INSERT INTO persons (
         name, father_id, mother_id, birth_date, birth_place,
         death_date, death_place, is_deceased, gender,
-        job, mobile_phone, personal_email, national_address, lineage, photo_url, notes, short_bio
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        job, education_level, mobile_phone, personal_email, national_address, lineage, photo_url, notes, short_bio
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         name,
         resolvedFather.id || null,
@@ -3344,6 +5611,7 @@ app.post("/admin/person-requests/:id/approve", isAuthed, requirePermission("pers
         Number(body.is_deceased ? 1 : 0),
         gender,
         cleanText(body.job, 220) || null,
+        cleanText(body.education_level, 120) || null,
         cleanText(body.mobile_phone, 80) || null,
         cleanText(body.personal_email, 180) || null,
         cleanText(body.national_address, 300) || null,
