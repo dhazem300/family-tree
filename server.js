@@ -11,6 +11,8 @@ const session = require("express-session");
 const SQLiteStore = require("connect-sqlite3")(session);
 const multer = require("multer");
 const rateLimit = require("express-rate-limit");
+const { answerFromAssistantKnowledge } = require("./assistantKnowledge");
+const { answerFromEntertainment } = require("./assistantEntertainment");
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));
@@ -2091,7 +2093,92 @@ async function buildPersonAssistantAnswer(person, rows, byId) {
     actions: [
       { label: "عرض موقعه في الشجرة", url: `/?focus=${person.id}` },
       { label: "فتح سيرته الذاتية", url: `/honor?personId=${encodeURIComponent(person.id)}` }
-    ]
+    ],
+    memory: makePersonConversationMemory(person, rows)
+  };
+}
+
+
+function makePersonConversationMemory(person, rows) {
+  const children = rows
+    .filter((x) => Number(x.father_id) === Number(person.id) || Number(x.mother_id) === Number(person.id))
+    .map((c) => ({ id: c.id, name: c.name, gender: c.gender || "" }));
+  return {
+    lastPersonId: person.id,
+    lastPersonName: person.name,
+    lastChildren: children,
+    lastChildrenNames: children.map((c) => c.name),
+  };
+}
+
+function stripContextChildNoise(question) {
+  let q = cleanText(String(question || ""), 300);
+  q = q
+    .replace(/[؟?]/g, " ")
+    .replace(/^(?:ممكن\s+)?(?:معلومات\s+عن|تفاصيل\s+عن|بيانات\s+عن|نبذه\s+عن|نبذة\s+عن|مين\s+هي|مين\s+هو|من\s+هي|من\s+هو|وريني|اعرض|هات\s+لي|هاتلي|افتح|شوف|ابحث\s+عن|ابحث\s+على|ابحث\s+علي|دورلي\s+على|دورلي\s+علي|show\s+me|find|search\s+for)\s+/i, "")
+    .replace(/\b(?:بنته|بنت\s+ه|بنتة|ابنته|ابنتة|ابنته|ابنه|ابن\s+ه|ولده|ولد\s+ه|عياله|ابنائه|ابناءه|أبنائه|أبناءه|بناته|ولاده|اولاده|أولاده)\b/gi, " ")
+    .replace(/\b(?:اللي|التي|الذي|اسمها|اسمه|اسمها\s+هو|اسمه\s+هو|اسم)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return stripAssistantNameNoise(q);
+}
+
+async function answerPersonFromConversationContext(question, context = {}) {
+  const children = Array.isArray(context.lastChildren) ? context.lastChildren : [];
+  if (!children.length) return null;
+
+  const cleaned = stripContextChildNoise(question);
+  const queryNorm = normalizeArabicForMatch(cleaned);
+  const rawNorm = normalizeArabicForMatch(question);
+  if (!queryNorm && !rawNorm) return null;
+
+  const relationWords = ["بنته", "بنت", "ابنته", "ابنه", "ولده", "ولد", "عياله", "ابناء", "أبناء", "اولاده", "أولاده", "بناته"];
+  const looksContextual = relationWords.some((w) => rawNorm.includes(normalizeArabicForMatch(w))) ||
+    ["معلومات", "تفاصيل", "وريني", "اعرض", "هات", "مين", "من هو", "من هي", "show", "find"].some((w) => rawNorm.includes(normalizeArabicForMatch(w)));
+
+  let matches = [];
+  for (const child of children) {
+    const childNorm = normalizeArabicForMatch(child.name || "");
+    const childParts = childNorm.split(" ").filter(Boolean);
+    const first = childParts[0] || "";
+    if (!childNorm) continue;
+
+    if (queryNorm && (childNorm === queryNorm || childNorm.includes(queryNorm) || queryNorm.includes(childNorm))) {
+      matches.push(child);
+      continue;
+    }
+    if (first && queryNorm && (first === queryNorm || queryNorm.split(" ").includes(first))) {
+      matches.push(child);
+      continue;
+    }
+    if (looksContextual && first && rawNorm.includes(first)) {
+      matches.push(child);
+      continue;
+    }
+  }
+
+  matches = matches.filter((x, i, arr) => arr.findIndex((y) => Number(y.id) === Number(x.id)) === i);
+  if (!matches.length) return null;
+
+  const { rows, byId } = await getPersonsForRelationship();
+  if (matches.length === 1) {
+    const person = byId.get(Number(matches[0].id));
+    if (!person) return null;
+    const result = await buildPersonAssistantAnswer(person, rows, byId);
+    result.answer = `تمام، فهمت إنك تقصد ${person.name} من أبناء ${context.lastPersonName || "آخر شخص تم ذكره"}.\n` + result.answer;
+    result.memory = makePersonConversationMemory(person, rows);
+    return result;
+  }
+
+  return {
+    answer: `وجدت أكثر من ابن/ابنة مطابقين من أبناء ${context.lastPersonName || "آخر شخص"}. اختر المقصود أو اكتب الاسم أوضح:\n${matches.map((x, i) => `${i + 1}- ${x.name}`).join("\n")}`,
+    actions: matches.map((x) => ({ label: `عرض ${x.name}`, url: `/?focus=${x.id}` })).slice(0, 10),
+    memory: {
+      lastPersonId: context.lastPersonId,
+      lastPersonName: context.lastPersonName,
+      lastChildren: children,
+      lastChildrenNames: children.map((c) => c.name),
+    }
   };
 }
 
@@ -2531,6 +2618,9 @@ async function answerSiteAssistant(question) {
   if (shouldSearchPerson) {
     return { answer: `لم أجد شخصًا مطابقًا لاسم "${personQuery || q}" داخل الشجرة. جرّب كتابته بالصيغة السعودية مثل: الاسم بن الأب بن الجد، أو اكتب الاسم ثلاثي/رباعي بدون لقب العائلة.` };
   }
+
+  const dictionaryAnswer = await answerFromAssistantKnowledge(q);
+  if (dictionaryAnswer) return dictionaryAnswer;
 
   const explicitStats = ["احصائيات", "إحصائيات", "عدد افراد", "عدد أفراد", "كم عدد افراد", "كم عدد أفراد", "كم شخص", "كم فرد", "اجمالي الافراد", "إجمالي الأفراد"].some((x)=>nq.includes(normalizeArabicForMatch(x)));
   if (explicitStats) {
@@ -3503,10 +3593,383 @@ app.post("/api/kinship", async (req, res) => {
   }
 });
 
+
+/* =========================
+   Smart assistant interaction layer
+   Fixes: word math, jokes, search commands, and short session memory
+   ========================= */
+function smartArabicNumber(value) {
+  const formatted = Number(value).toLocaleString("en-US", { maximumFractionDigits: 6 });
+  return formatted.replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[Number(d)]);
+}
+
+function normalizeSmartQuestion(value) {
+  return normalizeDigitsToLatin(String(value || ""))
+    .toLowerCase()
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .replace(/[ًٌٍَُِّْـ]/g, "")
+    .replace(/[؟?،,؛;:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function smartParseNumberPhrase(input) {
+  let text = normalizeSmartQuestion(input)
+    .replace(/جنيه|ريال|دولار|egp|sar|usd/g, " ")
+    .replace(/,/g, "")
+    .trim();
+
+  if (!text) return null;
+  if (/^-?\d+(?:\.\d+)?$/.test(text)) return Number(text);
+
+  const directDigitWithScale = text.match(/^(-?\d+(?:\.\d+)?)\s*(الف|الاف|الفا|k|مليون|ملايين|million|m)$/i);
+  if (directDigitWithScale) {
+    const n = Number(directDigitWithScale[1]);
+    const scale = directDigitWithScale[2];
+    if (/الف|الاف|الفا|k/.test(scale)) return n * 1000;
+    if (/مليون|ملايين|million|m/.test(scale)) return n * 1000000;
+  }
+
+  const units = {
+    "صفر":0,"زيرو":0,"zero":0,
+    "واحد":1,"واحده":1,"واحدة":1,"احد":1,"one":1,
+    "اثنين":2,"اثنان":2,"اتنين":2,"تنين":2,"two":2,
+    "ثلاثه":3,"ثلاثة":3,"تلاته":3,"تلاتة":3,"ثلاث":3,"three":3,
+    "اربعه":4,"اربعة":4,"اربع":4,"four":4,
+    "خمسه":5,"خمسة":5,"خمس":5,"five":5,
+    "سته":6,"ستة":6,"ست":6,"six":6,
+    "سبعه":7,"سبعة":7,"سبع":7,"seven":7,
+    "ثمانيه":8,"ثمانية":8,"ثمان":8,"تمنيه":8,"تمنية":8,"eight":8,
+    "تسعه":9,"تسعة":9,"تسع":9,"nine":9,
+    "عشره":10,"عشرة":10,"عشر":10,"ten":10,
+    "احداشر":11,"احد عشر":11,"حداشر":11,"eleven":11,
+    "اتناشر":12,"اثنا عشر":12,"اثني عشر":12,"twelve":12,
+    "تلتاشر":13,"ثلاثه عشر":13,"ثلاثة عشر":13,"thirteen":13,
+    "اربعتاشر":14,"اربعه عشر":14,"اربعة عشر":14,"fourteen":14,
+    "خمستاشر":15,"خمسه عشر":15,"خمسة عشر":15,"fifteen":15,
+    "ستاشر":16,"سته عشر":16,"ستة عشر":16,"sixteen":16,
+    "سبعتاشر":17,"سبعه عشر":17,"سبعة عشر":17,"seventeen":17,
+    "تمنتاشر":18,"ثمانيه عشر":18,"ثمانية عشر":18,"eighteen":18,
+    "تسعتاشر":19,"تسعه عشر":19,"تسعة عشر":19,"nineteen":19
+  };
+  const tens = {
+    "عشرين":20,"عشرون":20,"twenty":20,
+    "تلاتين":30,"ثلاثين":30,"thirty":30,
+    "اربعين":40,"forty":40,
+    "خمسين":50,"fifty":50,
+    "ستين":60,"sixty":60,
+    "سبعين":70,"seventy":70,
+    "تمانين":80,"ثمانين":80,"eighty":80,
+    "تسعين":90,"ninety":90
+  };
+  const hundreds = {
+    "ميه":100,"مية":100,"مائه":100,"مائة":100,"hundred":100,
+    "ميتين":200,"مئتين":200,"مائتين":200,"two hundred":200,
+    "تلتميه":300,"ثلاثميه":300,"ثلاثمائة":300,"ثلاثمائه":300,
+    "ربعمية":400,"اربعمائة":400,"اربعمائه":400,
+    "خمسمية":500,"خمسمائه":500,"خمسمائة":500,
+    "ستمية":600,"ستمائه":600,"ستمائة":600,
+    "سبعمية":700,"سبعمائه":700,"سبعمائة":700,
+    "تمنمية":800,"ثمانمائه":800,"ثمانمائة":800,
+    "تسعمية":900,"تسعمائه":900,"تسعمائة":900
+  };
+
+  // Direct multi-word phrases first.
+  const joined = text.replace(/\s+و\s+/g, " ").trim();
+  for (const [k, v] of Object.entries({...units, ...tens, ...hundreds})) {
+    if (joined === k) return v;
+  }
+
+  let total = 0;
+  let current = 0;
+  const tokens = text.replace(/\bو(?=\S)/g, "و ").split(/\s+|-/).filter(Boolean).map(t => t.replace(/^و/, "")).filter(Boolean);
+
+  for (const token of tokens) {
+    if (/^-?\d+(?:\.\d+)?$/.test(token)) {
+      current += Number(token);
+      continue;
+    }
+    if (units[token] != null) { current += units[token]; continue; }
+    if (tens[token] != null) { current += tens[token]; continue; }
+    if (hundreds[token] != null) { current += hundreds[token]; continue; }
+
+    if (["مائه","مائة","ميه","مية","hundred"].includes(token)) {
+      current = (current || 1) * 100;
+      continue;
+    }
+    if (["الف","الاف","الفا","thousand","k"].includes(token)) {
+      total += (current || 1) * 1000;
+      current = 0;
+      continue;
+    }
+    if (["مليون","ملايين","million","m"].includes(token)) {
+      total += (current || 1) * 1000000;
+      current = 0;
+      continue;
+    }
+  }
+
+  const result = total + current;
+  return result || null;
+}
+
+function answerSmartMathQuestion(question) {
+  const q = normalizeSmartQuestion(question)
+    .replace(/احسبلي|احسب|كام|كم|يساوي|يساوى|بكام|ناتج|what is|calculate|please/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const ops = [
+    { label: "-", words: ["ناقص", "اطرح", "طرح", "minus", "-"] },
+    { label: "+", words: ["زائد", "جمع", "اجمع", "plus", "+"] },
+    { label: "×", words: ["في", "ضرب", "اضرب", "times", "x", "*", "×"] },
+    { label: "÷", words: ["علي", "على", "قسمه", "قسمة", "اقسم", "divide", "/", "÷"] },
+  ];
+
+  for (const op of ops) {
+    for (const word of op.words) {
+      const safe = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(`(.+?)\\s*(?:${safe})\\s*(.+)`, "i");
+      const m = q.match(re);
+      if (!m) continue;
+      const a = smartParseNumberPhrase(m[1]);
+      const b = smartParseNumberPhrase(m[2]);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+      if (op.label === "÷" && b === 0) return { answer: "لا يمكن القسمة على صفر يا كبير 😄" };
+      let result = 0;
+      if (op.label === "+") result = a + b;
+      if (op.label === "-") result = a - b;
+      if (op.label === "×") result = a * b;
+      if (op.label === "÷") result = Number((a / b).toFixed(6));
+      return { answer: `${smartArabicNumber(a)} ${op.label} ${smartArabicNumber(b)} = ${smartArabicNumber(result)}.` };
+    }
+  }
+  return null;
+}
+
+function answerSmartHumorQuestion(question) {
+  const nq = normalizeSmartQuestion(question);
+  if (["نكته", "نكتة", "هزر", "ضحكني", "joke", "funny"].some((w) => nq.includes(normalizeSmartQuestion(w)))) {
+    const jokes = [
+      "مرة واحد دخل شجرة العائلة… لقى نفسه ابن عم نص الموقع 😄",
+      "مرة واحد كتب الاسم ثنائي وزعل إني ملقتوش… قولتله يا باشا الشجرة بتحب الاسم الثلاثي 😄",
+      "مرة مساعد ذكي اتسأل: عندك كام ولد؟ قالهم أنا عندي bugs بس وبصلحها 😄",
+      "النسب زي الواي فاي… لازم تبقى قريب عشان الإشارة تبان 😄"
+    ];
+    return { answer: jokes[Math.floor(Math.random() * jokes.length)] + "\nتحب أبحث لك عن شخص في الشجرة؟" };
+  }
+  if (["غبي", "مش فاهم", "انت نايم", "stupid"].some((w) => nq.includes(normalizeSmartQuestion(w)))) {
+    return { answer: "حقك عليّا 😄 اسألني بصيغة أوضح أو اكتب الاسم ثلاثي، وأنا هحاول أظبطها. مثال: ابحث عن وسيم إبراهيم حسن." };
+  }
+  return null;
+}
+
+function extractSmartPersonSearchName(question) {
+  let q = cleanText(String(question || ""), 300);
+  const patterns = [
+    /^(?:دورلي\s+على|دورلي\s+علي|دور\s+لي\s+على|دور\s+لي\s+علي|ابحث\s+عن|ابحث\s+على|ابحث\s+علي|ابحثلي\s+عن|ابحثلي\s+على|فتش\s+عن|هات\s+لي|هاتلي|اعرض|وريني|show\s+me|find|search\s+for)\s+(.+)$/i,
+    /^(?:فين|وين|اين|أين)\s+(.+)$/i,
+  ];
+  for (const re of patterns) {
+    const m = q.match(re);
+    if (m && m[1]) return stripAssistantNameNoise(m[1]);
+  }
+  return "";
+}
+
+function isFollowupChildrenQuestion(question) {
+  const nq = normalizeSmartQuestion(question);
+  return ["عنده كام ولد", "عندها كام ولد", "عنده كم ولد", "عندها كم ولد", "كام ولد", "كم ولد", "عنده كام بنت", "عندها كام بنت", "كم بنت", "كام بنت", "عنده كام عيل", "عنده كم عيال", "اولاده", "أولاده", "ابناؤه", "ابناءه", "بناته"].some((w) => nq.includes(normalizeSmartQuestion(w)));
+}
+
+function wantedChildType(question) {
+  const nq = normalizeSmartQuestion(question);
+  if (nq.includes("بنت") || nq.includes("بنات")) return "daughters";
+  if (nq.includes("ولد") || nq.includes("اولاد") || nq.includes("ابناء") || nq.includes("عيال")) return "sons";
+  return "all";
+}
+
+async function answerChildrenForPersonObject(person, rows) {
+  const children = rows.filter((x)=>Number(x.father_id)===Number(person.id)||Number(x.mother_id)===Number(person.id));
+  const sons = children.filter((c)=>genderIsMale(c));
+  const daughters = children.filter((c)=>genderIsFemale(c));
+  const unknown = children.length - sons.length - daughters.length;
+  const lines = [`${person.name} لديه/لديها ${smartArabicNumber(children.length)} من الأبناء المسجلين في الشجرة.`];
+  lines.push(`الأولاد: ${smartArabicNumber(sons.length)}${sons.length ? ` — ${sons.map(c=>c.name).join("، ")}` : ""}.`);
+  lines.push(`البنات: ${smartArabicNumber(daughters.length)}${daughters.length ? ` — ${daughters.map(c=>c.name).join("، ")}` : ""}.`);
+  if (unknown > 0) lines.push(`غير محدد النوع: ${smartArabicNumber(unknown)}.`);
+  return { answer: lines.join("\n"), actions: [{ label: "عرض موقعه في الشجرة", url: `/?focus=${person.id}` }], memory: makePersonConversationMemory(person, rows) };
+}
+
+async function answerChildrenFromContext(question, context = {}) {
+  if (!isFollowupChildrenQuestion(question) || !context.lastPersonId) return null;
+  const { rows, byId } = await getPersonsForRelationship();
+  const person = byId.get(Number(context.lastPersonId));
+  if (!person) return null;
+  const allAnswer = await answerChildrenForPersonObject(person, rows);
+  const type = wantedChildType(question);
+  if (type === "all") return allAnswer;
+  const children = rows.filter((x)=>Number(x.father_id)===Number(person.id)||Number(x.mother_id)===Number(person.id));
+  const list = type === "sons" ? children.filter((c)=>genderIsMale(c)) : children.filter((c)=>genderIsFemale(c));
+  const label = type === "sons" ? "الأولاد" : "البنات";
+  return {
+    answer: `${label} المسجلون/المسجلات لـ ${person.name}: ${smartArabicNumber(list.length)}${list.length ? `\nالأسماء: ${list.map(c=>c.name).join("، ")}` : "."}`,
+    actions: [{ label: "عرض موقعه في الشجرة", url: `/?focus=${person.id}` }],
+    memory: makePersonConversationMemory(person, rows)
+  };
+}
+
+async function answerSiteAssistant(question, context = {}, req = null) {
+  const q = cleanText(question, 600);
+  const nq = normalizeArabicForMatch(q);
+  if (!q) return { answer: "اكتب سؤالك أولًا عن الموقع أو العائلة." };
+
+  if (req) {
+    const entertainmentAnswer = answerFromEntertainment(q, req);
+    if (entertainmentAnswer) return entertainmentAnswer;
+  }
+
+  const smartMath = answerSmartMathQuestion(q) || answerSimpleMathQuestion(q);
+  if (smartMath) return smartMath;
+
+  const smartHumor = answerSmartHumorQuestion(q);
+  if (smartHumor) return smartHumor;
+
+  const contextChildren = await answerChildrenFromContext(q, context);
+  if (contextChildren) return contextChildren;
+
+  const contextPerson = await answerPersonFromConversationContext(q, context);
+  if (contextPerson) return contextPerson;
+
+  const greetingAnswer = answerGreetingQuestion(q);
+  if (greetingAnswer) return greetingAnswer;
+
+  const dateTimeAnswer = answerDateTimeQuestion(q);
+  if (dateTimeAnswer) return dateTimeAnswer;
+
+  if (isFamilyHistoryQuestion(q)) return await getFamilyHistoryAssistantAnswer();
+
+  const ref = q.match(/FAM-\d{4}-[A-Z0-9]+/i)?.[0];
+  if (ref || nq.includes("طلب") || nq.includes("تتبع")) {
+    if (ref) {
+      const request = await findPersonRequestByReference(ref);
+      if (!request) return { answer: "لم يتم العثور على طلب بهذا الرقم المرجعي. تأكد من كتابة الرمز بشكل صحيح.", link: "/submit-person#track-request", linkLabel: "فتح تتبع الطلب" };
+      const statusMap = { pending:"قيد المراجعة", approved:"تمت الموافقة", rejected:"تم الرفض" };
+      let answer = `حالة طلب ${request.name}: ${statusMap[request.status] || request.status}.`;
+      if (request.status === "rejected") answer += `\nسبب الرفض: ${request.admin_note || "لم يتم ذكر سبب محدد."}`;
+      if (request.status === "approved") answer += `\nتمت إضافة الاسم إلى الشجرة.`;
+      return { answer, link: request.created_person_id ? `/?focus=${request.created_person_id}` : "/submit-person#track-request", linkLabel: request.created_person_id ? "شاهد موقعك في الشجرة" : "فتح صفحة التتبع" };
+    }
+    return { answer: "لتتبع طلب إضافة البيانات، افتح صفحة إضافة بياناتك ثم اكتب الرقم المرجعي في قسم تتبع الطلب.", link: "/submit-person#track-request", linkLabel: "تتبع الطلب" };
+  }
+
+  const kinshipNames = extractKinshipNamesFromQuestion(q);
+  if (kinshipNames) {
+    const result = await calculateKinshipByNames(kinshipNames.a, kinshipNames.b);
+    return {
+      answer: result.message || "لم أتمكن من حساب صلة القرابة من البيانات الحالية.",
+      actions: [{ label: "عرض الحساب في صفحة صلة القرابة", url: `/kinship?person_a=${encodeURIComponent(kinshipNames.a)}&person_b=${encodeURIComponent(kinshipNames.b)}` }]
+    };
+  }
+
+  const explicitSearchName = extractSmartPersonSearchName(q);
+  if (explicitSearchName) {
+    const { rows, byId } = await getPersonsForRelationship();
+    const match = matchPersonByFlexibleName(explicitSearchName, rows, byId);
+    if (match.status === "matched") {
+      const result = await buildPersonAssistantAnswer(match.matches[0], rows, byId);
+      result.memory = makePersonConversationMemory(match.matches[0], rows);
+      return result;
+    }
+    if (match.status === "multiple") {
+      return {
+        answer: `وجدت أكثر من نتيجة محتملة. اكتب الاسم رباعي أو اختر من النتائج:\n${match.matches.map((x, i)=>`${i+1}- ${x.name} (${x.lineage_label})`).join("\n")}`,
+        actions: match.matches.flatMap((x)=>[
+          { label: `موقع ${x.name} في الشجرة`, url: `/?focus=${x.id}` },
+          { label: `سيرة ${x.name}`, url: `/honor?personId=${encodeURIComponent(x.id)}` }
+        ]).slice(0, 10)
+      };
+    }
+    return { answer: `دورت على "${explicitSearchName}" لكن لم أجد نتيجة مطابقة داخل الشجرة. جرّب تكتب الاسم ثلاثي/رباعي أو راجع الهمزات وطريقة الكتابة.` };
+  }
+
+  if (isAgeQuestion(q)) {
+    const ageAnswer = await answerPersonAgeQuestion(q);
+    if (ageAnswer) return ageAnswer;
+  }
+
+  if (isChildrenCountQuestion(q)) {
+    const childrenAnswer = await answerChildrenCountQuestion(q);
+    if (childrenAnswer) {
+      // Try to attach memory from the name inside the answer by resolving again when possible.
+      return childrenAnswer;
+    }
+    return { answer: context.lastPersonName ? `تقصد ${context.lastPersonName}؟ اكتب مثلًا: عنده كام ولد أو عنده كام بنت.` : "اكتب اسم الشخص ثلاثي أو رباعي بعد السؤال. مثال: وسيم إبراهيم حسن عنده كام ولد وكم بنت؟" };
+  }
+
+  const faqAnswer = answerWebsiteFAQ(q);
+  if (faqAnswer) return faqAnswer;
+
+  const dictionaryAnswer = await answerFromAssistantKnowledge(q);
+  if (dictionaryAnswer) return dictionaryAnswer;
+
+  if (nq.includes("صله") || nq.includes("قرابه") || nq.includes("قريبي")) {
+    return { answer: "اكتب اسمين واضحين لأحسب صلة القرابة مباشرة. مثال: ما صلة القرابة بين فلان بن فلان وفلان بن فلان؟", link: "/kinship", linkLabel: "فتح صفحة صلة القرابة" };
+  }
+
+  if (nq.includes("اضيف") || nq.includes("اضافه") || nq.includes("بياناتي")) {
+    return { answer: "يمكنك إرسال بياناتك من صفحة إضافة بياناتك. بعد الإرسال سيظهر لك رقم مرجعي، احتفظ به لتتبع حالة الطلب حتى تتم مراجعته من الإدارة.", link: "/submit-person", linkLabel: "إضافة بياناتك" };
+  }
+
+  if (nq.includes("خبر") || nq.includes("اخبار")) {
+    const latest = await get(`SELECT id,title,summary FROM news_posts WHERE COALESCE(is_active,1)=1 ORDER BY COALESCE(is_pinned,0) DESC, id DESC LIMIT 1`);
+    if (!latest) return { answer: "لا توجد أخبار منشورة حاليًا.", link: "/news", linkLabel: "فتح الأخبار" };
+    return { answer: `آخر خبر منشور: ${latest.title}\n${cleanText(latest.summary || "", 180)}`, link: `/news/${latest.id}`, linkLabel: "قراءة الخبر" };
+  }
+
+  const { rows, byId } = await getPersonsForRelationship();
+  const personQuery = stripAssistantNameNoise(q);
+  const shouldSearchPerson = isLikelyPersonLookupQuestion(q) || isProbablyNameText(personQuery);
+  const match = shouldSearchPerson ? matchPersonByFlexibleName(personQuery || q, rows, byId) : { status: "not_found", matches: [] };
+  if (match.status === "matched") {
+    const result = await buildPersonAssistantAnswer(match.matches[0], rows, byId);
+    result.memory = { lastPersonId: match.matches[0].id, lastPersonName: match.matches[0].name };
+    return result;
+  }
+  if (match.status === "multiple") {
+    return {
+      answer: `وجدت أكثر من نتيجة محتملة. اختر الشخص المقصود أو اكتب الاسم رباعي لتحديده بدقة:\n${match.matches.map((x, i)=>`${i+1}- ${x.name} (${x.lineage_label})`).join("\n")}`,
+      actions: match.matches.flatMap((x)=>[
+        { label: `موقع ${x.name} في الشجرة`, url: `/?focus=${x.id}` },
+        { label: `سيرة ${x.name}`, url: `/honor?personId=${encodeURIComponent(x.id)}` }
+      ]).slice(0, 10)
+    };
+  }
+  if (shouldSearchPerson) {
+    return { answer: `لم أجد شخصًا مطابقًا لاسم "${personQuery || q}" داخل الشجرة. برجاء كتابة الاسم ثلاثي أو رباعي، أو التأكد من طريقة كتابة الاسم.` };
+  }
+
+  return { answer: "مش متأكد إني فهمت قصدك 😄 جرّب تسألني بصيغة أوضح، أو اكتب: ابحث عن اسم شخص، افتح الأخبار، احسب ١٠٠ ناقص ٥٠، أو قولي نكتة." };
+}
+
 app.post("/api/site-assistant", async (req, res) => {
   try {
     const question = req.body?.question || "";
-    const siteAnswer = await answerSiteAssistant(question);
+    req.session.assistantContext = req.session.assistantContext || {};
+
+    const siteAnswer = await answerSiteAssistant(question, req.session.assistantContext, req);
+
+    if (siteAnswer?.memory) {
+      req.session.assistantContext = {
+        ...req.session.assistantContext,
+        ...siteAnswer.memory,
+        updatedAt: Date.now()
+      };
+      delete siteAnswer.memory;
+    }
+
     if (siteAnswer && siteAnswer.general) {
       const generalAnswer = await answerGeneralAssistant(question);
       return res.json({ ok:true, mode:"general", ...generalAnswer });

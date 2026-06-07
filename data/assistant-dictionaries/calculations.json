@@ -1,0 +1,168 @@
+{
+  "items": [
+    {
+      "id": "calc_help_001",
+      "category": "calculations",
+      "questions": [
+        "احسب",
+        "عايز احسب",
+        "اجمع رقمين",
+        "اطرح رقمين",
+        "اضرب رقمين",
+        "اقسم رقمين",
+        "calculate",
+        "what is 5 plus 3",
+        "احسب ٥ + ٣",
+        "١٠٠ ناقص ٢٠",
+        "25% of 400"
+      ],
+      "keywords": [
+        "احسب",
+        "جمع",
+        "طرح",
+        "ضرب",
+        "قسمة",
+        "calculate",
+        "plus",
+        "minus"
+      ],
+      "answer": "اكتب العملية الحسابية بوضوح مثل: 50 + 20 أو ١٠٠ ÷ ٤ أو احسب 25% من 400، وسأحاول أحسبها لك لو محرك الحسابات مفعل في السيرفر."
+    },
+    {
+      "id": "calc_sum_001",
+      "category": "calculations",
+      "questions": [
+        "اجمع 10 و 5",
+        "احسب 10 + 5",
+        "what is 10 plus 5",
+        "calculate 10 + 5",
+        "اجمع 20 و 7",
+        "احسب 20 + 7",
+        "what is 20 plus 7",
+        "calculate 20 + 7",
+        "اجمع 100 و 4",
+        "احسب 100 + 4",
+        "what is 100 plus 4",
+        "calculate 100 + 4",
+        "اجمع 250 و 25",
+        "احسب 250 + 25",
+        "what is 250 plus 25",
+        "calculate 250 + 25",
+        "اجمع 15 و 3",
+        "احسب 15 + 3",
+        "what is 15 plus 3",
+        "calculate 15 + 3"
+      ],
+      "keywords": [
+        "اجمع",
+        "plus",
+        "+",
+        "احسب",
+        "calculate"
+      ],
+      "answer": "اكتب العملية الحسابية بالأرقام وسأتعامل معها. مثال: 100 + 25 أو ٢٠٠ ÷ ٥."
+    },
+    {
+      "id": "calc_subtract_001",
+      "category": "calculations",
+      "questions": [
+        "اطرح 10 و 5",
+        "احسب 10 - 5",
+        "what is 10 minus 5",
+        "calculate 10 - 5",
+        "اطرح 20 و 7",
+        "احسب 20 - 7",
+        "what is 20 minus 7",
+        "calculate 20 - 7",
+        "اطرح 100 و 4",
+        "احسب 100 - 4",
+        "what is 100 minus 4",
+        "calculate 100 - 4",
+        "اطرح 250 و 25",
+        "احسب 250 - 25",
+        "what is 250 minus 25",
+        "calculate 250 - 25",
+        "اطرح 15 و 3",
+        "احسب 15 - 3",
+        "what is 15 minus 3",
+        "calculate 15 - 3"
+      ],
+      "keywords": [
+        "اطرح",
+        "minus",
+        "-",
+        "احسب",
+        "calculate"
+      ],
+      "answer": "اكتب العملية الحسابية بالأرقام وسأتعامل معها. مثال: 100 + 25 أو ٢٠٠ ÷ ٥."
+    },
+    {
+      "id": "calc_multiply_001",
+      "category": "calculations",
+      "questions": [
+        "اضرب 10 و 5",
+        "احسب 10 * 5",
+        "what is 10 times 5",
+        "calculate 10 * 5",
+        "اضرب 20 و 7",
+        "احسب 20 * 7",
+        "what is 20 times 7",
+        "calculate 20 * 7",
+        "اضرب 100 و 4",
+        "احسب 100 * 4",
+        "what is 100 times 4",
+        "calculate 100 * 4",
+        "اضرب 250 و 25",
+        "احسب 250 * 25",
+        "what is 250 times 25",
+        "calculate 250 * 25",
+        "اضرب 15 و 3",
+        "احسب 15 * 3",
+        "what is 15 times 3",
+        "calculate 15 * 3"
+      ],
+      "keywords": [
+        "اضرب",
+        "times",
+        "*",
+        "احسب",
+        "calculate"
+      ],
+      "answer": "اكتب العملية الحسابية بالأرقام وسأتعامل معها. مثال: 100 + 25 أو ٢٠٠ ÷ ٥."
+    },
+    {
+      "id": "calc_divide_001",
+      "category": "calculations",
+      "questions": [
+        "اقسم 10 و 5",
+        "احسب 10 / 5",
+        "what is 10 divide 5",
+        "calculate 10 / 5",
+        "اقسم 20 و 7",
+        "احسب 20 / 7",
+        "what is 20 divide 7",
+        "calculate 20 / 7",
+        "اقسم 100 و 4",
+        "احسب 100 / 4",
+        "what is 100 divide 4",
+        "calculate 100 / 4",
+        "اقسم 250 و 25",
+        "احسب 250 / 25",
+        "what is 250 divide 25",
+        "calculate 250 / 25",
+        "اقسم 15 و 3",
+        "احسب 15 / 3",
+        "what is 15 divide 3",
+        "calculate 15 / 3"
+      ],
+      "keywords": [
+        "اقسم",
+        "divide",
+        "/",
+        "احسب",
+        "calculate"
+      ],
+      "answer": "اكتب العملية الحسابية بالأرقام وسأتعامل معها. مثال: 100 + 25 أو ٢٠٠ ÷ ٥."
+    }
+  ]
+}
