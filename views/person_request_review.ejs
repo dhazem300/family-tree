@@ -53,11 +53,12 @@
     pointer-events:none!important;
   }
 
+    html.theme-switching, html.theme-switching *, html.theme-switching *::before, html.theme-switching *::after { transition: none !important; animation: none !important; }
 </style>
 <style>
   ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#005A2B;border-radius:999px}html.dark ::-webkit-scrollbar-thumb{background:#E5B869}
   html.dark .dark-toggle-icon-moon{display:none} html:not(.dark) .dark-toggle-icon-sun{display:none}
-  #nexusCanvas{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:auto}.admin-bg-layer{position:fixed;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to bottom,rgba(255,255,255,.45),rgba(255,255,255,.86))}html.dark .admin-bg-layer{background:linear-gradient(to bottom,rgba(0,0,0,.45),rgba(5,5,5,.92))}
+  #nexusCanvas{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events: none}.admin-bg-layer{position:fixed;inset:0;z-index:1;pointer-events:none;background:linear-gradient(to bottom,rgba(255,255,255,.45),rgba(255,255,255,.86))}html.dark .admin-bg-layer{background:linear-gradient(to bottom,rgba(0,0,0,.45),rgba(5,5,5,.92))}
   .field{width:100%;border-radius:16px;border:1px solid rgba(0,0,0,.10);padding:12px 14px;font-weight:800;background:#fff;color:#111827;outline:none;transition:.2s}.dark .field{background:rgba(255,255,255,.055);border-color:rgba(255,255,255,.12);color:#fff}.field:focus{border-color:#005A2B;box-shadow:0 0 0 4px rgba(0,90,43,.10)}html.dark .field:focus{border-color:#E5B869;box-shadow:0 0 0 4px rgba(229,184,105,.12)}
   #adminMobileToggle:checked ~ #adminMobileOverlay{display:block}#adminMobileToggle:checked ~ #adminMobileDrawer{transform:translateX(0)}#adminMobileOverlay{display:none}.admin-mobile-drawer{transform:translateX(-115%);transition:transform .35s cubic-bezier(.16,1,.3,1)}
 
@@ -139,7 +140,7 @@
 
         <form method="post" action="/admin/person-requests/<%= request.id %>/approve" class="bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark rounded-3xl shadow-sm p-4 sm:p-6 md:p-8 space-y-8">
           <section class="grid grid-cols-1 xl:grid-cols-[220px_1fr] gap-6 items-start">
-            <div class="rounded-3xl overflow-hidden border border-black/10 dark:border-white/10 bg-gray-100 dark:bg-black/30 aspect-square max-w-[220px] w-full mx-auto xl:mx-0 shadow-lg"><img src="<%= request.photo_url || '/images/default.png' %>" onerror="this.src='/images/default.png'" class="w-full h-full object-cover" alt=""></div>
+            <div class="rounded-3xl overflow-hidden border border-black/10 dark:border-white/10 bg-gray-100 dark:bg-black/30 aspect-square max-w-[220px] w-full mx-auto xl:mx-0 shadow-lg"><img loading="lazy" decoding="async" src="<%= request.photo_url || '/assets/default-avatar.svg' %>" onerror="this.src='/assets/default-avatar.svg'" class="w-full h-full object-cover" alt=""></div>
             <div class="space-y-4"><h3 class="font-display text-2xl font-bold text-primary dark:text-accent">البيانات الأساسية</h3><div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label><span class="font-bold mb-2 block">الاسم *</span><input name="name" required class="field" value="<%= request.name || '' %>"></label>
               <label><span class="font-bold mb-2 block">النوع</span><select name="gender" class="field"><option value="">غير محدد</option><option value="male" <%= request.gender==='male'?'selected':'' %>>ذكر</option><option value="female" <%= request.gender==='female'?'selected':'' %>>أنثى</option></select></label>

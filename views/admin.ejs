@@ -89,7 +89,7 @@
     /* شبكة العائلة التفاعلية في الخلفية */
     #nexusCanvas {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      z-index: 0; pointer-events: auto; /* لاستقبال حركة الماوس */
+      z-index: 0; pointer-events: none; /* لاستقبال حركة الماوس */
     }
 
     /* إعدادات أيقونات المظهر */
@@ -136,6 +136,7 @@
   <script>
     (function () {
       const saved = localStorage.getItem("theme") || "dark";
+      document.documentElement.style.colorScheme = saved === "dark" ? "dark" : "light";
       document.documentElement.setAttribute("data-theme", saved);
       document.documentElement.classList.toggle("dark", saved === "dark");
     })();
@@ -228,6 +229,25 @@
     }
   </style>
 
+
+  <style id="admin-instant-theme-switch-fix">
+    /* يمنع بطء تغيير الألوان عند التبديل بين الوضع الفاتح والداكن */
+    html.theme-switching,
+    html.theme-switching *,
+    html.theme-switching *::before,
+    html.theme-switching *::after {
+      transition: none !important;
+      animation-duration: 0.001ms !important;
+      animation-delay: 0s !important;
+      caret-color: auto !important;
+    }
+
+    /* نحافظ فقط على حركة فتح/غلق قائمة الموبايل لأنها ليست مرتبطة بتغيير الثيم */
+    html.theme-switching #mobileNavDrawer {
+      transition: transform .32s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+  </style>
+
 </head>
 
 <body class="bg-bg-light dark:bg-bg-dark text-gray-800 dark:text-gray-200 font-sans h-screen flex overflow-hidden selection:bg-accent selection:text-primaryDark">
@@ -262,37 +282,50 @@
       <div class="space-y-2">
         <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">نظرة عامة</p>
         <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">dashboard</span> لوحة الإحصائيات
         </a>
       </div>
 
       <div class="space-y-2">
-        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">إدارة البيانات</p>
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">إدارة العائلة والبيانات</p>
         <a href="/admin" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent font-bold text-sm border border-primary/20 dark:border-accent/20 transition-all relative overflow-hidden shadow-sm">
           <div class="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-6 rounded-l-full bg-primary dark:bg-accent shadow-[0_0_10px_rgba(229,184,105,0.8)]"></div>
           <span class="material-symbols-outlined text-[22px]">group</span> إدارة الأفراد
         </a>
         <% if (typeof userCan === "function" && userCan("person_requests")) { %>
         <a href="/admin/person-requests" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">fact_check</span> طلبات الأفراد
         </a>
         <% } %>
         <a href="/admin/pages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">history_edu</span> إدارة الصفحات
         </a>
         <a href="/admin/honor" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">workspace_premium</span> السير الذاتية
         </a>
         <a href="/admin/news" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">newspaper</span> الأخبار والمناسبات
         </a>
+      </div>
+
+      <div class="space-y-2">
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">المستخدمون والتواصل</p>
+        <% if (typeof userCan === "function" && userCan("users")) { %>
+        <a href="/admin/users" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">groups</span> مستخدمي الموقع
+        </a>
+        <% } %>
+        <% if (typeof userCan === "function" && userCan("chats")) { %>
+        <a href="/admin/chats" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">forum</span> إدارة المحادثات
+        </a>
+        <% } %>
+        <% if (typeof userCan === "function" && (userCan("persons") || userCan("backups") || Number(admin?.is_super_admin || 0) === 1)) { %>
+        <a href="/admin/tree-exports" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">file_export</span> سجل تصدير الشجرة
+        </a>
+        <% } %>
         <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">mail</span> رسائل الدعم
         </a>
       </div>
@@ -301,30 +334,35 @@
         <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والصلاحيات</p>
         <% if (typeof userCan === "function" && userCan("roles")) { %>
         <a href="/admin/roles" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">manage_accounts</span> وظائف الأفراد
         </a>
         <% } %>
         <% if (Number(admin?.is_super_admin || 0) === 1) { %>
         <a href="/admin/activity" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
-          <span class="material-symbols-outlined text-[22px]">manage_history</span> سجل النشاطات
+          <span class="material-symbols-outlined text-[22px]">manage_history</span> سجل النشاط
         </a>
+        <% } %>
+        <% if (typeof userCan === "function" && (userCan("approvals") || Number(admin?.is_super_admin || 0) === 1)) { %>
+        <a href="/admin/approvals" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">fact_check</span> مركز الموافقة
+        </a>
+        <% } %>
+        <% if (Number(admin?.is_super_admin || 0) === 1) { %>
         <a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
           <span class="material-symbols-outlined text-[22px]">construction</span> وضع الصيانة
         </a>
         <% } %>
-        <a href="/" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
-          
-          <span class="material-symbols-outlined text-[22px]">account_tree</span> عرض الشجرة
+        <% if (typeof userCan === "function" && (userCan("backups") || Number(admin?.is_super_admin || 0) === 1)) { %>
+        <a href="/admin/backups" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">backup</span> النسخ الاحتياطي
         </a>
+        <% } %>
       </div>
     </nav>
 
     <div class="p-4 border-t border-border-light dark:border-border-dark shrink-0 m-2 rounded-2xl bg-white/50 dark:bg-black/30">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-full bg-cover bg-center border border-gray-200 dark:border-white/10 shadow-sm" style="background-image:url('/assets/default-avatar.png'); background-color: #ddd;"></div>
+        <div class="w-10 h-10 rounded-full bg-cover bg-center border border-gray-200 dark:border-white/10 shadow-sm" style="background-image:url('/assets/default-avatar.svg'); background-color: #ddd;"></div>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-bold text-gray-900 dark:text-white truncate"><%= admin?.username || "مدير النظام" %></p>
           <p class="text-[10px] text-primary dark:text-accent uppercase tracking-widest mt-0.5 font-bold">Admin</p>
@@ -366,6 +404,11 @@
         <a href="/admin/person-stats" class="flex items-center gap-2 px-6 h-12 rounded-2xl font-bold text-sm bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm hover:-translate-y-1 transition-transform">
           <span class="material-symbols-outlined text-[22px]">analytics</span>
           <span class="hidden sm:inline">إحصائيات الأفراد</span>
+        </a>
+
+        <a href="/admin/tree-exports" class="hidden md:flex items-center gap-2 px-6 h-12 rounded-2xl font-bold text-sm bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm hover:-translate-y-1 transition-transform" title="سجل تصدير الشجرة">
+          <span class="material-symbols-outlined text-[22px]">file_export</span>
+          <span class="hidden sm:inline">سجل التصدير</span>
         </a>
 
         <a href="/admin/person/new" class="flex items-center gap-2 px-6 h-12 rounded-2xl font-bold text-sm bg-primary dark:bg-accent text-white dark:text-black shadow-[0_5px_20px_rgba(58,46,124,0.4)] dark:shadow-[0_5px_20px_rgba(229,184,105,0.20)] hover:-translate-y-1 transition-transform">
@@ -448,7 +491,7 @@
                     <td class="py-3 px-6 rounded-r-xl">
                       <div class="relative w-12 h-12 rounded-xl border-2 <%= avatarBorder %> overflow-hidden flex items-center justify-center <%= photo ? '' : avatarBg %> shadow-sm bg-white dark:bg-black">
                         <% if (photo) { %>
-                          <img src="<%= photo %>" alt="" class="w-full h-full object-cover">
+                          <img loading="lazy" decoding="async" src="<%= photo %>" alt="" class="w-full h-full object-cover">
                         <% } else { %>
                           <span class="material-symbols-outlined text-[24px]">person</span>
                         <% } %>
@@ -543,37 +586,56 @@
     </label>
   </div>
 
-  <nav class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-3 text-sm font-bold text-gray-700 dark:text-gray-300">
+  <nav class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-5 text-sm font-bold text-gray-700 dark:text-gray-300">
     <div class="space-y-2">
       <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">نظرة عامة</p>
-    <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">dashboard</span> لوحة الإحصائيات</a>
+      <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">dashboard</span> لوحة الإحصائيات</a>
     </div>
-    <div class="space-y-2 mt-4">
-      <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">إدارة البيانات</p>
-    <a href="/admin" class="flex items-center gap-3 px-4 py-4 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent transition-colors border border-primary/20 dark:border-accent/20"><span class="material-symbols-outlined">group</span> إدارة الأفراد</a>
+
+    <div class="space-y-2">
+      <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">إدارة العائلة والبيانات</p>
+      <a href="/admin" class="flex items-center gap-3 px-4 py-4 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent transition-colors border border-primary/20 dark:border-accent/20"><span class="material-symbols-outlined">group</span> إدارة الأفراد</a>
       <% if (typeof userCan === "function" && userCan("person_requests")) { %>
-    <a href="/admin/person-requests" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">fact_check</span> طلبات الأفراد</a>
+      <a href="/admin/person-requests" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">fact_check</span> طلبات الأفراد</a>
       <% } %>
-    <a href="/admin/pages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">history_edu</span> إدارة الصفحات</a>
-    <a href="/admin/honor" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">workspace_premium</span> السير الذاتية</a>
-    <a href="/admin/news" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">newspaper</span> الأخبار والمناسبات</a>
-    <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">mail</span> رسائل الدعم</a>
+        <a href="/admin/pages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">history_edu</span> إدارة الصفحات</a>
+        <a href="/admin/honor" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">workspace_premium</span> السير الذاتية</a>
+      <a href="/admin/news" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">newspaper</span> الأخبار والمناسبات</a>
     </div>
-    <div class="space-y-2 mt-4">
+
+    <div class="space-y-2">
+      <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">المستخدمون والتواصل</p>
+      <% if (typeof userCan === "function" && userCan("users")) { %>
+      <a href="/admin/users" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">groups</span> مستخدمي الموقع</a>
+      <% } %>
+      <% if (typeof userCan === "function" && userCan("chats")) { %>
+      <a href="/admin/chats" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">forum</span> إدارة المحادثات</a>
+      <% } %>
+      <% if (typeof userCan === "function" && (userCan("persons") || userCan("backups") || Number(admin?.is_super_admin || 0) === 1)) { %>
+      <a href="/admin/tree-exports" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">file_export</span> سجل تصدير الشجرة</a>
+      <% } %>
+      <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">mail</span> رسائل الدعم</a>
+    </div>
+
+    <div class="space-y-2">
       <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والصلاحيات</p>
       <% if (typeof userCan === "function" && userCan("roles")) { %>
-    <a href="/admin/roles" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_accounts</span> وظائف الأفراد</a>
+      <a href="/admin/roles" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_accounts</span> وظائف الأفراد</a>
       <% } %>
       <% if (Number(admin?.is_super_admin || 0) === 1) { %>
-    <a href="/admin/activity" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_history</span> سجل النشاطات</a>
-    <a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">construction</span> وضع الصيانة</a>
+      <a href="/admin/activity" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_history</span> سجل النشاط</a>
+      <% } %>
+      <% if (typeof userCan === "function" && (userCan("approvals") || Number(admin?.is_super_admin || 0) === 1)) { %>
+      <a href="/admin/approvals" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">fact_check</span> مركز الموافقة</a>
+      <% } %>
+      <% if (Number(admin?.is_super_admin || 0) === 1) { %>
+      <a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">construction</span> وضع الصيانة</a>
+      <% } %>
+      <% if (typeof userCan === "function" && (userCan("backups") || Number(admin?.is_super_admin || 0) === 1)) { %>
+      <a href="/admin/backups" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">backup</span> النسخ الاحتياطي</a>
       <% } %>
     </div>
-    <div class="my-4 border-t border-border-light dark:border-border-dark"></div>
-    <a href="/" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">account_tree</span> العودة للموقع</a>
-    
 
-    
     <form method="post" action="/admin/logout" class="m-0 mt-4">
       <button type="submit" class="w-full flex items-center justify-center gap-2 px-4 py-4 rounded-2xl border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-500/10 hover:bg-red-50 transition-colors">
         <span class="material-symbols-outlined">logout</span> تسجيل خروج
@@ -588,12 +650,30 @@
   // Theme Toggle (Instant & High Performance)
   (function () {
     const btn = document.getElementById("themeBtn");
-    function setTheme(next) {
-      document.documentElement.setAttribute("data-theme", next);
-      document.documentElement.classList.toggle("dark", next === "dark");
-      localStorage.setItem("theme", next);
-      if(window.initNexus) window.initNexus(); // تحديث ألوان الشبكة الخلفية
+    let themeSwitchTimer = null;
+
+    function unlockThemeTransitions() {
+      window.clearTimeout(themeSwitchTimer);
+      themeSwitchTimer = window.setTimeout(() => {
+        document.documentElement.classList.remove("theme-switching");
+      }, 90);
     }
+
+    function setTheme(next) {
+      const root = document.documentElement;
+
+      // إيقاف أي transition لحظيًا حتى لا يظهر بطء أو وميض بين الألوان
+      root.classList.add("theme-switching");
+      root.style.colorScheme = next === "dark" ? "dark" : "light";
+      root.setAttribute("data-theme", next);
+      root.classList.toggle("dark", next === "dark");
+      localStorage.setItem("theme", next);
+
+      if (window.initNexus) window.initNexus(); // تحديث ألوان الشبكة الخلفية
+
+      requestAnimationFrame(() => requestAnimationFrame(unlockThemeTransitions));
+    }
+
     btn?.addEventListener("click", () => {
       const cur = document.documentElement.getAttribute("data-theme") || "dark";
       setTheme(cur === "dark" ? "light" : "dark");
@@ -636,7 +716,7 @@
     let width, height;
     let particles = [];
     // عدد العقد معقول للحفاظ على سرعة المتصفح
-    const numParticles = window.innerWidth > 1024 ? 130 : 70; 
+    const numParticles = window.innerWidth > 1024 ? 42 : 18; 
     
     let mouseX = -1000;
     let mouseY = -1000;
@@ -695,18 +775,16 @@
         const dyMouse = mouseY - p.y;
         const distMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
 
-        if (distMouse < 230) {
+        if (distMouse < 130) {
           ctx.beginPath();
           ctx.moveTo(p.x, p.y);
           ctx.lineTo(mouseX, mouseY);
-          const opacity = 0.6 * (1 - distMouse / 230);
+          const opacity = 0.6 * (1 - distMouse / 130);
           ctx.strokeStyle = `rgba(${connectionColor}, ${opacity})`;
           ctx.lineWidth = 1;
           ctx.stroke();
           
           // جاذبية خفيفة للماوس
-          p.x += dxMouse * 0.014;
-          p.y += dyMouse * 0.014;
         }
 
         // رسم الخطوط بين النقاط وبعضها
@@ -716,7 +794,7 @@
           const dy = p.y - p2.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
 
-          if (dist < 165) {
+          if (dist < 95) {
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p2.x, p2.y);

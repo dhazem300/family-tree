@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>الرسائل - شجرة العائلة</title>
+
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/styles.css" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries,line-clamp"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#005A2B",
+            primaryDark: "#003D1D",
+            accent: "#E5B869",
+            "accent-gold": "#E5B869",
+            "background-light": "#F8F8F6",
+            "background-dark": "#050505",
+            "bg-charcoal": "#050505",
+            "card-light": "#FFFFFF",
+            "card-dark": "#0A0A0A",
+            "bg-card": "#0A0A0A",
+            "text-cream": "#FAFAFA",
+            "text-dark": "#111827",
+            "text-muted": "#71717A",
+            "muted-slate": "#71717A",
+            gold: "#E5B869",
+            "accent-gold-dark": "#D4A353",
+          },
+          fontFamily: {
+            display: ["'Aref Ruqaa'", "serif"],
+            sans: ["Tajawal", "sans-serif"],
+          },
+          backgroundImage: {
+            "islamic-pattern": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+            "islamic-pattern-dark": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
+          },
+          boxShadow: {
+            luxury: "0 20px 40px -10px rgba(0,0,0,0.05), 0 0 20px rgba(229,184,105,0.03)",
+            "luxury-dark": "0 20px 40px -10px rgba(0,0,0,0.4), 0 0 20px rgba(229,184,105,0.05)",
+          }
+        }
+      }
+    };
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+      .glass-panel {
+        @apply bg-white/85 dark:bg-[#080808]/85 backdrop-blur-xl border border-accent-gold/20 shadow-luxury dark:shadow-luxury-dark;
+      }
+    }
+  </style>
+
+  <style>
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(229, 184, 105, 0.4);
+      border-radius: 4px;
+      transition: background 0.3s;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(229, 184, 105, 0.8); }
+
+    #mobileNavOverlay.hidden { display: none; }
+    #mobileNavOverlay { display: block; }
+
+    #mobileNavDrawer {
+      transform: translateX(-110%);
+      transition: transform .3s cubic-bezier(.2,.9,.2,1);
+    }
+    #mobileNavDrawer.isOpen { transform: translateX(0); }
+
+    #mobileNavBtn[data-open="true"] .ico-open { display: none; }
+    #mobileNavBtn[data-open="true"] .ico-close { display: inline; }
+    #mobileNavBtn[data-open="false"] .ico-open { display: inline; }
+    #mobileNavBtn[data-open="false"] .ico-close { display: none; }
+
+    .chat-hero {
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px;
+      border: 1px solid rgba(229,184,105,.24);
+      background:
+        linear-gradient(135deg, rgba(0,90,43,.98), rgba(0,61,29,.96)),
+        radial-gradient(circle at top left, rgba(229,184,105,.28), transparent 42%);
+      box-shadow: 0 24px 70px rgba(0,0,0,.14);
+      isolation: isolate;
+    }
+
+    .dark .chat-hero {
+      background:
+        linear-gradient(135deg, rgba(10,10,10,.96), rgba(5,5,5,.98)),
+        radial-gradient(circle at top left, rgba(229,184,105,.18), transparent 42%);
+      box-shadow: 0 28px 90px rgba(0,0,0,.55);
+    }
+
+    .chat-hero-frame {
+      position: absolute;
+      inset: 14px;
+      border: 1px solid rgba(229,184,105,.35);
+      border-radius: 6px;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .chat-panel {
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px;
+      border: 1px solid rgba(229,184,105,.20);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.94), rgba(255,255,255,.82)),
+        radial-gradient(circle at top right, rgba(229,184,105,.12), transparent 40%);
+      box-shadow: 0 18px 50px rgba(0,0,0,.06);
+    }
+
+    .dark .chat-panel {
+      border-color: rgba(255,255,255,.10);
+      background:
+        linear-gradient(180deg, rgba(15,15,15,.94), rgba(7,7,7,.97)),
+        radial-gradient(circle at top right, rgba(229,184,105,.10), transparent 40%);
+      box-shadow: 0 18px 55px rgba(0,0,0,.42);
+    }
+
+    .gold-line {
+      width: 42px;
+      height: 2px;
+      background: linear-gradient(to left, #E5B869, rgba(229,184,105,0));
+    }
+
+    .luxury-btn {
+      position: relative;
+      overflow: hidden;
+      transition: transform .35s cubic-bezier(.19,1,.22,1), box-shadow .35s ease;
+    }
+
+    .luxury-btn::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, transparent, rgba(255,255,255,.22), transparent);
+      transform: translateX(120%);
+      transition: transform .7s cubic-bezier(.19,1,.22,1);
+      pointer-events: none;
+    }
+
+    .luxury-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(0,0,0,.12);
+    }
+
+    .luxury-btn:hover::after {
+      transform: translateX(-120%);
+    }
+
+    .message-card {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 12px;
+      padding: 16px;
+      border-radius: 8px;
+      border: 1px solid rgba(229,184,105,.16);
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.92), rgba(255,255,255,.72)),
+        radial-gradient(circle at top right, rgba(229,184,105,.13), transparent 42%);
+      box-shadow: 0 12px 32px rgba(0,0,0,.045);
+      overflow: hidden;
+      isolation: isolate;
+      transition:
+        transform .45s cubic-bezier(.19,1,.22,1),
+        box-shadow .45s ease,
+        border-color .45s ease,
+        background-color .45s ease;
+    }
+
+    .dark .message-card {
+      border-color: rgba(255,255,255,.09);
+      background:
+        linear-gradient(135deg, rgba(16,16,16,.96), rgba(8,8,8,.94)),
+        radial-gradient(circle at top right, rgba(229,184,105,.10), transparent 42%);
+      box-shadow: 0 14px 36px rgba(0,0,0,.35);
+    }
+
+    .message-card::before {
+      content: "";
+      position: absolute;
+      inset-block: 12px;
+      right: 0;
+      width: 3px;
+      border-radius: 999px 0 0 999px;
+      background: linear-gradient(to bottom, transparent, #E5B869, transparent);
+      opacity: .45;
+      transition: opacity .45s ease, inset-block .45s ease;
+      z-index: 2;
+    }
+
+    .message-card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, transparent 20%, rgba(229,184,105,.09), transparent 80%);
+      transform: translateX(120%);
+      transition: transform .8s cubic-bezier(.19,1,.22,1);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .message-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(229,184,105,.48);
+      box-shadow: 0 22px 55px rgba(0,0,0,.10), 0 0 18px rgba(229,184,105,.07);
+    }
+
+    .dark .message-card:hover {
+      box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 22px rgba(229,184,105,.10);
+    }
+
+    .message-card:hover::before {
+      opacity: 1;
+      inset-block: 8px;
+    }
+
+    .message-card:hover::after {
+      transform: translateX(-120%);
+    }
+
+    .message-avatar-wrap {
+      position: relative;
+      width: 66px;
+      height: 66px;
+      flex: 0 0 auto;
+      border-radius: 8px;
+      padding: 3px;
+      background:
+        linear-gradient(135deg, rgba(229,184,105,.95), rgba(0,90,43,.28), rgba(229,184,105,.45));
+      box-shadow: 0 14px 28px rgba(0,0,0,.12);
+      z-index: 3;
+    }
+
+    .dark .message-avatar-wrap {
+      box-shadow: 0 14px 30px rgba(0,0,0,.45), 0 0 16px rgba(229,184,105,.08);
+    }
+
+    .message-avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #f3f4f6;
+      display: block;
+    }
+
+    .dark .message-avatar {
+      background: #111;
+    }
+
+    .message-online-dot {
+      position: absolute;
+      left: -2px;
+      bottom: -2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: #E5B869;
+      border: 3px solid #FFFFFF;
+      box-shadow: 0 0 0 2px rgba(229,184,105,.25);
+    }
+
+    .dark .message-online-dot {
+      border-color: #080808;
+    }
+
+    .message-title {
+      font-weight: 900;
+      color: #005A2B;
+      transition: color .3s ease;
+    }
+
+    .dark .message-title {
+      color: #E5B869;
+    }
+
+    .message-card:hover .message-title {
+      color: #003D1D;
+    }
+
+    .dark .message-card:hover .message-title {
+      color: #FFFFFF;
+    }
+
+    .message-preview {
+      margin-top: 8px;
+      width: fit-content;
+      max-width: 100%;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(0,90,43,.08);
+      background: rgba(0,90,43,.045);
+      color: #71717A;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.7;
+    }
+
+    .dark .message-preview {
+      border-color: rgba(229,184,105,.12);
+      background: rgba(229,184,105,.055);
+      color: rgba(255,255,255,.62);
+    }
+
+    .message-unread {
+      min-width: 28px;
+      height: 28px;
+      padding: 0 9px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #E5B869;
+      color: #050505;
+      font-size: 12px;
+      font-weight: 900;
+      box-shadow: 0 10px 20px rgba(229,184,105,.25);
+    }
+
+    .message-action {
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #005A2B;
+      background: rgba(0,90,43,.055);
+      border: 1px solid rgba(0,90,43,.08);
+      transition: transform .35s ease, color .35s ease, background .35s ease, border-color .35s ease;
+      z-index: 3;
+      flex: 0 0 auto;
+    }
+
+    .dark .message-action {
+      color: #E5B869;
+      background: rgba(229,184,105,.06);
+      border-color: rgba(229,184,105,.12);
+    }
+
+    .message-card:hover .message-action {
+      transform: translateX(-3px);
+      color: #050505;
+      background: #E5B869;
+      border-color: #E5B869;
+    }
+
+    .member-card {
+      margin: 10px;
+      padding: 13px;
+      border-radius: 8px;
+      border: 1px solid rgba(229,184,105,.13);
+      background: rgba(255,255,255,.58);
+      transition: transform .35s cubic-bezier(.19,1,.22,1), border-color .35s ease, background .35s ease;
+    }
+
+    .dark .member-card {
+      border-color: rgba(255,255,255,.08);
+      background: rgba(255,255,255,.025);
+    }
+
+    .member-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(229,184,105,.38);
+      background: rgba(0,90,43,.04);
+    }
+
+    .dark .member-card:hover {
+      background: rgba(229,184,105,.045);
+    }
+
+    @media (max-width: 640px) {
+      .message-card {
+        align-items: flex-start;
+        gap: 12px;
+        margin: 10px;
+        padding: 14px;
+      }
+
+      .message-avatar-wrap {
+        width: 56px;
+        height: 56px;
+      }
+
+      .message-action {
+        width: 34px;
+        height: 34px;
+      }
+    }
+  </style>
+
+  <script>
+    (function () {
+      const saved = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", saved);
+      document.documentElement.classList.toggle("dark", saved === "dark");
+
+      const obs = new MutationObserver(() => {
+        const t = document.documentElement.getAttribute("data-theme") || "dark";
+        document.documentElement.classList.toggle("dark", t === "dark");
+      });
+      obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    })();
+  </script>
+</head>
+
+<body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col overflow-x-hidden selection:bg-accent/30 selection:text-gray-900 dark:selection:text-white transition-colors duration-400">
+
+  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></div>
+
+  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-bg-charcoal border-r border-gray-100 dark:border-white/5 shadow-2xl z-[90] flex flex-col">
+    <div class="h-1.5 w-full bg-gradient-to-r from-gray-300 via-accent to-gray-300 dark:from-gray-800 dark:via-accent dark:to-gray-800"></div>
+
+    <div class="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/5">
+      <img class="h-10 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+      <img class="h-10 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+
+      <button id="mobileNavClose" class="text-gray-400 hover:text-accent transition-colors" type="button" aria-label="إغلاق القائمة">
+        <span class="material-symbols-outlined text-[26px]">close</span>
+      </button>
+    </div>
+
+    <nav class="p-6 flex flex-col gap-2 text-base font-semibold flex-grow text-gray-600 dark:text-gray-400 overflow-y-auto" aria-label="قائمة الجوال">
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/">الشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/about">نبذة عن العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/honor">السير الذاتية</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/news">أخبار العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/tree-pdf">المشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/kinship">صلة القرابة</a>
+
+      <div class="my-3 h-px bg-gray-100 dark:bg-white/5"></div>
+
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-members">أعضاء العائلة</a>
+      <a class="px-4 py-3 rounded-xl text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent" href="/chat">الرسائل</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/chat/public">الشات العام</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/account">حسابي</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 text-red-600 dark:text-red-300 transition-colors" href="/logout">خروج</a>
+    </nav>
+  </aside>
+
+  <header class="sticky top-0 z-50 w-full glass-panel border-b-0 transition-colors duration-400">
+    <div class="max-w-[90rem] mx-auto px-4 sm:px-8 py-3 flex justify-between items-center h-20 md:h-24">
+
+      <div class="flex items-center gap-3 xl:gap-4 shrink-0">
+        <a href="/" class="block shrink-0 transition-transform hover:scale-105 duration-300">
+          <img class="h-10 md:h-12 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+          <img class="h-10 md:h-12 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+        </a>
+
+        <div class="h-7 w-px bg-gray-200 dark:bg-white/10 hidden sm:block"></div>
+
+        <div class="hidden sm:flex flex-col justify-center min-w-0">
+          <h1 class="text-lg md:text-xl font-display text-primary dark:text-accent font-bold leading-tight pt-1">شجرة العائلة</h1>
+          <span class="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5 truncate">مركز الرسائل</span>
+        </div>
+      </div>
+
+      <nav class="hidden lg:flex flex-1 justify-center gap-2 lg:gap-3 xl:gap-5 items-center font-sans font-semibold text-[11px] xl:text-[13px] tracking-wide text-gray-500 dark:text-gray-400 overflow-x-auto scrollbar-hide px-2 xl:px-4 flex-nowrap" aria-label="التنقل الرئيسي">
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/">الشجرة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/about">نبذة عن العائلة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/honor">السير الذاتية</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/news">أخبار العائلة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/tree-pdf">المشجرة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/kinship">صلة القرابة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/family-members">أعضاء العائلة</a>
+        <a class="whitespace-nowrap shrink-0 text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1 transition-colors duration-200" href="/chat">الرسائل</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/account">حسابي</a>
+      </nav>
+
+      <div class="flex items-center justify-end gap-2 shrink-0">
+        <button id="uiThemeBtn" aria-label="تبديل المظهر" class="flex items-center justify-center w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-accent dark:hover:text-accent hover:bg-accent/5 transition-all duration-300" type="button" title="تبديل المظهر">
+          <span class="material-symbols-outlined text-[22px] dark:hidden">dark_mode</span>
+          <span class="material-symbols-outlined text-[22px] hidden dark:inline">light_mode</span>
+        </button>
+
+        <a href="/logout" class="hidden sm:flex w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-300 items-center justify-center" title="خروج">
+          <span class="material-symbols-outlined text-[22px]">logout</span>
+        </a>
+
+        <button id="mobileNavBtn" data-open="false" class="lg:hidden flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-primary dark:text-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-all duration-200" type="button" aria-label="فتح القائمة" aria-expanded="false">
+          <span class="material-symbols-outlined text-[24px] ico-open">menu</span>
+          <span class="material-symbols-outlined text-[24px] ico-close hidden">close</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <main class="flex-grow relative">
+
+    <section class="pt-14 pb-8 px-6 max-w-[90rem] mx-auto text-center relative overflow-hidden">
+      <div class="absolute inset-0 bg-islamic-pattern opacity-40 dark:opacity-10 pointer-events-none"></div>
+
+      <img src="/assets/logo-dark.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] md:w-[640px] opacity-[0.02] pointer-events-none hidden dark:block" alt="">
+      <img src="/assets/logo-light.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] md:w-[640px] opacity-[0.02] pointer-events-none block dark:hidden" alt="">
+
+      <div class="w-px h-10 bg-gradient-to-b from-transparent via-accent to-transparent mx-auto mb-5 relative z-10"></div>
+
+      <p class="text-[10px] md:text-xs font-sans font-bold tracking-[0.2em] uppercase text-gray-400 dark:text-gray-500 mb-2 relative z-10">تواصل العائلة</p>
+
+      <h1 class="text-4xl md:text-6xl font-display leading-tight mb-4 relative z-10 font-bold">
+        <span class="text-primary dark:text-white transition-colors duration-300">مركز</span>
+        <span class="text-accent">الرسائل</span>
+      </h1>
+
+      <p class="text-[14px] md:text-base font-sans text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed relative z-10 font-medium">
+        مساحة منظمة للتواصل بين أفراد العائلة، تجمع بين الشات العام والمحادثات الخاصة بتجربة هادئة وراقية.
+      </p>
+    </section>
+
+    <section class="px-4 sm:px-6 lg:px-8 pb-16 max-w-[90rem] mx-auto relative z-10">
+      <div class="chat-hero p-6 sm:p-8 lg:p-10 mb-8">
+        <div class="absolute inset-0 bg-islamic-pattern-dark opacity-40 pointer-events-none"></div>
+        <div class="chat-hero-frame"></div>
+
+        <div class="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-7">
+          <div class="text-right">
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-accent text-[11px] font-bold tracking-widest mb-4">
+              <span class="material-symbols-outlined text-[16px]">forum</span>
+              مركز التواصل
+            </div>
+
+            <h2 class="text-3xl md:text-5xl font-display font-bold mb-3 leading-tight text-white">
+              الشات العام والمحادثات الخاصة
+            </h2>
+
+            <p class="text-sm md:text-base text-white/75 dark:text-gray-300 font-medium leading-relaxed max-w-2xl">
+              تابع أحاديث العائلة، وابدأ محادثة خاصة مع أي عضو مسجل بسهولة، مع إبراز الرسائل غير المقروءة بوضوح.
+            </p>
+          </div>
+
+          <a href="/chat/public" class="luxury-btn h-14 px-7 rounded-xl bg-accent text-black font-black flex items-center justify-center gap-2 shrink-0">
+            <span class="material-symbols-outlined text-[21px]">forum</span>
+            دخول الشات العام
+          </a>
+        </div>
+      </div>
+
+      <section class="grid grid-cols-1 xl:grid-cols-[1.15fr_.85fr] gap-6 lg:gap-8">
+
+        <div class="chat-panel">
+          <div class="p-5 sm:p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between gap-3">
+            <div>
+              <div class="gold-line mb-3"></div>
+              <h2 class="text-2xl md:text-3xl font-display font-bold text-primary dark:text-white leading-tight">محادثاتي الخاصة</h2>
+              <p class="text-[13px] text-gray-500 dark:text-gray-400 font-bold mt-1">
+                الرسائل غير المقروءة:
+                <span class="text-primary dark:text-accent"><%= unread || 0 %></span>
+              </p>
+            </div>
+
+            <div class="w-12 h-12 rounded-full bg-primary/5 dark:bg-accent/10 border border-primary/10 dark:border-accent/20 text-primary dark:text-accent flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-[25px]">mark_chat_unread</span>
+            </div>
+          </div>
+
+          <div class="py-2">
+            <% if (!threads.length) { %>
+              <div class="p-10 text-center">
+                <div class="w-16 h-16 mx-auto rounded-full bg-primary/5 dark:bg-white/5 border border-primary/10 dark:border-white/10 text-primary dark:text-accent flex items-center justify-center mb-5">
+                  <span class="material-symbols-outlined text-[32px]">chat_bubble</span>
+                </div>
+                <h3 class="text-xl font-display font-bold text-primary dark:text-white mb-2">لا توجد محادثات بعد</h3>
+                <p class="text-[14px] text-gray-500 dark:text-gray-400 font-medium leading-relaxed">اختر عضوًا من القائمة وابدأ الكلام.</p>
+              </div>
+            <% } %>
+
+            <% threads.forEach(t => { %>
+              <a href="/chat/private/<%= t.peer_id %>" class="message-card group">
+                <div class="message-avatar-wrap">
+                  <img
+                    src="<%= t.peer_avatar || '/assets/default-avatar.svg' %>"
+                    onerror="this.src='/assets/default-avatar.svg'"
+                    class="message-avatar"
+                    alt="<%= t.peer_name || 'عضو العائلة' %>"
+                  >
+                  <span class="message-online-dot"></span>
+                </div>
+
+                <div class="min-w-0 flex-1 relative z-[3]">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <h3 class="message-title truncate">
+                      <%= t.peer_name || 'عضو العائلة' %>
+                    </h3>
+
+                    <% if (Number(t.unread_count)>0) { %>
+                      <span class="message-unread">
+                        <%= t.unread_count %>
+                      </span>
+                    <% } %>
+                  </div>
+
+                  <div class="message-preview truncate">
+                    <% if (t.last_type === 'image') { %>
+                      <span class="material-symbols-outlined text-[17px] text-accent">image</span>
+                      <span class="truncate">صورة مرفقة</span>
+                    <% } else if (t.last_type === 'audio') { %>
+                      <span class="material-symbols-outlined text-[17px] text-accent">graphic_eq</span>
+                      <span class="truncate">تسجيل صوتي</span>
+                    <% } else { %>
+                      <span class="material-symbols-outlined text-[17px] text-accent">chat_bubble</span>
+                      <span class="truncate"><%= t.last_body || 'لا توجد رسائل' %></span>
+                    <% } %>
+                  </div>
+                </div>
+
+                <div class="message-action">
+                  <span class="material-symbols-outlined text-[21px] rtl:rotate-180">chevron_left</span>
+                </div>
+              </a>
+            <% }) %>
+          </div>
+        </div>
+
+        <div class="chat-panel">
+          <div class="p-5 sm:p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between gap-3">
+            <div>
+              <div class="gold-line mb-3"></div>
+              <h2 class="text-2xl md:text-3xl font-display font-bold text-primary dark:text-white leading-tight">ابدأ محادثة</h2>
+              <p class="text-[13px] text-gray-500 dark:text-gray-400 font-bold mt-1">اضغط على أي عضو لفتح شات خاص.</p>
+            </div>
+
+            <div class="w-12 h-12 rounded-full bg-primary/5 dark:bg-accent/10 border border-primary/10 dark:border-accent/20 text-primary dark:text-accent flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-[25px]">groups</span>
+            </div>
+          </div>
+
+          <div class="max-h-[690px] overflow-y-auto scrollbar-hide py-2">
+            <% if (!members.length) { %>
+              <div class="p-10 text-center">
+                <div class="w-16 h-16 mx-auto rounded-full bg-primary/5 dark:bg-white/5 border border-primary/10 dark:border-white/10 text-primary dark:text-accent flex items-center justify-center mb-5">
+                  <span class="material-symbols-outlined text-[32px]">person_off</span>
+                </div>
+                <h3 class="text-xl font-display font-bold text-primary dark:text-white mb-2">لا يوجد أعضاء متاحون</h3>
+                <p class="text-[14px] text-gray-500 dark:text-gray-400 font-medium leading-relaxed">سيظهر الأعضاء هنا عند إتاحتها.</p>
+              </div>
+            <% } %>
+
+            <% members.forEach(m => { %>
+              <a href="/chat/private/<%= m.id %>" class="member-card flex items-center gap-3 group">
+                <div class="message-avatar-wrap !w-12 !h-12 !p-[2px]">
+                  <img
+                    src="<%= m.avatar_url || '/assets/default-avatar.svg' %>"
+                    onerror="this.src='/assets/default-avatar.svg'"
+                    class="message-avatar"
+                    alt="<%= m.full_name || 'عضو العائلة' %>"
+                  >
+                </div>
+
+                <div class="min-w-0 flex-1">
+                  <h3 class="font-black truncate text-gray-900 dark:text-white group-hover:text-primary dark:group-hover:text-accent transition-colors">
+                    <%= m.full_name || 'عضو العائلة' %>
+                  </h3>
+                  <p class="text-xs text-gray-500 dark:text-gray-400 truncate font-medium mt-0.5">
+                    <%= m.current_residence || m.father_name || 'عضو مسجل' %>
+                  </p>
+                </div>
+
+                <span class="w-9 h-9 rounded-full bg-primary/5 dark:bg-accent/10 text-primary dark:text-accent flex items-center justify-center border border-primary/10 dark:border-accent/15 group-hover:bg-accent group-hover:text-black group-hover:border-accent transition-all">
+                  <span class="material-symbols-outlined text-[20px]">chat</span>
+                </span>
+              </a>
+            <% }) %>
+          </div>
+        </div>
+
+      </section>
+    </section>
+  </main>
+
+  <footer class="bg-background-light dark:bg-[#050505] border-t border-gray-200 dark:border-white/5 mt-auto py-8 relative z-10">
+    <div class="max-w-[90rem] mx-auto px-6 text-center flex flex-col items-center gap-3">
+      <p class="text-[11px] font-sans font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest">
+        © ٢٠٢٦ وقف عائلة خاشقجي. جميع الحقوق محفوظة. حفظ الأنساب والاحتفاء بالتراث.
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      const btn = document.getElementById("uiThemeBtn");
+
+      function applyTheme(next) {
+        document.documentElement.setAttribute("data-theme", next);
+        document.documentElement.classList.toggle("dark", next === "dark");
+        localStorage.setItem("theme", next);
+      }
+
+      btn?.addEventListener("click", () => {
+        const current = document.documentElement.getAttribute("data-theme") || "dark";
+        applyTheme(current === "dark" ? "light" : "dark");
+      });
+
+      applyTheme(localStorage.getItem("theme") || "dark");
+    })();
+
+    (function mobileNavInit(){
+      const btn = document.getElementById("mobileNavBtn");
+      const navDrawer = document.getElementById("mobileNavDrawer");
+      const overlay = document.getElementById("mobileNavOverlay");
+      const closeBtn = document.getElementById("mobileNavClose");
+
+      function setOpenState(isOpen){
+        btn?.setAttribute("data-open", isOpen ? "true" : "false");
+        btn?.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      }
+
+      function openNav(){
+        overlay?.classList.remove("hidden");
+        overlay?.style.setProperty("display", "block", "important");
+        navDrawer?.classList.add("isOpen");
+        setOpenState(true);
+        document.body.classList.add("overflow-hidden");
+      }
+
+      function closeNav(){
+        navDrawer?.classList.remove("isOpen");
+        overlay?.classList.add("hidden");
+        overlay?.style.setProperty("display", "none", "important");
+        setOpenState(false);
+        document.body.classList.remove("overflow-hidden");
+      }
+
+      btn?.addEventListener("click", () => {
+        const open = btn.getAttribute("data-open") === "true";
+        open ? closeNav() : openNav();
+      });
+
+      closeBtn?.addEventListener("click", closeNav);
+      overlay?.addEventListener("click", closeNav);
+      navDrawer?.querySelectorAll("a").forEach(a => a.addEventListener("click", closeNav));
+      window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNav(); });
+
+      setOpenState(false);
+    })();
+  </script>
+
+  <script src="/chat-notifications.js"></script>
+</body>
+</html>

@@ -1,22 +1,248 @@
-<header class="topbar">
-  <div class="brand">
-    <img class="brandLogo" src="/assets/logo.png" alt="شعار العائلة" />
-    <div class="brandText">
-      <div class="title"><%= pageTitle || "شجرة العائلة" %></div>
-      <div class="subtitle"><%= pageSubtitle || "" %></div>
+<!-- إعدادات وأنماط القائمة الجانبية (تعمل في كل الصفحات المضمنة) -->
+<style>
+  #mobileNavDrawer {
+    transform: translateX(110%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform;
+  }
+  #mobileNavDrawer.isOpen {
+    transform: translateX(0);
+  }
+  body.nav-open {
+    overflow: hidden;
+  }
+</style>
+
+<!-- الخلفية المظللة للقائمة الجانبية (تظهر فقط في الجوال) -->
+<div id="mobileNavOverlay" class="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] hidden transition-opacity duration-300 opacity-0" aria-hidden="true"></div>
+
+<!-- القائمة الجانبية المخصصة للهاتف (تظهر فقط في الجوال) -->
+<aside id="mobileNavDrawer" class="lg:hidden fixed top-0 right-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-bg-charcoal border-l border-gray-100 dark:border-white/5 shadow-2xl z-[90] flex flex-col">
+  <div class="h-1.5 w-full bg-gradient-to-r from-gray-300 via-accent to-gray-300 dark:from-gray-800 dark:via-accent dark:to-gray-800"></div>
+  
+  <div class="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/5">
+    <img class="h-10 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+    <img class="h-10 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+    <button id="mobileNavClose" class="text-gray-400 hover:text-accent transition-colors" type="button" aria-label="إغلاق القائمة">
+      <span class="material-symbols-outlined text-[26px]">close</span>
+    </button>
+  </div>
+  
+  <nav class="p-6 flex flex-col gap-2 text-base font-semibold flex-grow text-gray-600 dark:text-gray-400 overflow-y-auto" aria-label="قائمة الجوال">
+    <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'tree' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/">الشجرة</a>
+    <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'about' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/about">نبذة عن العائلة</a>
+    <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'honor' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/honor">السير الذاتية</a>
+    <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'news' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/news">أخبار العائلة</a>
+    <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'tree-pdf' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/tree-pdf">المشجرة</a>
+    <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'kinship' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/kinship">صلة القرابة</a>
+    
+    <div class="my-3 h-px bg-gray-100 dark:bg-white/5"></div>
+    
+    <a class="px-4 py-3 rounded-xl transition-colors hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent" href="/submit-person">إضافة بياناتك</a>
+    <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'members' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/family-members">أعضاء العائلة</a>
+    <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'chat' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/chat">الشات العام</a>
+    
+    <% if (typeof siteUser !== "undefined" && siteUser) { %>
+      <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'account' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/account">حسابي</a>
+    <% } %>
+    
+    <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'support' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/support">الدعم</a>
+  </nav>
+  
+  <div class="p-6 border-t border-gray-100 dark:border-white/5 bg-white/50 dark:bg-black/20">
+    <div class="grid grid-cols-1 gap-3">
+      <a href="/admin/login" class="flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-xl hover:opacity-90 transition-all shadow-sm font-bold text-sm" title="لوحة الإدارة">
+        <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+        <span>لوحة الإدارة</span>
+      </a>
     </div>
   </div>
+</aside>
 
-  <nav class="topnav" aria-label="التنقل الرئيسي">
-    <a class="navLink <%= active === 'tree' ? 'active' : '' %>" href="/">الشجرة</a>
-    <a class="navLink <%= active === 'about' ? 'active' : '' %>" href="/about">نبذة</a>
-    <a class="navLink <%= active === 'honor' ? 'active' : '' %>" href="/honor">قائمة الشرف</a>
-    <a class="navLink <%= active === 'tree-pdf' ? 'active' : '' %>" href="/tree-pdf">شجرة PDF</a>
-    <a class="navLink <%= active === 'support' ? 'active' : '' %>" href="/support">الدعم</a>
-  </nav>
+<!-- الترويسة الرئيسية الزجاجية -->
+<header class="sticky top-0 z-50 w-full glass-panel border-b-0 transition-colors duration-400">
+  <div class="max-w-[90rem] mx-auto px-5 sm:px-8 py-3 flex justify-between items-center h-20 md:h-24">
+    
+    <div class="flex items-center gap-3 xl:gap-4 shrink-0">
+      <a href="/" class="block shrink-0 transition-transform hover:scale-105 duration-300">
+        <img class="h-10 md:h-12 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+        <img class="h-10 md:h-12 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+      </a>
+      
+      <div class="h-7 w-px bg-gray-200 dark:bg-white/10 hidden sm:block"></div>
+      
+      <div class="hidden sm:flex flex-col justify-center min-w-0">
+         <h1 class="text-lg md:text-xl font-display text-primary dark:text-accent font-bold leading-tight pt-1 truncate max-w-[180px]"><%= typeof pageTitle !== 'undefined' && pageTitle ? pageTitle : "شجرة العائلة" %></h1>
+         <span class="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5 truncate max-w-[180px]"><%= typeof pageSubtitle !== 'undefined' && pageSubtitle ? pageSubtitle : "حفظ الأنساب" %></span>
+      </div>
+    </div>
 
-  <div class="actions">
-    <button id="themeToggle" class="adminBtn" type="button">الوضع: داكن</button>
-    <a class="adminBtn" href="/admin/login">لوحة الإدارة</a>
+    <!-- التنقل الرئيسي لأجهزة الديسكتوب -->
+    <nav class="hidden lg:flex flex-1 justify-center gap-2 lg:gap-3 xl:gap-5 items-center font-sans font-semibold text-[11px] xl:text-[13px] tracking-wide text-gray-500 dark:text-gray-400 overflow-x-auto scrollbar-hide px-2 xl:px-4 flex-nowrap" aria-label="التنقل الرئيسي">
+      <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'tree' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/">الشجرة</a>
+      <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'about' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/about">نبذة عن العائلة</a>
+      <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'honor' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/honor">السير الذاتية</a>
+      <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'news' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/news">أخبار العائلة</a>
+      <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'tree-pdf' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/tree-pdf">المشجرة</a>
+      <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'kinship' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/kinship">صلة القرابة</a>
+      <a class="whitespace-nowrap shrink-0 transition-colors duration-200 hover:text-primary dark:hover:text-accent" href="/submit-person">إضافة بياناتك</a>
+      <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'members' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/family-members">أعضاء العائلة</a>
+      <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'chat' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/chat">الشات العام</a>
+      <% if (typeof siteUser !== "undefined" && siteUser) { %>
+        <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'account' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/account">حسابي</a>
+      <% } %>
+    </nav>
+
+    <!-- أزرار الإجراءات الجانبية -->
+    <div class="flex items-center justify-end gap-2 shrink-0">
+      
+      <!-- زر تبديل المظهر -->
+      <button id="uiThemeBtn" aria-label="تبديل المظهر" class="flex items-center justify-center w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-accent dark:hover:text-accent hover:bg-accent/5 transition-all duration-300" type="button" title="تبديل المظهر">
+        <span class="material-symbols-outlined text-[22px] dark:hidden">dark_mode</span>
+        <span class="material-symbols-outlined text-[22px] hidden dark:inline">light_mode</span>
+      </button>
+
+      <a href="/admin/login" class="hidden sm:flex w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-accent hover:bg-primary/5 dark:hover:bg-accent/5 transition-all duration-300 items-center justify-center" title="لوحة الإدارة">
+        <span class="material-symbols-outlined text-[22px]">admin_panel_settings</span>
+      </a>
+
+      <!-- زر فتح قائمة الهاتف -->
+      <button id="mobileNavBtn" class="lg:hidden flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-primary dark:text-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-all duration-200" type="button" aria-label="فتح القائمة">
+        <span class="material-symbols-outlined text-[24px] ico-open">menu</span>
+        <span class="material-symbols-outlined text-[24px] ico-close hidden">close</span>
+      </button>
+    </div>
   </div>
 </header>
+
+<!-- سكربتات الهيدر الوظيفية الشاملة -->
+<script>
+  // 1. سكربت تفعيل الوضع الفاتح والداكن الشامل
+  document.addEventListener('DOMContentLoaded', () => {
+    const themeBtn = document.getElementById("uiThemeBtn");
+    
+    if (themeBtn && !themeBtn.dataset.bound) {
+      themeBtn.dataset.bound = true;
+      themeBtn.addEventListener("click", () => {
+        const isDark = document.documentElement.classList.contains("dark");
+        const nextTheme = isDark ? "light" : "dark";
+        
+        document.documentElement.classList.toggle("dark", nextTheme === "dark");
+        document.documentElement.setAttribute("data-theme", nextTheme);
+        localStorage.setItem("theme", nextTheme);
+        
+        // إرسال حدث ليتفاعل معه أي سكربت خارجي (مثل مشجرة D3)
+        window.dispatchEvent(new CustomEvent("family-theme-changed", { 
+          detail: { theme: nextTheme }
+        }));
+      });
+    }
+  });
+
+  // 2. سكربت التحكم بالقائمة الجانبية للهاتف
+  (function mobileNavInit(){
+    const btn = document.getElementById("mobileNavBtn");
+    const navDrawer = document.getElementById("mobileNavDrawer");
+    const overlay = document.getElementById("mobileNavOverlay");
+    const closeBtn = document.getElementById("mobileNavClose");
+
+    function setOpenState(isOpen){
+      btn?.setAttribute("data-open", isOpen ? "true" : "false");
+    }
+
+    function openNav(){
+      overlay?.classList.remove("hidden");
+      // تأخير بسيط لإعطاء تأثير الظهور للمظلة
+      setTimeout(() => overlay?.classList.remove("opacity-0"), 10);
+      navDrawer?.classList.add("isOpen");
+      setOpenState(true);
+      document.body.classList.add("nav-open");
+    }
+
+    function closeNav(){
+      navDrawer?.classList.remove("isOpen");
+      overlay?.classList.add("opacity-0");
+      setTimeout(() => overlay?.classList.add("hidden"), 300);
+      setOpenState(false);
+      document.body.classList.remove("nav-open");
+    }
+
+    btn?.addEventListener("click", () => {
+      const isOpen = btn.getAttribute("data-open") === "true";
+      isOpen ? closeNav() : openNav();
+    });
+
+    closeBtn?.addEventListener("click", closeNav);
+    overlay?.addEventListener("click", closeNav);
+    
+    // إغلاق القائمة عند النقر على أي رابط بداخلها
+    navDrawer?.querySelectorAll("a").forEach(a => a.addEventListener("click", closeNav));
+    
+    window.addEventListener("keydown", (e) => { 
+      if (e.key === "Escape" && btn?.getAttribute("data-open") === "true") closeNav(); 
+    });
+
+    setOpenState(false);
+  })();
+
+  // 3. سكربت الإشعارات الخاص بالشات
+  (function(){
+    if (window.__familyChatNotifyLoaded) return;
+    window.__familyChatNotifyLoaded = true;
+    
+    function addBadge(link, unread){
+      if(!link || link.dataset.chatBadgeReady === '1') return;
+      link.dataset.chatBadgeReady = '1';
+      if(getComputedStyle(link).position === 'static') link.style.position = 'relative';
+      
+      const badge = document.createElement('span');
+      badge.className = 'family-chat-unread-badge';
+      badge.style.cssText = 'position:absolute;top:-6px;left:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;font-weight:900;line-height:20px;text-align:center;box-shadow:0 6px 16px rgba(0,0,0,.22);z-index:10;display:none';
+      badge.textContent = unread > 99 ? '99+' : String(unread);
+      link.appendChild(badge);
+    }
+    
+    function showToast(unread){
+      if(!unread || location.pathname.startsWith('/chat')) return;
+      const key = 'family-chat-unread-toast-count';
+      if(sessionStorage.getItem(key) === String(unread)) return;
+      sessionStorage.setItem(key, String(unread));
+      
+      const toast = document.createElement('a');
+      toast.href = '/chat';
+      toast.textContent = `لديك ${unread} رسالة جديدة`;
+      toast.style.cssText = 'position:fixed;bottom:22px;left:22px;z-index:9999;background:#005A2B;color:#fff;padding:14px 18px;border-radius:18px;font-family:Tajawal,Arial,sans-serif;font-weight:900;box-shadow:0 16px 38px rgba(0,0,0,.24);text-decoration:none';
+      document.body.appendChild(toast);
+      
+      setTimeout(() => { 
+        toast.style.opacity='0'; 
+        toast.style.transform='translateY(8px)'; 
+        toast.style.transition='all .35s ease'; 
+        setTimeout(() => toast.remove(), 400); 
+      }, 6500);
+    }
+    
+    async function refreshUnread(){
+      try {
+        const r = await fetch('/api/chat/unread-count', {cache:'no-store'});
+        const data = await r.json();
+        if(!data.ok) return;
+        const unread = Number(data.unread || 0);
+        
+        document.querySelectorAll('a[href="/chat"]').forEach(link => addBadge(link, unread));
+        document.querySelectorAll('.family-chat-unread-badge').forEach(badge => {
+          badge.textContent = unread > 99 ? '99+' : String(unread);
+          badge.style.display = unread > 0 ? 'inline-block' : 'none';
+        });
+        showToast(unread);
+      } catch(e){}
+    }
+    
+    if(document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', refreshUnread);
+    } else {
+      refreshUnread();
+    }
+    setInterval(refreshUnread, 30000);
+  })();
+</script>

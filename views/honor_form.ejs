@@ -68,10 +68,11 @@
     /* شبكة العائلة التفاعلية في الخلفية */
     #nexusCanvas {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      z-index: 0; pointer-events: auto;
+      z-index: 0; pointer-events: none;
     }
 
     /* إعدادات أيقونات المظهر */
+    html.theme-switching, html.theme-switching *, html.theme-switching *::before, html.theme-switching *::after { transition: none !important; animation: none !important; }
     html.dark .dark-toggle-icon-moon { display: none; }
     html:not(.dark) .dark-toggle-icon-sun { display: none; }
 
@@ -156,6 +157,11 @@
 
       <div class="space-y-2">
         <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والصلاحيات</p>
+        <% if (typeof userCan === "function" && userCan("users")) { %>
+        <a href="/admin/users" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">groups</span> مستخدمي الموقع
+        </a>
+        <% } %>
         <% if (typeof userCan === "function" && userCan("roles")) { %>
         <a href="/admin/roles" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
           
@@ -181,7 +187,7 @@
 
     <div class="p-4 border-t border-border-light dark:border-border-dark shrink-0 m-2 rounded-2xl bg-white/50 dark:bg-black/30">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-full bg-cover bg-center border border-gray-200 dark:border-white/10 shadow-sm" style="background-image:url('/assets/default-avatar.png'); background-color: #ddd;"></div>
+        <div class="w-10 h-10 rounded-full bg-cover bg-center border border-gray-200 dark:border-white/10 shadow-sm" style="background-image:url('/assets/default-avatar.svg'); background-color: #ddd;"></div>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-bold text-gray-900 dark:text-white truncate"><%= locals.admin?.username || "مدير النظام" %></p>
           <p class="text-[10px] text-primary dark:text-accent uppercase tracking-widest mt-0.5 font-bold">Admin</p>
@@ -304,7 +310,7 @@
             <div class="flex flex-col gap-4">
               <label class="block text-xs font-bold text-gray-500 dark:text-accent uppercase tracking-widest mb-0 block">معاينة الصورة</label>
               <div class="w-full aspect-[3/4] rounded-2xl overflow-hidden border-2 border-border-light dark:border-border-dark bg-white/50 dark:bg-black/30 shadow-sm p-2">
-                <img id="photoPreview" src="<%= item?.photo_url || '/images/default.png' %>" alt="معاينة الصورة" class="w-full h-full object-cover rounded-xl" onerror="this.src='/images/default.png'"/>
+                <img loading="lazy" decoding="async" id="photoPreview" src="<%= item?.photo_url || '/assets/default-avatar.svg' %>" alt="معاينة الصورة" class="w-full h-full object-cover rounded-xl" onerror="this.src='/assets/default-avatar.svg'"/>
               </div>
               
               <div class="flex flex-col gap-2">
@@ -394,6 +400,11 @@
     </div>
     <div class="space-y-2 mt-4">
       <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والصلاحيات</p>
+        <% if (typeof userCan === "function" && userCan("users")) { %>
+        <a href="/admin/users" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">groups</span> مستخدمي الموقع
+        </a>
+        <% } %>
       <% if (typeof userCan === "function" && userCan("roles")) { %>
     <a href="/admin/roles" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_accounts</span> وظائف الأفراد</a>
       <% } %>
@@ -422,10 +433,12 @@
   (function () {
     const btn = document.getElementById("themeBtn");
     function setTheme(next) {
+      document.documentElement.classList.add("theme-switching");
       document.documentElement.setAttribute("data-theme", next);
       document.documentElement.classList.toggle("dark", next === "dark");
       localStorage.setItem("theme", next);
       if(window.initNexus) window.initNexus();
+      requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove("theme-switching")));
     }
     btn?.addEventListener("click", () => {
       const cur = document.documentElement.getAttribute("data-theme") || "dark";
@@ -460,7 +473,7 @@
 
     function updatePreview(url) {
       if (!preview) return;
-      preview.src = (url && String(url).trim()) ? String(url).trim() : "/images/default.png";
+      preview.src = (url && String(url).trim()) ? String(url).trim() : "/assets/default-avatar.svg";
     }
 
     uploadBtn?.addEventListener("click", () => fileInput?.click());
@@ -509,11 +522,12 @@
     const fillBtn = document.getElementById("fillFromPersonBtn");
 
     const currentPersonId = String(personIdInput?.value || "").trim();
+    const SERVER_PERSONS = <%- JSON.stringify((typeof persons !== "undefined" && Array.isArray(persons)) ? persons : []).replace(/</g, "\\u003c") %>;
 
     function updatePhoto(url) {
       const clean = String(url || "").trim();
       if (photoUrlInput) photoUrlInput.value = clean;
-      if (photoPreview) photoPreview.src = clean || "/images/default.png";
+      if (photoPreview) photoPreview.src = clean || "/assets/default-avatar.svg";
     }
 
     function flattenTree(root) {
@@ -527,39 +541,66 @@
       return list;
     }
 
+    function addPersonOptions(list) {
+      if (!select) return;
+      const seen = new Set();
+
+      (list || []).forEach((p) => {
+        if (!p || !p.id || seen.has(String(p.id))) return;
+        seen.add(String(p.id));
+
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = `${p.name || p.full_name || "بدون اسم"}${p.birth_date ? " — " + p.birth_date : ""}`;
+        opt.dataset.name = p.name || p.full_name || "";
+        opt.dataset.photo = p.photo_url || p.avatar_url || "";
+        opt.dataset.job = p.job || p.work || "";
+        opt.dataset.shortBio = p.short_bio || p.bio || "";
+        opt.dataset.notes = p.notes || p.achievement || "";
+        opt.dataset.birthDate = p.birth_date || "";
+        opt.dataset.deathDate = p.death_date || "";
+        opt.dataset.birthPlace = p.birth_place || p.origin_place || "";
+        select.appendChild(opt);
+      });
+    }
+
     async function loadPersons() {
       if (!select) return;
 
-      try {
-        const res = await fetch("/api/tree");
-        if (!res.ok) throw new Error("tree failed");
-        const root = await res.json();
-        const persons = flattenTree(root);
+      select.innerHTML = `<option value="">— بدون ربط مباشر —</option>`;
 
-        persons.forEach((p) => {
-          const opt = document.createElement("option");
-          opt.value = p.id;
-          opt.textContent = `${p.name || "بدون اسم"}${p.birth_date ? " — " + p.birth_date : ""}`;
-          opt.dataset.name = p.name || "";
-          opt.dataset.photo = p.photo_url || "";
-          opt.dataset.job = p.job || "";
-          opt.dataset.shortBio = p.short_bio || "";
-          opt.dataset.notes = p.notes || "";
-          opt.dataset.birthDate = p.birth_date || "";
-          opt.dataset.deathDate = p.death_date || "";
-          opt.dataset.birthPlace = p.birth_place || "";
-          select.appendChild(opt);
-        });
+      try {
+        let persons = Array.isArray(SERVER_PERSONS) ? SERVER_PERSONS : [];
+
+        // الأفضل: القائمة تأتي مباشرة من السيرفر حتى لا تعتمد صفحة التعديل على /api/tree فقط.
+        // fallback: لو السيرفر لم يرسل persons، نحاول تحميل الشجرة القديمة.
+        if (!persons.length) {
+          const res = await fetch("/api/tree");
+          if (!res.ok) throw new Error("tree failed");
+          const root = await res.json();
+          persons = Array.isArray(root) ? root : flattenTree(root);
+        }
+
+        addPersonOptions(persons);
 
         if (currentPersonId) {
+          const exists = Array.from(select.options).some((opt) => String(opt.value) === String(currentPersonId));
+          if (!exists) {
+            const opt = document.createElement("option");
+            opt.value = currentPersonId;
+            opt.textContent = `الشخص المرتبط حاليًا #${currentPersonId}`;
+            select.appendChild(opt);
+          }
           select.value = currentPersonId;
           if (hint) {
             hint.innerHTML = `الربط الحالي: <span class="text-primary dark:text-accent font-bold">#${currentPersonId}</span>`;
           }
+        } else if (hint) {
+          hint.innerHTML = `اختر فردًا من الشجرة لربطه بالسيرة، أو اتركها بدون ربط.`;
         }
       } catch (err) {
         if (hint) {
-          hint.textContent = "تعذر تحميل قائمة الأشخاص من الشجرة.";
+          hint.textContent = "تعذر تحميل قائمة الأشخاص. تأكد أن راوت /api/tree يعمل أو أرسل persons من راوت التعديل.";
         }
       }
     }
@@ -614,7 +655,7 @@
     
     let width, height;
     let particles = [];
-    const numParticles = window.innerWidth > 1024 ? 130 : 70; 
+    const numParticles = window.innerWidth > 1024 ? 42 : 18; 
     
     let mouseX = -1000;
     let mouseY = -1000;
@@ -668,17 +709,14 @@
         const dyMouse = mouseY - p.y;
         const distMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
 
-        if (distMouse < 230) {
+        if (distMouse < 130) {
           ctx.beginPath();
           ctx.moveTo(p.x, p.y);
           ctx.lineTo(mouseX, mouseY);
-          const opacity = 0.6 * (1 - distMouse / 230);
+          const opacity = 0.6 * (1 - distMouse / 130);
           ctx.strokeStyle = `rgba(${connectionColor}, ${opacity})`;
           ctx.lineWidth = 1;
           ctx.stroke();
-          
-          p.x += dxMouse * 0.014;
-          p.y += dyMouse * 0.014;
         }
 
         for (let j = i + 1; j < numParticles; j++) {
@@ -687,7 +725,7 @@
           const dy = p.y - p2.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
 
-          if (dist < 165) {
+          if (dist < 95) {
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(p2.x, p2.y);

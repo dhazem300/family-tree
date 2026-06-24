@@ -109,6 +109,78 @@ db.serialize(() => {
     )
   `);
 
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS site_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      full_name TEXT,
+      father_name TEXT,
+      mother_name TEXT,
+      children_count INTEGER,
+      birth_date TEXT,
+      origin_place TEXT,
+      current_residence TEXT,
+      email TEXT UNIQUE,
+      phone TEXT,
+      phone_alt TEXT,
+      country TEXT,
+      city TEXT,
+      work TEXT,
+      qualification TEXT,
+      spouse_family TEXT,
+      spouse_name TEXT,
+      facebook_url TEXT,
+      instagram_url TEXT,
+      x_url TEXT,
+      linkedin_url TEXT,
+      matched_person_id INTEGER,
+      password_hash TEXT,
+      provider TEXT DEFAULT 'email',
+      provider_id TEXT,
+      avatar_url TEXT,
+      is_active INTEGER DEFAULT 1,
+      login_count INTEGER DEFAULT 0,
+      last_login_at TEXT,
+      last_seen_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_site_users_email ON site_users(LOWER(email)) WHERE email IS NOT NULL AND TRIM(email) <> ''`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_site_users_provider ON site_users(provider, provider_id)`);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS site_user_activity_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      action TEXT,
+      path TEXT,
+      method TEXT,
+      details TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`CREATE INDEX IF NOT EXISTS idx_site_user_activity_user ON site_user_activity_logs(user_id, created_at)`);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS site_profile_views (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      profile_user_id INTEGER NOT NULL,
+      viewer_user_id INTEGER,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`CREATE INDEX IF NOT EXISTS idx_site_profile_views_profile ON site_profile_views(profile_user_id, created_at)`);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_site_profile_views_viewer ON site_profile_views(viewer_user_id, created_at)`);
+
+
   db.run(`
     CREATE TABLE IF NOT EXISTS persons (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

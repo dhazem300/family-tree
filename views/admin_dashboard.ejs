@@ -126,6 +126,7 @@
       .w-12.h-12 { width: 44px !important; height: 44px !important; }
       table { font-size: 12px !important; }
     }
+    html.theme-switching, html.theme-switching *, html.theme-switching *::before, html.theme-switching *::after { transition: none !important; animation: none !important; }
 </style>
 
   <style>
@@ -136,7 +137,7 @@
 
     #nexusCanvas {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      z-index: 0; pointer-events: auto;
+      z-index: 0; pointer-events: none;
     }
 
     html.dark .dark-toggle-icon-moon { display: none; }
@@ -220,6 +221,11 @@
           
           <span class="material-symbols-outlined text-[22px]">newspaper</span> الأخبار والمناسبات
         </a>
+        <% if (typeof userCan === "function" && userCan("users")) { %>
+        <a href="/admin/users" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">groups</span> مستخدمي الموقع
+        </a>
+        <% } %>
         <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
           
           <span class="material-symbols-outlined text-[22px]">mail</span> رسائل الدعم
@@ -228,6 +234,11 @@
 
       <div class="space-y-2">
         <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والصلاحيات</p>
+        <% if (typeof userCan === "function" && userCan("users")) { %>
+        <a href="/admin/users" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">groups</span> مستخدمي الموقع
+        </a>
+        <% } %>
         <% if (typeof userCan === "function" && userCan("roles")) { %>
         <a href="/admin/roles" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
           
@@ -249,7 +260,7 @@
           <span class="material-symbols-outlined text-[22px]">account_tree</span> عرض الشجرة
         </a>
       </div>
-    </nav>
+    <a href="/admin/approvals" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent"><span class="material-symbols-outlined">fact_check</span> مركز الموافقات</a><a href="/admin/backups" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent"><span class="material-symbols-outlined">backup</span> النسخ الاحتياطي</a></nav>
 
     <div class="p-4 border-t border-border-light dark:border-border-dark shrink-0 m-2 rounded-2xl bg-white/50 dark:bg-black/30">
       <div class="flex items-center gap-3">
@@ -339,6 +350,12 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6">
           <% const metrics = [
+            { label: 'صفحات الموقع', value: dashboard.pagesTotal || 0, icon: 'history_edu', box: 'bg-lime-100 dark:bg-lime-500/15 text-lime-700 dark:text-lime-300', url: '/admin/pages' },
+            { label: 'المحطات التاريخية', value: dashboard.timelineTotal || 0, icon: 'timeline', box: 'bg-stone-100 dark:bg-stone-500/15 text-stone-700 dark:text-stone-300', url: '/admin/pages' },
+            { label: 'حسابات الموقع', value: dashboard.siteUsersTotal || 0, icon: 'groups', box: 'bg-indigo-100 dark:bg-indigo-500/15 text-indigo-700 dark:text-indigo-300', url: '/admin/users' },
+            { label: 'المحادثات والرسائل', value: dashboard.chatMessagesTotal || 0, icon: 'forum', box: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300', url: '/admin/chats' },
+            { label: 'طلبات الموافقة', value: dashboard.pendingApprovalsTotal || 0, icon: 'fact_check', box: 'bg-fuchsia-100 dark:bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300', url: '/admin/approvals' },
+            { label: 'سجل تصدير الشجرة', value: dashboard.treeExportsTotal || 0, icon: 'download', box: 'bg-copper-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300', url: '/admin/tree-exports' },
             { label: 'الأسماء المكررة', value: s.repeatedCount || 0, icon: 'content_copy', box: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300', url: '/admin/person-stats#duplicate-names' },
             { label: 'عدد الذكور', value: s.males || 0, icon: 'man', box: 'bg-sky-100 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300' },
             { label: 'عدد الإناث', value: s.females || 0, icon: 'woman', box: 'bg-pink-100 dark:bg-pink-500/15 text-pink-700 dark:text-pink-300' },
@@ -490,10 +507,18 @@
     <a href="/admin/pages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">history_edu</span> إدارة الصفحات</a>
     <a href="/admin/honor" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">workspace_premium</span> السير الذاتية</a>
     <a href="/admin/news" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">newspaper</span> الأخبار والمناسبات</a>
+    <% if (typeof userCan === "function" && userCan("users")) { %>
+    <a href="/admin/users" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">groups</span> مستخدمي الموقع</a>
+    <% } %>
     <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">mail</span> رسائل الدعم</a>
     </div>
     <div class="space-y-2 mt-4">
       <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والصلاحيات</p>
+        <% if (typeof userCan === "function" && userCan("users")) { %>
+        <a href="/admin/users" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">groups</span> مستخدمي الموقع
+        </a>
+        <% } %>
       <% if (typeof userCan === "function" && userCan("roles")) { %>
     <a href="/admin/roles" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_accounts</span> وظائف الأفراد</a>
       <% } %>
@@ -549,7 +574,7 @@
       if(!canvas) return;
       const ctx = canvas.getContext('2d');
       let width, height, particles = [];
-      const numParticles = window.innerWidth > 1024 ? 110 : 60;
+      const numParticles = window.innerWidth > 1024 ? 42 : 18;
       let mouseX = -1000, mouseY = -1000;
       let dotColor, lineColor, connectionColor;
 

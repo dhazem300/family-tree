@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>إرسال بيانات فرد للمراجعة</title>
+  <title>إرسال بيانات فرد للمراجعة - شجرة العائلة</title>
   
   <script src="/theme.js"></script>
   <link rel="stylesheet" href="/styles.css" />
@@ -44,6 +44,11 @@
           },
           backgroundImage: {
             "islamic-pattern": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+            "islamic-pattern-dark": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
+          },
+          boxShadow: {
+            'luxury': '0 20px 40px -10px rgba(0,0,0,0.05), 0 0 20px rgba(229,184,105,0.03)',
+            'luxury-dark': '0 20px 40px -10px rgba(0,0,0,0.4), 0 0 20px rgba(229,184,105,0.05)',
           }
         }
       }
@@ -51,38 +56,55 @@
   </script>
 
   <!-- توحيد الستايلات المخصصة -->
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .glass-panel {
+        @apply bg-white/85 dark:bg-[#080808]/85 backdrop-blur-xl border border-accent-gold/20 shadow-luxury dark:shadow-luxury-dark;
+      }
+    }
+  </style>
+
   <style>
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #E5B869; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: rgba(229, 184, 105, 0.4); border-radius: 4px; transition: background 0.3s; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(229, 184, 105, 0.8); }
 
     html.dark .dark-toggle-icon-moon { display: none; } 
     html:not(.dark) .dark-toggle-icon-sun { display: none; }
-    .mobile-nav-hidden { display: none; }
-    .mobile-nav-open { display: block; }
-    #mobileNavDrawer { transform: translateX(-115%); transition: transform .3s cubic-bezier(.2,.9,.2,1); }
+    
+    #mobileNavOverlay.hidden { display: none; }
+    #mobileNavOverlay { display: block; }
+    #mobileNavDrawer { transform: translateX(-110%); transition: transform .3s cubic-bezier(.2,.9,.2,1); }
     #mobileNavDrawer.isOpen { transform: translateX(0); }
+    #mobileNavBtn[data-open="true"] .ico-open { display: none; }
+    #mobileNavBtn[data-open="true"] .ico-close { display: inline; }
+    #mobileNavBtn[data-open="false"] .ico-open { display: inline; }
+    #mobileNavBtn[data-open="false"] .ico-close { display: none; }
 
     /* توحيد حقول الإدخال لتلائم الهوية الفاخرة */
     .field {
-      width: 100%; border-radius: 0.75rem; border: 1px solid #D1D5DB; background: transparent; 
-      padding: 0.875rem 1rem; font-weight: 700; outline: none; color: inherit; transition: all 0.3s ease;
+      width: 100%; border-radius: 12px; border: 1px solid rgba(229, 184, 105, 0.2); background: rgba(255, 255, 255, 0.5); 
+      padding: 12px 16px; font-weight: 500; font-family: "Tajawal", sans-serif; outline: none; color: #111827; transition: all 0.3s ease;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
     }
     .field::placeholder { color: #9CA3AF; }
-    .field:focus { border-color: #E5B869; box-shadow: 0 0 0 4px rgba(229, 184, 105, 0.15); ring: 1px solid #E5B869; }
+    .field:focus { background: #FFFFFF; border-color: #E5B869; box-shadow: 0 0 0 2px rgba(229, 184, 105, 0.1); }
     
-    html.dark .field { background: rgba(0,0,0,0.5); border-color: #374151; color: #fff; }
+    html.dark .field { background: rgba(10, 10, 10, 0.5); border-color: rgba(255, 255, 255, 0.05); color: #FAFAFA; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
     html.dark .field::placeholder { color: #6B7280; }
-    html.dark .field:focus { border-color: #E5B869; box-shadow: 0 0 0 4px rgba(229, 184, 105, 0.2); }
+    html.dark .field:focus { background: #0A0A0A; border-color: #E5B869; box-shadow: 0 0 0 2px rgba(229, 184, 105, 0.15); }
 
     /* توحيد كروت الأقسام (Glassmorphism) */
     .section-card {
-      background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(229, 184, 105, 0.2); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.1);
+      background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(229, 184, 105, 0.2); box-shadow: 0 20px 40px -10px rgba(0,0,0,0.05), 0 0 20px rgba(229,184,105,0.03);
     }
     html.dark .section-card {
-      background: rgba(10, 10, 10, 0.8); border-color: rgba(255, 255, 255, 0.1);
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+      background: rgba(10, 10, 10, 0.85); border-color: rgba(255, 255, 255, 0.05);
+      box-shadow: 0 20px 40px -10px rgba(0,0,0,0.4), 0 0 20px rgba(229,184,105,0.05);
     }
 
     /* Scroll fix: الصفحة العامة طويلة */
@@ -100,69 +122,88 @@
   </script>
 </head>
 
-<body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col relative overflow-x-hidden selection:bg-accent selection:text-background-dark transition-colors duration-300">
+<body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col relative overflow-x-hidden selection:bg-accent/30 selection:text-gray-900 dark:selection:text-white transition-colors duration-400">
   
-  <!-- القائمة الجانبية للجوال الموحدة -->
-  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] mobile-nav-hidden" aria-hidden="true"></div>
-  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-bg-charcoal border-r border-gray-200 dark:border-white/10 shadow-2xl z-[90] flex flex-col">
+  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></div>
+  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-bg-charcoal border-r border-gray-100 dark:border-white/5 shadow-2xl z-[90] flex flex-col">
     <div class="h-1.5 w-full bg-gradient-to-r from-gray-300 via-accent to-gray-300 dark:from-gray-800 dark:via-accent dark:to-gray-800"></div>
     <div class="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/5">
-      <img class="h-10 w-auto hidden dark:block" src="/assets/logo-dark.svg" alt="شعار" />
-      <img class="h-10 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار" />
-      <button id="mobileNavClose" class="text-gray-500 hover:text-accent transition-colors" type="button" aria-label="إغلاق">
-        <span class="material-symbols-outlined text-[28px]">close</span>
+      <img class="h-10 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+      <img class="h-10 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+      <button id="mobileNavClose" class="text-gray-400 hover:text-accent transition-colors" type="button" aria-label="إغلاق القائمة">
+        <span class="material-symbols-outlined text-[26px]">close</span>
       </button>
     </div>
-    <nav class="p-6 flex flex-col gap-4 font-bold text-lg flex-grow text-gray-700 dark:text-gray-300">
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/">الشجرة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/about">نبذة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/honor">قائمة السير الذاتية</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/news">أخبار العائلة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/kinship">صلة القرابة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/tree-pdf">مشجرة العائلة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/support">الدعم</a>
-      <a class="px-4 py-3 rounded-lg text-accent bg-accent/5 border-r-2 border-accent" href="/submit-person">إضافة بياناتك</a>
+    <nav class="p-6 flex flex-col gap-2 text-base font-semibold flex-grow text-gray-600 dark:text-gray-400 overflow-y-auto" aria-label="قائمة الجوال">
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/">الشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/about">نبذة عن العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/honor">السير الذاتية</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/news">أخبار العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/tree-pdf">المشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/kinship">صلة القرابة</a>
+      
+      <div class="my-3 h-px bg-gray-100 dark:bg-white/5"></div>
+      
+      <a class="px-4 py-3 rounded-xl text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent" href="/submit-person">إضافة بياناتك</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-members">أعضاء العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-books">كتب العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-gallery">معرض العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-events">مناسبات العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/chat">الشات العام</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/notifications">الإشعارات</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/account">حسابي</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/support">الدعم</a>
     </nav>
-    <div class="p-6 border-t border-gray-100 dark:border-white/5">
-      <a href="/admin/login" class="flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-lg hover:opacity-90 transition-colors font-bold">
-        <span class="material-symbols-outlined">login</span><span>تسجيل الدخول</span>
-      </a>
+    <div class="p-6 border-t border-gray-100 dark:border-white/5 bg-white/50 dark:bg-black/20">
+      <div class="grid grid-cols-1 gap-3">
+        <a href="/admin/login" class="flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-xl hover:opacity-90 transition-all shadow-sm font-bold text-sm" title="لوحة الإدارة">
+          <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+          <span>لوحة الإدارة</span>
+        </a>
+      </div>
     </div>
   </aside>
 
-  <!-- الترويسة الموحدة (Header) -->
-  <header class="sticky top-0 z-50 w-full bg-white/95 dark:bg-[#050505]/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10">
-    <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center h-20 md:h-24">
-      <div class="flex items-center gap-4 min-w-0">
-        <a href="/" class="block shrink-0">
-          <img class="h-14 md:h-20 w-auto hidden dark:block" src="/assets/logo-dark.svg" alt="شعار العائلة" />
-          <img class="h-14 md:h-20 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+  <header class="sticky top-0 z-50 w-full glass-panel border-b-0 transition-colors duration-400">
+    <div class="max-w-[90rem] mx-auto px-5 sm:px-8 py-3 flex justify-between items-center h-20 md:h-24">
+      <div class="flex items-center gap-3 xl:gap-4 shrink-0">
+        <a href="/" class="block shrink-0 transition-transform hover:scale-105 duration-300">
+          <img class="h-10 md:h-12 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+          <img class="h-10 md:h-12 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
         </a>
-        <div class="h-10 w-px bg-gray-300 dark:bg-white/20 hidden sm:block"></div>
-        <div class="flex flex-col justify-center min-w-0">
-          <h1 class="text-2xl md:text-3xl font-display text-primary dark:text-accent font-bold leading-none tracking-wide pt-1 truncate">شجرة العائلة</h1>
+        <div class="h-7 w-px bg-gray-200 dark:bg-white/10 hidden sm:block"></div>
+        <div class="hidden sm:flex flex-col justify-center min-w-0">
+           <h1 class="text-lg md:text-xl font-display text-primary dark:text-accent font-bold leading-tight pt-1">شجرة العائلة</h1>
+           <span class="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5 truncate">حفظ الأنساب</span>
         </div>
       </div>
-      <nav class="hidden lg:flex gap-6 xl:gap-8 items-center font-sans font-bold text-sm tracking-wide uppercase text-gray-600 dark:text-gray-400">
-        <a class="hover:text-accent transition-colors" href="/">الشجرة</a>
-        <a class="hover:text-accent transition-colors" href="/about">نبذة</a>
-        <a class="hover:text-accent transition-colors" href="/honor">قائمة السير الذاتية</a>
-        <a class="hover:text-accent transition-colors" href="/news">أخبار العائلة</a>
-        <a class="hover:text-accent transition-colors" href="/kinship">صلة القرابة</a>
-        <a class="hover:text-accent transition-colors" href="/tree-pdf">مشجرة العائلة</a>
-        <a class="hover:text-accent transition-colors" href="/support">الدعم</a>
-        <a class="text-primary dark:text-white border-b-2 border-accent pb-1" href="/submit-person">إضافة بياناتك</a>
+
+      <nav class="hidden lg:flex flex-1 justify-center gap-2 lg:gap-3 xl:gap-5 items-center font-sans font-semibold text-[11px] xl:text-[13px] tracking-wide text-gray-500 dark:text-gray-400 overflow-x-auto scrollbar-hide px-2 xl:px-4 flex-nowrap" aria-label="التنقل الرئيسي">
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/">الشجرة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/about">نبذة عن العائلة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/honor">السير الذاتية</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/news">أخبار العائلة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/tree-pdf">المشجرة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/kinship">صلة القرابة</a>
+        
+        <a class="whitespace-nowrap shrink-0 text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1 transition-colors duration-200" href="/submit-person">إضافة بياناتك</a>
+        
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/family-members">أعضاء العائلة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/chat">الشات العام</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/account">حسابي</a>
       </nav>
-      <div class="flex items-center gap-3 shrink-0">
-        <button id="themeBtn" class="flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:text-accent dark:hover:text-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-all" type="button" title="تبديل المظهر">
-          <span class="material-symbols-outlined dark-toggle-icon-moon">dark_mode</span>
-          <span class="material-symbols-outlined dark-toggle-icon-sun">light_mode</span>
+
+      <div class="flex items-center justify-end gap-2 shrink-0">
+        <button id="themeBtn" aria-label="تبديل المظهر" class="flex items-center justify-center w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-accent dark:hover:text-accent hover:bg-accent/5 transition-all duration-300" type="button" title="تبديل المظهر">
+          <span class="material-symbols-outlined text-[22px] dark:hidden">dark_mode</span>
+          <span class="material-symbols-outlined text-[22px] hidden dark:inline">light_mode</span>
         </button>
-        <a href="/admin/login" class="hidden sm:flex p-2.5 rounded-full bg-primary text-white dark:bg-white dark:text-black hover:opacity-90 transition-all shadow-md items-center justify-center" title="تسجيل الدخول">
-          <span class="material-symbols-outlined text-[22px]">login</span>
+        <a href="/admin/login" class="hidden sm:flex w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-accent hover:bg-primary/5 dark:hover:bg-accent/5 transition-all duration-300 items-center justify-center" title="لوحة الإدارة">
+          <span class="material-symbols-outlined text-[22px]">admin_panel_settings</span>
         </a>
-        <button id="mobileNavBtn" class="lg:hidden flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-primary dark:text-accent hover:bg-gray-200 dark:hover:bg-white/10 transition-colors" type="button" aria-label="فتح القائمة">
-          <span class="material-symbols-outlined text-[24px]">menu</span>
+        <button id="mobileNavBtn" data-open="false" class="lg:hidden flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-primary dark:text-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-all duration-200" type="button" aria-label="فتح القائمة">
+          <span class="material-symbols-outlined text-[24px] ico-open">menu</span>
+          <span class="material-symbols-outlined text-[24px] ico-close hidden">close</span>
         </button>
       </div>
     </div>
@@ -170,48 +211,46 @@
 
   <main class="flex-grow relative overflow-visible">
     
-    <!-- قسم العنوان البصري الموحد -->
-    <section class="pt-20 pb-12 px-6 max-w-[90rem] mx-auto text-center relative overflow-hidden">
-      <div class="absolute inset-0 bg-islamic-pattern opacity-100 dark:opacity-30 pointer-events-none"></div>
-      <img src="/assets/logo-dark.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.03] pointer-events-none hidden dark:block" alt="">
-      <img src="/assets/logo-light.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.03] pointer-events-none block dark:hidden" alt="">
-
-      <div class="w-px h-12 bg-accent mx-auto mb-6 relative z-10"></div>
+    <section class="pt-16 pb-12 px-6 max-w-[90rem] mx-auto text-center relative overflow-hidden">
+      <div class="absolute inset-0 bg-islamic-pattern opacity-40 dark:opacity-10 pointer-events-none"></div>
       
-      <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 text-primary dark:text-accent font-bold text-sm mb-6 relative z-10">
-        <span class="material-symbols-outlined text-[18px]">edit_document</span> إرسال بيانات للمراجعة
+      <img src="/assets/logo-dark.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.02] pointer-events-none hidden dark:block" alt="">
+      <img src="/assets/logo-light.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.02] pointer-events-none block dark:hidden" alt="">
+
+      <div class="w-px h-10 bg-gradient-to-b from-transparent via-accent to-transparent mx-auto mb-5 relative z-10"></div>
+      
+      <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/5 border border-accent/20 text-primary dark:text-accent font-sans font-bold text-[12px] mb-4 relative z-10 shadow-sm">
+        <span class="material-symbols-outlined text-[16px]">edit_document</span> إرسال بيانات للمراجعة
       </span>
 
-      <h1 class="text-5xl md:text-7xl font-display leading-tight mb-4 relative z-10 font-bold drop-shadow-sm dark:drop-shadow-none">
+      <h1 class="text-4xl md:text-6xl font-display leading-tight mb-4 relative z-10 font-bold">
         <span class="text-primary dark:text-white transition-colors duration-300">إضافة بيانات فرد</span> <span class="text-accent">للعائلة</span>
       </h1>
       
-      <p class="text-base md:text-lg font-sans text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed relative z-10">
+      <p class="text-[14px] md:text-base font-sans text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed relative z-10 font-medium">
         املأ البيانات التالية، وسيتم إرسالها إلى إدارة الموقع للمراجعة. لن تظهر البيانات في الشجرة إلا بعد موافقة الإدارة.
       </p>
     </section>
 
-    <!-- قسم النموذج والنتائج -->
-    <section class="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
+    <section class="relative z-10 max-w-[64rem] mx-auto px-4 sm:px-6 lg:px-8 pb-16">
       
-      <!-- إشعارات النجاح/الخطأ -->
       <% if (submitted) { %>
-        <div class="mb-8 rounded-2xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 p-6 text-green-800 dark:text-green-200 font-bold text-center">
-          <div class="flex flex-col items-center gap-3">
-            <span class="material-symbols-outlined text-[38px] text-green-600 dark:text-green-400">verified</span>
+        <div class="mb-8 rounded-2xl bg-green-50/80 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 p-8 text-green-800 dark:text-green-200 font-sans font-bold text-center shadow-sm">
+          <div class="flex flex-col items-center gap-4">
+            <span class="material-symbols-outlined text-[48px] text-green-600 dark:text-green-400">verified</span>
             <div>
-              <p class="text-2xl font-display">تم استلام طلبك بنجاح</p>
-              <p class="text-base mt-2 opacity-90 font-sans">سيتم مراجعة البيانات من الإدارة قبل الظهور في الشجرة.</p>
+              <p class="text-2xl font-display text-primary dark:text-emerald-400">تم استلام طلبك بنجاح</p>
+              <p class="text-[15px] mt-2 text-gray-600 dark:text-gray-300 font-medium leading-relaxed">سيتم مراجعة البيانات من الإدارة قبل الظهور في الشجرة.</p>
             </div>
             <% if (referenceCode) { %>
-              <div class="w-full max-w-xl mt-4 rounded-xl bg-white/80 dark:bg-black/40 border border-green-200 dark:border-green-500/30 p-5">
-                <p class="text-sm font-bold text-gray-600 dark:text-gray-300 mb-2">رقم الطلب المرجعي</p>
-                <input id="referenceCodeInput" class="field text-center tracking-[0.18em] font-black text-lg bg-transparent" value="<%= referenceCode %>" readonly>
-                <button id="copyReferenceBtn" type="button" class="mt-4 w-full px-5 py-3.5 rounded-full bg-primary dark:bg-accent text-white dark:text-black font-sans font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
-                  <span class="material-symbols-outlined">content_copy</span>
+              <div class="w-full max-w-xl mt-6 rounded-[16px] bg-white dark:bg-[#050505] border border-gray-200 dark:border-white/10 p-6 shadow-sm">
+                <p class="text-[13px] font-sans font-bold text-gray-500 dark:text-gray-400 mb-3">رقم الطلب المرجعي</p>
+                <input id="referenceCodeInput" class="w-full text-center tracking-[0.2em] font-sans font-bold text-xl bg-gray-50 dark:bg-[#111] border border-gray-200 dark:border-white/10 rounded-xl py-3 focus:outline-none focus:border-accent dark:focus:border-accent text-gray-900 dark:text-white" value="<%= referenceCode %>" readonly>
+                <button id="copyReferenceBtn" type="button" class="mt-5 w-full px-6 py-3.5 rounded-xl bg-primary hover:bg-primaryDark text-white dark:bg-white dark:text-[#050505] dark:hover:bg-accent font-sans font-bold flex items-center justify-center gap-2 transition-all shadow-sm">
+                  <span class="material-symbols-outlined text-[18px]">content_copy</span>
                   نسخ الرقم المرجعي
                 </button>
-                <p id="copyReferenceMsg" class="hidden mt-3 text-xs font-bold text-green-700 dark:text-green-300">تم نسخ الرقم المرجعي بنجاح.</p>
+                <p id="copyReferenceMsg" class="hidden mt-3 text-[12px] font-sans font-bold text-green-600 dark:text-green-400">تم نسخ الرقم المرجعي بنجاح.</p>
               </div>
             <% } %>
           </div>
@@ -219,180 +258,294 @@
       <% } %>
       
       <% if (error) { %>
-        <div class="mb-8 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 p-5 text-red-800 dark:text-red-200 font-sans font-bold text-center flex items-center justify-center gap-2">
-          <span class="material-symbols-outlined text-red-600 dark:text-red-400 text-2xl">error</span>
+        <div class="mb-8 rounded-2xl bg-red-50/80 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 p-6 text-red-800 dark:text-red-200 font-sans font-bold text-center flex items-center justify-center gap-3 shadow-sm text-[15px]">
+          <span class="material-symbols-outlined text-red-600 dark:text-red-400 text-[24px]">error</span>
           <%= error %>
         </div>
       <% } %>
 
-      <!-- النموذج الرئيسي -->
-      <form method="post" action="/submit-person" enctype="multipart/form-data" class="section-card rounded-[2rem] p-6 sm:p-10 space-y-10">
+      <form method="post" action="/submit-person" enctype="multipart/form-data" class="section-card rounded-[24px] p-6 sm:p-10 lg:p-12 space-y-12">
         
-        <section class="space-y-6">
-          <div class="flex items-center gap-3 mb-6">
-            <span class="material-symbols-outlined text-accent text-[28px]">person</span>
-            <h3 class="font-display font-bold text-3xl text-primary dark:text-white">البيانات الأساسية</h3>
+        <section class="space-y-8">
+          <div class="flex items-center gap-3 mb-8 border-b border-gray-100 dark:border-white/5 pb-4">
+            <span class="material-symbols-outlined text-accent text-[32px]">person</span>
+            <h3 class="font-display font-bold text-2xl md:text-3xl text-primary dark:text-white">البيانات الأساسية</h3>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">الاسم الكامل *</span><input name="name" required class="field" placeholder="اكتب الاسم الكامل"></label>
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">النوع</span><select name="gender" class="field"><option value="">غير محدد</option><option value="male">ذكر</option><option value="female">أنثى</option></select></label>
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">اسم الأب الثلاثي داخل الشجرة</span><input name="father_lineage_name" data-lineage-resolver="father" class="field" placeholder="برجاء كتابة اسم الاب ثلاثي"><small class="lineage-feedback block mt-2 text-xs font-bold text-gray-500 dark:text-gray-400" data-lineage-feedback="father">اكتب الاسم الثلاثي للأب حتى يتم ربط بياناتك بموقعه في الشجرة تلقائيًا.</small></label>
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">اسم الأم الثلاثي داخل الشجرة</span><input name="mother_lineage_name" data-lineage-resolver="mother" class="field" placeholder="برجاء كتابة اسم الام ثلاثي"><small class="lineage-feedback block mt-2 text-xs font-bold text-gray-500 dark:text-gray-400" data-lineage-feedback="mother">اختياري: إذا كانت الأم موجودة في الشجرة سيتم ربطها تلقائيًا، وإذا لم تكن موجودة سيظل الطلب قابلًا للمراجعة.</small></label>
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">تاريخ الميلاد</span><input name="birth_date" data-dual-date class="field" placeholder="اختر التاريخ الميلادي أو اكتب التاريخ الهجري"></label>
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">مكان الميلاد</span><input name="birth_place" class="field" placeholder="مكان الميلاد"></label>
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">العمل</span><input name="job" class="field" placeholder="الوظيفة أو العمل"></label>
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">المستوى التعليمي</span><select name="education_level" class="field"><option value="">غير محدد</option><option value="دراسات عليا">دراسات عليا</option><option value="شهادة جامعية">شهادة جامعية</option><option value="ثانوي">ثانوي</option><option value="متوسط">متوسط</option><option value="ابتدائي">ابتدائي</option><option value="غير ذلك">غير ذلك</option></select></label>
-            <label class="block md:col-span-2"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">الصورة الشخصية</span><input name="photo_file" type="file" accept="image/*" class="field !py-2.5"></label>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">الاسم الكامل <span class="text-red-500">*</span></span>
+              <input name="name" required class="field" placeholder="اكتب الاسم الكامل">
+            </label>
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">النوع</span>
+              <select name="gender" class="field text-gray-600 dark:text-gray-300 appearance-none bg-no-repeat bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%239CA3AF%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[position:left_16px_center] bg-[length:16px_16px]">
+                <option value="">غير محدد</option>
+                <option value="male">ذكر</option>
+                <option value="female">أنثى</option>
+              </select>
+            </label>
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">اسم الأب الثلاثي داخل الشجرة</span>
+              <input name="father_lineage_name" data-lineage-resolver="father" class="field" placeholder="برجاء كتابة اسم الاب ثلاثي">
+              <small class="lineage-feedback block mt-2 text-[11px] font-sans font-semibold text-gray-500 dark:text-gray-400 leading-relaxed" data-lineage-feedback="father">اكتب الاسم الثلاثي للأب حتى يتم ربط بياناتك بموقعه في الشجرة تلقائيًا.</small>
+            </label>
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">اسم الأم الثلاثي داخل الشجرة</span>
+              <input name="mother_lineage_name" data-lineage-resolver="mother" class="field" placeholder="برجاء كتابة اسم الام ثلاثي">
+              <small class="lineage-feedback block mt-2 text-[11px] font-sans font-semibold text-gray-500 dark:text-gray-400 leading-relaxed" data-lineage-feedback="mother">اختياري: إذا كانت الأم موجودة في الشجرة سيتم ربطها تلقائيًا، وإذا لم تكن موجودة سيظل الطلب قابلًا للمراجعة.</small>
+            </label>
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">تاريخ الميلاد</span>
+              <input name="birth_date" data-dual-date class="field" placeholder="اختر التاريخ الميلادي أو اكتب التاريخ الهجري">
+            </label>
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">مكان الميلاد</span>
+              <input name="birth_place" class="field" placeholder="مكان الميلاد">
+            </label>
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">العمل</span>
+              <input name="job" class="field" placeholder="الوظيفة أو العمل">
+            </label>
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">المستوى التعليمي</span>
+              <select name="education_level" class="field text-gray-600 dark:text-gray-300 appearance-none bg-no-repeat bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%239CA3AF%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[position:left_16px_center] bg-[length:16px_16px]">
+                <option value="">غير محدد</option>
+                <option value="دراسات عليا">دراسات عليا</option>
+                <option value="شهادة جامعية">شهادة جامعية</option>
+                <option value="ثانوي">ثانوي</option>
+                <option value="متوسط">متوسط</option>
+                <option value="ابتدائي">ابتدائي</option>
+                <option value="غير ذلك">غير ذلك</option>
+              </select>
+            </label>
+            <label class="block md:col-span-2 group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">الصورة الشخصية</span>
+              <input name="photo_file" type="file" accept="image/*" class="field !py-3 !px-4 text-[13px] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 dark:file:bg-white/10 dark:file:text-white dark:hover:file:bg-white/20 transition-all cursor-pointer">
+            </label>
           </div>
         </section>
 
-        <hr class="border-gray-200 dark:border-gray-800">
-
-        <section class="space-y-6">
-          <div class="flex items-center gap-3 mb-6">
-            <span class="material-symbols-outlined text-accent text-[28px]">contact_mail</span>
-            <h3 class="font-display font-bold text-3xl text-primary dark:text-white">بيانات التواصل للإدارة</h3>
+        <section class="space-y-8">
+          <div class="flex items-center gap-3 mb-8 border-b border-gray-100 dark:border-white/5 pb-4">
+            <span class="material-symbols-outlined text-accent text-[32px]">contact_mail</span>
+            <h3 class="font-display font-bold text-2xl md:text-3xl text-primary dark:text-white">بيانات التواصل للإدارة</h3>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">رقم الجوال</span><input name="mobile_phone" class="field" placeholder="رقم الجوال"></label>
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">البريد الإلكتروني</span><input name="personal_email" type="email" class="field" placeholder="email@example.com"></label>
-            <div class="md:col-span-2 mt-2" data-family-address-card>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">رقم الجوال</span>
+              <input name="mobile_phone" class="field text-left" dir="ltr" placeholder="05xxxxxxxx">
+            </label>
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">البريد الإلكتروني</span>
+              <input name="personal_email" type="email" class="field text-left" dir="ltr" placeholder="email@example.com">
+            </label>
+            <div class="md:col-span-2 mt-4" data-family-address-card>
               <!-- يتم الإبقاء على كلاسات العنوان لاعتماد الـ JS والـ CSS المرفقين عليها -->
               <textarea name="national_address" data-address-hidden class="hidden"></textarea>
-              <div class="family-address-card">
-                <div class="family-address-head"><div><h4>تفاصيل العنوان</h4><p>املأ بيانات العنوان الوطني كما في البطاقة، ويمكن تركه فارغًا إذا لم ترغب بإضافته.</p></div><span class="address-help-chip"><span class="material-symbols-outlined text-[17px]">home_pin</span>Address Details</span></div>
-                <div class="family-address-grid">
-                  <label class="address-field full"><div class="address-label-row"><span>العنوان المختصر</span><span>Short Address</span></div><input data-address-part="short_address" class="address-input address-code-input" maxlength="8" placeholder="مثال: DMUC4941"></label>
-                  <label class="address-field"><div class="address-label-row"><span>رقم المبنى</span><span>Building No.</span></div><input data-address-part="building_no" class="address-input address-code-input" inputmode="numeric" placeholder="4941"></label>
-                  <label class="address-field"><div class="address-label-row"><span>الشارع</span><span>Street</span></div><input data-address-part="street_ar" class="address-input" placeholder="اسم الشارع بالعربية"></label>
-                  <label class="address-field"><div class="address-label-row"><span>Street</span><span>English</span></div><input data-address-part="street_en" dir="ltr" class="address-input" placeholder="Street name in English"></label>
-                  <label class="address-field"><div class="address-label-row"><span>الرقم الفرعي</span><span>Secondary No.</span></div><input data-address-part="secondary_no" class="address-input address-code-input" inputmode="numeric" placeholder="8820"></label>
-                  <label class="address-field"><div class="address-label-row"><span>الحي</span><span>District</span></div><input data-address-part="district_ar" class="address-input" placeholder="اسم الحي بالعربية"></label>
-                  <label class="address-field"><div class="address-label-row"><span>District</span><span>English</span></div><input data-address-part="district_en" dir="ltr" class="address-input" placeholder="District in English"></label>
-                  <label class="address-field"><div class="address-label-row"><span>الرمز البريدي</span><span>Postal Code</span></div><input data-address-part="postal_code" class="address-input address-code-input" inputmode="numeric" placeholder="42382"></label>
-                  <label class="address-field"><div class="address-label-row"><span>المدينة</span><span>City</span></div><input data-address-part="city_ar" class="address-input" placeholder="المدينة"></label>
-                  <label class="address-field"><div class="address-label-row"><span>City</span><span>English</span></div><input data-address-part="city_en" dir="ltr" class="address-input" placeholder="City in English"></label>
-                  <label class="address-field"><div class="address-label-row"><span>الدولة</span><span>Country</span></div><input data-address-part="country_ar" class="address-input" placeholder="الدولة"></label>
-                  <label class="address-field"><div class="address-label-row"><span>Country</span><span>English</span></div><input data-address-part="country_en" dir="ltr" class="address-input" placeholder="Country in English"></label>
+              <div class="family-address-card bg-gray-50/50 dark:bg-[#111]/50 border border-gray-200 dark:border-white/10 rounded-2xl p-6">
+                <div class="family-address-head mb-6 border-b border-gray-200 dark:border-white/5 pb-4">
+                  <div>
+                    <h4 class="font-sans font-bold text-gray-900 dark:text-white text-[16px] mb-1">تفاصيل العنوان</h4>
+                    <p class="text-[13px] text-gray-500 dark:text-gray-400 font-medium">املأ بيانات العنوان الوطني كما في البطاقة، ويمكن تركه فارغًا إذا لم ترغب بإضافته.</p>
+                  </div>
+                  <span class="address-help-chip bg-primary/10 text-primary dark:bg-white/10 dark:text-white px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">home_pin</span>Address Details</span>
                 </div>
-                <div class="address-preview-wrap"><div class="address-preview-title"><span class="material-symbols-outlined text-[18px]">preview</span>معاينة العنوان المحفوظ</div><textarea data-address-preview readonly class="address-input address-preview" placeholder="سيظهر العنوان المجمع هنا تلقائيًا"></textarea></div>
+                <div class="family-address-grid grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <label class="address-field full sm:col-span-2 group">
+                    <div class="address-label-row flex justify-between text-[12px] font-bold text-gray-600 dark:text-gray-400 mb-1.5"><span>العنوان المختصر</span><span>Short Address</span></div>
+                    <input data-address-part="short_address" class="address-input address-code-input field !py-2.5" maxlength="8" placeholder="مثال: DMUC4941">
+                  </label>
+                  <label class="address-field group">
+                    <div class="address-label-row flex justify-between text-[12px] font-bold text-gray-600 dark:text-gray-400 mb-1.5"><span>رقم المبنى</span><span>Building No.</span></div>
+                    <input data-address-part="building_no" class="address-input address-code-input field !py-2.5" inputmode="numeric" placeholder="4941">
+                  </label>
+                  <label class="address-field group">
+                    <div class="address-label-row flex justify-between text-[12px] font-bold text-gray-600 dark:text-gray-400 mb-1.5"><span>الشارع</span><span>Street</span></div>
+                    <input data-address-part="street_ar" class="address-input field !py-2.5" placeholder="اسم الشارع بالعربية">
+                  </label>
+                  <label class="address-field group">
+                    <div class="address-label-row flex justify-between text-[12px] font-bold text-gray-600 dark:text-gray-400 mb-1.5"><span>Street</span><span>English</span></div>
+                    <input data-address-part="street_en" dir="ltr" class="address-input field !py-2.5 text-left" placeholder="Street name in English">
+                  </label>
+                  <label class="address-field group">
+                    <div class="address-label-row flex justify-between text-[12px] font-bold text-gray-600 dark:text-gray-400 mb-1.5"><span>الرقم الفرعي</span><span>Secondary No.</span></div>
+                    <input data-address-part="secondary_no" class="address-input address-code-input field !py-2.5" inputmode="numeric" placeholder="8820">
+                  </label>
+                  <label class="address-field group">
+                    <div class="address-label-row flex justify-between text-[12px] font-bold text-gray-600 dark:text-gray-400 mb-1.5"><span>الحي</span><span>District</span></div>
+                    <input data-address-part="district_ar" class="address-input field !py-2.5" placeholder="اسم الحي بالعربية">
+                  </label>
+                  <label class="address-field group">
+                    <div class="address-label-row flex justify-between text-[12px] font-bold text-gray-600 dark:text-gray-400 mb-1.5"><span>District</span><span>English</span></div>
+                    <input data-address-part="district_en" dir="ltr" class="address-input field !py-2.5 text-left" placeholder="District in English">
+                  </label>
+                  <label class="address-field group">
+                    <div class="address-label-row flex justify-between text-[12px] font-bold text-gray-600 dark:text-gray-400 mb-1.5"><span>الرمز البريدي</span><span>Postal Code</span></div>
+                    <input data-address-part="postal_code" class="address-input address-code-input field !py-2.5" inputmode="numeric" placeholder="42382">
+                  </label>
+                  <label class="address-field group">
+                    <div class="address-label-row flex justify-between text-[12px] font-bold text-gray-600 dark:text-gray-400 mb-1.5"><span>المدينة</span><span>City</span></div>
+                    <input data-address-part="city_ar" class="address-input field !py-2.5" placeholder="المدينة">
+                  </label>
+                  <label class="address-field group">
+                    <div class="address-label-row flex justify-between text-[12px] font-bold text-gray-600 dark:text-gray-400 mb-1.5"><span>City</span><span>English</span></div>
+                    <input data-address-part="city_en" dir="ltr" class="address-input field !py-2.5 text-left" placeholder="City in English">
+                  </label>
+                  <label class="address-field group">
+                    <div class="address-label-row flex justify-between text-[12px] font-bold text-gray-600 dark:text-gray-400 mb-1.5"><span>الدولة</span><span>Country</span></div>
+                    <input data-address-part="country_ar" class="address-input field !py-2.5" placeholder="الدولة">
+                  </label>
+                  <label class="address-field group">
+                    <div class="address-label-row flex justify-between text-[12px] font-bold text-gray-600 dark:text-gray-400 mb-1.5"><span>Country</span><span>English</span></div>
+                    <input data-address-part="country_en" dir="ltr" class="address-input field !py-2.5 text-left" placeholder="Country in English">
+                  </label>
+                </div>
+                <div class="address-preview-wrap mt-6 pt-6 border-t border-gray-200 dark:border-white/5">
+                  <div class="address-preview-title flex items-center gap-1.5 text-[13px] font-bold text-primary dark:text-accent mb-3">
+                    <span class="material-symbols-outlined text-[18px]">preview</span>معاينة العنوان المحفوظ
+                  </div>
+                  <textarea data-address-preview readonly class="address-input address-preview field min-h-[80px] bg-gray-100 dark:bg-black/50 text-gray-500 dark:text-gray-400 text-sm leading-relaxed border-dashed resize-none" placeholder="سيظهر العنوان المجمع هنا تلقائيًا"></textarea>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        <hr class="border-gray-200 dark:border-gray-800">
-
-        <section class="space-y-6">
-          <div class="flex items-center gap-3 mb-6">
-            <span class="material-symbols-outlined text-accent text-[28px]">family_restroom</span>
-            <h3 class="font-display font-bold text-3xl text-primary dark:text-white">الزوجة / الزوج والأبناء</h3>
+        <section class="space-y-8">
+          <div class="flex items-center gap-3 mb-8 border-b border-gray-100 dark:border-white/5 pb-4">
+            <span class="material-symbols-outlined text-accent text-[32px]">family_restroom</span>
+            <h3 class="font-display font-bold text-2xl md:text-3xl text-primary dark:text-white">الزوجة / الزوج والأبناء</h3>
           </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">أسماء الزوجة / الزوج</span><textarea name="spouse_names" rows="4" class="field" placeholder="اكتب كل اسم في سطر مستقل"></textarea></label>
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">أسماء الأبناء</span><textarea name="children_names" rows="4" class="field" placeholder="اكتب كل ابن/ابنة في سطر مستقل"></textarea></label>
-          </div>
-        </section>
-
-        <hr class="border-gray-200 dark:border-gray-800">
-
-        <section class="space-y-6">
-          <div class="flex items-center gap-3 mb-6">
-            <span class="material-symbols-outlined text-accent text-[28px]">description</span>
-            <h3 class="font-display font-bold text-3xl text-primary dark:text-white">النبذة والملاحظات</h3>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">نبذة مختصرة</span><textarea name="short_bio" rows="4" class="field" placeholder="نبذة مختصرة عن الفرد"></textarea></label>
-            <label class="block"><span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2 block">ملاحظات إضافية</span><textarea name="notes" rows="4" class="field" placeholder="أي ملاحظات تريد إرسالها للإدارة"></textarea></label>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">أسماء الزوجة / الزوج</span>
+              <textarea name="spouse_names" rows="4" class="field resize-none leading-relaxed" placeholder="اكتب كل اسم في سطر مستقل"></textarea>
+            </label>
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">أسماء الأبناء</span>
+              <textarea name="children_names" rows="4" class="field resize-none leading-relaxed" placeholder="اكتب كل ابن/ابنة في سطر مستقل"></textarea>
+            </label>
           </div>
         </section>
 
-        <section class="rounded-2xl bg-gray-50/80 dark:bg-black/30 border border-gray-200 dark:border-white/10 p-5">
-          <label class="inline-flex items-center gap-3 font-sans font-bold text-gray-800 dark:text-gray-200 cursor-pointer">
-            <input type="checkbox" name="is_deceased" value="1" class="w-5 h-5 rounded border-gray-300 text-primary focus:ring-accent transition-colors"> الفرد متوفى
+        <section class="space-y-8">
+          <div class="flex items-center gap-3 mb-8 border-b border-gray-100 dark:border-white/5 pb-4">
+            <span class="material-symbols-outlined text-accent text-[32px]">description</span>
+            <h3 class="font-display font-bold text-2xl md:text-3xl text-primary dark:text-white">النبذة والملاحظات</h3>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">نبذة مختصرة</span>
+              <textarea name="short_bio" rows="4" class="field resize-none leading-relaxed" placeholder="نبذة مختصرة عن الفرد"></textarea>
+            </label>
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[14px]">ملاحظات إضافية</span>
+              <textarea name="notes" rows="4" class="field resize-none leading-relaxed" placeholder="أي ملاحظات تريد إرسالها للإدارة"></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section class="rounded-[20px] bg-gray-50 dark:bg-[#111] border border-gray-200 dark:border-white/10 p-6 sm:p-8 mt-8">
+          <label class="inline-flex items-center gap-3 font-sans font-bold text-gray-800 dark:text-gray-200 cursor-pointer select-none">
+            <input type="checkbox" name="is_deceased" value="1" class="w-5 h-5 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-black text-primary focus:ring-accent transition-colors cursor-pointer"> 
+            <span class="text-[15px]">الفرد متوفى</span>
           </label>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-5">
-            <input name="death_date" data-dual-date class="field" placeholder="تاريخ الوفاة إن وجد">
-            <input name="death_place" class="field" placeholder="مكان الوفاة إن وجد">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 opacity-80 focus-within:opacity-100 transition-opacity">
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-600 dark:text-gray-400 mb-2 block text-[13px]">تاريخ الوفاة</span>
+              <input name="death_date" data-dual-date class="field !bg-white/50 dark:!bg-black/20" placeholder="تاريخ الوفاة إن وجد">
+            </label>
+            <label class="block group">
+              <span class="font-sans font-bold text-gray-600 dark:text-gray-400 mb-2 block text-[13px]">مكان الوفاة</span>
+              <input name="death_place" class="field !bg-white/50 dark:!bg-black/20" placeholder="مكان الوفاة إن وجد">
+            </label>
           </div>
         </section>
 
-        <div class="flex flex-col sm:flex-row justify-center gap-4 pt-4">
-          <button class="px-10 py-3.5 rounded-full bg-primary dark:bg-accent text-white dark:text-black font-sans font-bold shadow-lg hover:opacity-90 transition-colors flex items-center justify-center gap-2" type="submit">
-            <span class="material-symbols-outlined text-[20px]">send</span> إرسال للمراجعة
+        <div class="flex flex-col sm:flex-row justify-center gap-4 pt-8 mt-8 border-t border-gray-100 dark:border-white/5">
+          <button class="w-full sm:w-auto px-10 py-3.5 rounded-xl bg-primary hover:bg-primaryDark text-white dark:bg-white dark:text-[#050505] dark:hover:bg-accent font-sans font-bold text-[15px] shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2" type="submit">
+            <span class="material-symbols-outlined text-[20px] rtl:-scale-x-100">send</span> إرسال للمراجعة
           </button>
-          <a href="/" class="px-10 py-3.5 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-primary dark:text-accent font-sans font-bold hover:bg-gray-200 dark:hover:bg-white/10 transition-colors flex items-center justify-center gap-2 text-center">
+          <a href="/" class="w-full sm:w-auto px-10 py-3.5 rounded-xl bg-gray-100 dark:bg-[#111] border border-gray-200 dark:border-white/10 text-gray-800 dark:text-gray-300 font-sans font-bold text-[15px] text-center hover:bg-gray-200 dark:hover:bg-white/5 transition-all flex items-center justify-center gap-2 shadow-sm">
             العودة للشجرة
           </a>
         </div>
       </form>
 
       <!-- قسم التتبع الموحد -->
-      <section id="track-request" class="mt-12 section-card rounded-[2rem] p-6 sm:p-10 scroll-mt-32">
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+      <section id="track-request" class="mt-16 section-card rounded-[24px] p-6 sm:p-10 lg:p-12 scroll-mt-32">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
           <div>
-            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 text-primary dark:text-accent font-bold text-sm mb-4">
-              <span class="material-symbols-outlined text-[18px]">manage_search</span> تتبع الطلب
+            <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 border border-accent/20 text-primary dark:text-accent font-bold text-[12px] mb-4 shadow-sm">
+              <span class="material-symbols-outlined text-[16px]">manage_search</span> تتبع الطلب
             </span>
-            <h3 class="font-display font-bold text-3xl text-primary dark:text-white">تابع حالة طلبك</h3>
-            <p class="text-gray-600 dark:text-gray-400 mt-3 font-sans leading-relaxed">اكتب الرقم المرجعي الذي ظهر لك بعد الإرسال لمعرفة حالة المراجعة.</p>
+            <h3 class="font-display font-bold text-2xl md:text-3xl text-primary dark:text-white">تابع حالة طلبك</h3>
+            <p class="text-gray-600 dark:text-gray-400 mt-2 font-sans text-[14px] md:text-[15px] font-medium leading-relaxed max-w-xl">اكتب الرقم المرجعي الذي ظهر لك بعد الإرسال لمعرفة حالة المراجعة.</p>
           </div>
+          
+          <form method="get" action="/track-person-request" class="w-full lg:w-auto flex flex-col sm:flex-row gap-3">
+            <input name="reference" class="field text-center sm:text-right tracking-[0.1em] sm:w-[280px]" value="<%= trackReference || '' %>" placeholder="مثال: FAM-2026-ABC123" required>
+            <button type="submit" class="shrink-0 px-8 py-3 rounded-xl bg-primary hover:bg-primaryDark text-white dark:bg-white dark:text-[#050505] dark:hover:bg-accent font-sans font-bold text-[14px] shadow-sm transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2">
+              <span class="material-symbols-outlined text-[18px]">search</span> بحث
+            </button>
+          </form>
         </div>
-
-        <form method="get" action="/track-person-request" class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-4">
-          <input name="reference" class="field text-center md:text-right tracking-[0.08em]" value="<%= trackReference || '' %>" placeholder="مثال: FAM-2026-ABC123" required>
-          <button type="submit" class="px-10 py-3.5 rounded-full bg-primary dark:bg-accent text-white dark:text-black font-sans font-bold shadow-lg hover:opacity-90 transition-colors flex items-center justify-center gap-2">
-            <span class="material-symbols-outlined text-[20px]">search</span> بحث
-          </button>
-        </form>
 
         <% if (trackingSearched) { %>
           <% if (!trackingResult) { %>
-            <div class="mt-8 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 p-5 text-red-800 dark:text-red-200 font-sans font-bold text-center flex items-center justify-center gap-2">
-              <span class="material-symbols-outlined text-red-600 dark:text-red-400">error</span>
+            <div class="mt-8 rounded-[16px] bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 p-5 text-red-800 dark:text-red-300 font-sans font-bold text-center flex items-center justify-center gap-2 text-[14px] shadow-sm">
+              <span class="material-symbols-outlined text-[20px]">error</span>
               لم يتم العثور على طلب بهذا الرقم المرجعي. تأكد من كتابة الرمز بشكل صحيح.
             </div>
           <% } else if (trackingResult.status === 'pending') { %>
-            <div class="mt-8 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 p-6 text-amber-800 dark:text-amber-200">
+            <div class="mt-8 rounded-[20px] bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 p-6 sm:p-8 text-amber-800 dark:text-amber-200 shadow-sm">
               <div class="flex items-start gap-4">
-                <span class="material-symbols-outlined text-[32px] text-amber-600 dark:text-amber-400">hourglass_top</span>
+                <div class="w-12 h-12 shrink-0 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-500/30">
+                  <span class="material-symbols-outlined text-[24px]">hourglass_top</span>
+                </div>
                 <div>
-                  <p class="font-display font-bold text-2xl">حالة الطلب: قيد المراجعة</p>
-                  <p class="text-base font-sans mt-2 opacity-90">طلب <strong class="text-amber-900 dark:text-amber-100"><%= trackingResult.name %></strong> وصل للإدارة وجاري مراجعته.</p>
-                  <p class="text-sm font-sans mt-3 opacity-80 border-t border-amber-200/50 dark:border-amber-500/20 pt-3">الرقم المرجعي: <span class="font-mono tracking-widest"><%= trackingResult.reference_code %></span></p>
+                  <p class="font-display font-bold text-2xl mb-1">حالة الطلب: قيد المراجعة</p>
+                  <p class="text-[15px] font-sans font-medium opacity-90 leading-relaxed">طلب <strong class="text-amber-900 dark:text-amber-100"><%= trackingResult.name %></strong> وصل للإدارة وجاري مراجعته.</p>
+                  <p class="text-[13px] font-sans font-bold mt-4 opacity-80 border-t border-amber-200/50 dark:border-amber-500/20 pt-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[16px]">tag</span> الرقم المرجعي: <span class="font-mono tracking-widest bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded border border-amber-200/30 dark:border-amber-500/20"><%= trackingResult.reference_code %></span>
+                  </p>
                 </div>
               </div>
             </div>
           <% } else if (trackingResult.status === 'rejected') { %>
-            <div class="mt-8 rounded-2xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 p-6 text-red-800 dark:text-red-200">
+            <div class="mt-8 rounded-[20px] bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 p-6 sm:p-8 text-red-800 dark:text-red-200 shadow-sm">
               <div class="flex items-start gap-4">
-                <span class="material-symbols-outlined text-[32px] text-red-600 dark:text-red-400">cancel</span>
-                <div>
-                  <p class="font-display font-bold text-2xl">حالة الطلب: تم الرفض</p>
-                  <p class="text-base font-sans mt-2 opacity-90">طلب <strong class="text-red-900 dark:text-red-100"><%= trackingResult.name %></strong> تم رفضه.</p>
-                  <div class="mt-4 p-4 rounded-xl bg-red-100/50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30">
-                     <p class="font-bold font-sans">سبب الرفض:</p>
-                     <p class="text-sm mt-1 leading-relaxed"><%= trackingResult.admin_note || 'لم يتم ذكر سبب محدد.' %></p>
+                <div class="w-12 h-12 shrink-0 rounded-full bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 flex items-center justify-center border border-red-200 dark:border-red-500/30">
+                  <span class="material-symbols-outlined text-[24px]">cancel</span>
+                </div>
+                <div class="flex-grow">
+                  <p class="font-display font-bold text-2xl mb-1">حالة الطلب: تم الرفض</p>
+                  <p class="text-[15px] font-sans font-medium opacity-90">طلب <strong class="text-red-900 dark:text-red-100"><%= trackingResult.name %></strong> تم رفضه.</p>
+                  <div class="mt-5 p-5 rounded-xl bg-white/50 dark:bg-black/20 border border-red-200/50 dark:border-red-500/20">
+                     <p class="font-bold font-sans text-[13px] mb-2 flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px]">info</span> سبب الرفض:</p>
+                     <p class="text-[14px] font-medium leading-relaxed"><%= trackingResult.admin_note || 'لم يتم ذكر سبب محدد.' %></p>
                   </div>
                 </div>
               </div>
             </div>
           <% } else if (trackingResult.status === 'approved') { %>
-            <div class="mt-8 rounded-2xl bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 p-6 text-green-800 dark:text-green-200">
+            <div class="mt-8 rounded-[20px] bg-[#E8F5ED] dark:bg-[#003D1D]/30 border border-primary/20 dark:border-primary/40 p-6 sm:p-8 text-gray-900 dark:text-white shadow-sm">
               <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                 <div class="flex items-start gap-4">
-                  <span class="material-symbols-outlined text-[32px] text-green-600 dark:text-green-400">verified</span>
+                  <div class="w-12 h-12 shrink-0 rounded-full bg-primary/10 dark:bg-emerald-500/10 text-primary dark:text-emerald-400 flex items-center justify-center border border-primary/20 dark:border-emerald-500/20">
+                    <span class="material-symbols-outlined text-[24px]">verified</span>
+                  </div>
                   <div>
-                    <p class="font-display font-bold text-2xl">حالة الطلب: تمت الموافقة</p>
-                    <p class="text-base font-sans mt-2 opacity-90">تمت إضافة <strong class="text-green-900 dark:text-green-100"><%= trackingResult.created_person_name || trackingResult.name %></strong> إلى الشجرة التفاعلية.</p>
+                    <p class="font-display font-bold text-2xl text-primary dark:text-emerald-400 mb-1">حالة الطلب: تمت الموافقة</p>
+                    <p class="text-[15px] font-sans font-medium opacity-90 leading-relaxed text-gray-700 dark:text-gray-300">تمت إضافة <strong class="text-gray-900 dark:text-white"><%= trackingResult.created_person_name || trackingResult.name %></strong> إلى الشجرة التفاعلية.</p>
                     <% if (trackingResult.reviewed_at) { %>
-                      <p class="text-sm font-sans mt-3 opacity-80 border-t border-green-200/50 dark:border-green-500/20 pt-3">تاريخ المراجعة: <%= trackingResult.reviewed_at %></p>
+                      <p class="text-[13px] font-sans font-bold mt-4 opacity-70 border-t border-primary/10 dark:border-white/10 pt-4 text-gray-600 dark:text-gray-400">تاريخ المراجعة: <%= trackingResult.reviewed_at %></p>
                     <% } %>
                   </div>
                 </div>
                 <% if (trackingResult.created_person_id) { %>
-                  <a href="/?focus=<%= trackingResult.created_person_id %>" class="px-8 py-3.5 rounded-full bg-primary dark:bg-accent text-white dark:text-black font-sans font-bold text-center whitespace-nowrap flex items-center justify-center gap-2 shadow-lg hover:scale-105 transition-transform">
-                    <span class="material-symbols-outlined">account_tree</span> موقعي في الشجرة
+                  <a href="/?focus=<%= trackingResult.created_person_id %>" class="w-full md:w-auto px-8 py-3.5 rounded-xl bg-primary hover:bg-primaryDark text-white dark:bg-white dark:text-[#050505] dark:hover:bg-accent font-sans font-bold text-[14px] text-center whitespace-nowrap flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                    <span class="material-symbols-outlined text-[18px]">account_tree</span> موقعي في الشجرة
                   </a>
                 <% } %>
               </div>
@@ -404,27 +557,52 @@
     </section>
   </main>
 
-  <!-- التذييل الموحد -->
-  <footer class="bg-background-light dark:bg-bg-charcoal border-t border-gray-200 dark:border-white/10 mt-auto py-8 relative z-10">
+  <footer class="bg-background-light dark:bg-[#050505] border-t border-gray-200 dark:border-white/5 mt-auto py-8 relative z-10">
     <div class="max-w-[90rem] mx-auto px-6 text-center">
       <p class="text-[11px] font-sans font-bold text-gray-500 uppercase tracking-[0.1em]">© ٢٠٢٦ وقف عائلة خاشقجي. جميع الحقوق محفوظة.</p>
     </div>
   </footer>
 
-  <!-- إبقاء سكريبتات الصفحة الخاصة بالمنطق كما هي بالضبط -->
   <script>
     (function(){const btn=document.getElementById('themeBtn');function setTheme(next){document.documentElement.classList.toggle('dark',next==='dark');document.documentElement.setAttribute('data-theme',next);localStorage.setItem('theme',next)}btn?.addEventListener('click',()=>{const cur=document.documentElement.classList.contains('dark')?'dark':'light';setTheme(cur==='dark'?'light':'dark')});})();
-    (function(){
-      const btn=document.getElementById('mobileNavBtn'),drawer=document.getElementById('mobileNavDrawer'),overlay=document.getElementById('mobileNavOverlay'),close=document.getElementById('mobileNavClose');
-      function lockPage(){document.documentElement.style.overflowY='hidden';document.body.style.overflowY='hidden'}
-      function unlockPage(){document.documentElement.style.overflowY='auto';document.body.style.overflowY='auto';document.body.style.overflowX='hidden'}
-      function open(){drawer?.classList.add('isOpen');overlay?.classList.remove('mobile-nav-hidden');overlay?.classList.add('mobile-nav-open');lockPage()}
-      function shut(){drawer?.classList.remove('isOpen');overlay?.classList.add('mobile-nav-hidden');overlay?.classList.remove('mobile-nav-open');unlockPage()}
-      unlockPage();
-      btn?.addEventListener('click',open);
-      close?.addEventListener('click',shut);
-      overlay?.addEventListener('click',shut);
-      drawer?.querySelectorAll('a').forEach(a=>a.addEventListener('click',shut));
+    
+    (function mobileNavInit(){
+      const btn = document.getElementById("mobileNavBtn");
+      const navDrawer = document.getElementById("mobileNavDrawer");
+      const overlay = document.getElementById("mobileNavOverlay");
+      const closeBtn = document.getElementById("mobileNavClose");
+
+      function setOpenState(isOpen){
+        btn?.setAttribute("data-open", isOpen ? "true" : "false");
+        btn?.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      }
+
+      function openNav(){
+        overlay?.classList.remove("hidden");
+        overlay?.style.setProperty('display', 'block', 'important');
+        navDrawer?.classList.add("isOpen");
+        setOpenState(true);
+        document.body.classList.add('overflow-hidden');
+      }
+      function closeNav(){
+        navDrawer?.classList.remove("isOpen");
+        overlay?.classList.add("hidden");
+        overlay?.style.setProperty('display', 'none', 'important');
+        setOpenState(false);
+        document.body.classList.remove('overflow-hidden');
+      }
+
+      btn?.addEventListener("click", () => {
+        const open = btn.getAttribute("data-open") === "true";
+        open ? closeNav() : openNav();
+      });
+
+      closeBtn?.addEventListener("click", closeNav);
+      overlay?.addEventListener("click", closeNav);
+      navDrawer?.querySelectorAll("a").forEach(a => a.addEventListener("click", closeNav));
+      window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNav(); });
+
+      setOpenState(false);
     })();
 
     (function referenceCopyInit(){
@@ -436,9 +614,9 @@
       function showMessage(text, isError = false) {
         if (!msg) return;
         msg.textContent = text;
-        msg.classList.remove('hidden', 'text-green-700', 'dark:text-green-300', 'text-red-700', 'dark:text-red-300');
-        msg.classList.add(isError ? 'text-red-700' : 'text-green-700');
-        msg.classList.add(isError ? 'dark:text-red-300' : 'dark:text-green-300');
+        msg.classList.remove('hidden', 'text-green-600', 'dark:text-green-400', 'text-red-600', 'dark:text-red-400');
+        msg.classList.add(isError ? 'text-red-600' : 'text-green-600');
+        msg.classList.add(isError ? 'dark:text-red-400' : 'dark:text-green-400');
         clearTimeout(msg.__copyTimer);
         msg.__copyTimer = setTimeout(() => msg.classList.add('hidden'), 2500);
       }
@@ -486,7 +664,7 @@
       function setFeedback(type,msg,state){
         const el=document.querySelector(`[data-lineage-feedback="${type}"]`); if(!el)return;
         el.textContent=msg;
-        el.className='lineage-feedback block mt-2 text-xs font-bold '+(state==='ok'?'text-green-700 dark:text-green-300':state==='warn'?'text-amber-700 dark:text-amber-300':state==='bad'?'text-red-700 dark:text-red-300':'text-gray-500 dark:text-gray-400');
+        el.className='lineage-feedback block mt-2 text-[11px] font-sans font-semibold leading-relaxed '+(state==='ok'?'text-green-600 dark:text-green-400':state==='warn'?'text-amber-600 dark:text-amber-400':state==='bad'?'text-red-600 dark:text-red-400':'text-gray-500 dark:text-gray-400');
       }
       inputs.forEach(input=>input.addEventListener('input',()=>{
         const type=input.getAttribute('data-lineage-resolver');

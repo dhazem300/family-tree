@@ -20,18 +20,22 @@
       theme: {
         extend: {
           colors: {
-            primary: "#005A2B",     /* اللون الأخضر الملكي الفاخر */
-            primaryDark: "#003D1D", 
-            accent: "#E5B869",      /* ذهب سائل */
+            primary: "#005A2B",
+            primaryDark: "#003D1D",
+            accent: "#E5B869",
+            "accent-gold": "#E5B869",
             "background-light": "#F8F8F6",
             "background-dark": "#050505",
+            "bg-charcoal": "#050505",
             "card-light": "#FFFFFF",
             "card-dark": "#0A0A0A",
-            "bg-charcoal": "#050505",
             "bg-card": "#0A0A0A",
             "text-cream": "#FAFAFA",
+            "text-dark": "#111827",
+            "text-muted": "#71717A",
             "muted-slate": "#71717A",
             gold: "#E5B869",
+            "accent-gold-dark": "#D4A353",
           },
           fontFamily: {
             display: ["'Aref Ruqaa'", "serif"],
@@ -39,6 +43,11 @@
           },
           backgroundImage: {
             "islamic-pattern": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+            "islamic-pattern-dark": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
+          },
+          boxShadow: {
+            'luxury': '0 20px 40px -10px rgba(0,0,0,0.05), 0 0 20px rgba(229,184,105,0.03)',
+            'luxury-dark': '0 20px 40px -10px rgba(0,0,0,0.4), 0 0 20px rgba(229,184,105,0.05)',
           }
         }
       }
@@ -49,15 +58,17 @@
     @layer utilities {
       .scrollbar-hide::-webkit-scrollbar { display: none; }
       .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-      .glass-premium { @apply backdrop-blur-xl border border-white/20 dark:border-white/5; }
+      .glass-panel {
+        @apply bg-white/85 dark:bg-[#080808]/85 backdrop-blur-xl border border-accent-gold/20 shadow-luxury dark:shadow-luxury-dark;
+      }
     }
   </style>
 
   <style>
-    /* Custom Scrollbar */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #E5B869; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: rgba(229, 184, 105, 0.4); border-radius: 4px; transition: background 0.3s; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(229, 184, 105, 0.8); }
 
     .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
     .custom-scrollbar::-webkit-scrollbar-thumb { border-radius: 4px; }
@@ -67,22 +78,12 @@
     html.dark .dark-toggle-icon-moon { display: none; }
     html:not(.dark) .dark-toggle-icon-sun { display: none; }
 
-    /* حركات وتأثيرات العارض */
     #pdfInner {
       transform-origin: center center;
       transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
       will-change: transform;
     }
 
-    /* ظل احترافي للمعاينة يتناسب مع الهوية الجديدة */
-    .pdf-paper-shadow {
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1), 0 0 20px rgba(229,184,105,0.1);
-    }
-    .dark .pdf-paper-shadow {
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(229,184,105,0.05);
-    }
-
-    /* Mobile Nav */
     #mobileNavOverlay.hidden { display: none; }
     #mobileNavOverlay { display: block; }
     #mobileNavDrawer {
@@ -112,71 +113,93 @@
   </script>
 </head>
 
-<body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col overflow-x-hidden selection:bg-accent selection:text-background-dark transition-colors duration-300">
+<body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col overflow-x-hidden selection:bg-accent/30 selection:text-gray-900 dark:selection:text-white transition-colors duration-400">
 
   <% const pdfUrl = (page && page.pdf_url) ? page.pdf_url : ""; %>
 
-  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></div>
-  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-bg-charcoal border-r border-gray-200 dark:border-white/10 shadow-2xl z-[90] flex flex-col">
+  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></div>
+  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-bg-charcoal border-r border-gray-100 dark:border-white/5 shadow-2xl z-[90] flex flex-col">
     <div class="h-1.5 w-full bg-gradient-to-r from-gray-300 via-accent to-gray-300 dark:from-gray-800 dark:via-accent dark:to-gray-800"></div>
     <div class="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/5">
-      <img class="h-10 w-auto hidden dark:block" src="/assets/logo-dark.svg" alt="شعار" />
-      <img class="h-10 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار" />
-      <button id="mobileNavClose" class="text-gray-500 hover:text-accent transition-colors" type="button" aria-label="إغلاق القائمة">
-        <span class="material-symbols-outlined text-[28px]">close</span>
+      <img class="h-10 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+      <img class="h-10 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+      <button id="mobileNavClose" class="text-gray-400 hover:text-accent transition-colors" type="button" aria-label="إغلاق القائمة">
+        <span class="material-symbols-outlined text-[26px]">close</span>
       </button>
     </div>
-    <nav class="p-6 flex flex-col gap-4 font-bold text-lg flex-grow text-gray-700 dark:text-gray-300" aria-label="قائمة الجوال">
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/">الشجرة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/about">نبذة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/honor">قائمة السير الذاتية</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/news">أخبار العائلة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/kinship">صلة القرابة</a>
-      <a class="px-4 py-3 rounded-lg text-accent bg-accent/5 border-r-2 border-accent" href="/tree-pdf">مشجرة العائلة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/support">الدعم</a>
+
+    <nav class="p-6 flex flex-col gap-2 text-base font-semibold flex-grow text-gray-600 dark:text-gray-400 overflow-y-auto" aria-label="قائمة الجوال">
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/">الشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/about">نبذة عن العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/honor">السير الذاتية</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/news">أخبار العائلة</a>
+      <a class="px-4 py-3 rounded-xl text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent" href="/tree-pdf">المشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/kinship">صلة القرابة</a>
+      
+      <div class="my-3 h-px bg-gray-100 dark:bg-white/5"></div>
+      
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/submit-person">إضافة بياناتك</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-members">أعضاء العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-books">كتب العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-gallery">معرض العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-events">مناسبات العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/chat">الشات العام</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/notifications">الإشعارات</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/account">حسابي</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/support">الدعم</a>
     </nav>
-    <div class="p-6 border-t border-gray-100 dark:border-white/5">
-      <a href="/admin/login" class="flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-lg hover:opacity-90 transition-colors font-bold" title="تسجيل الدخول">
-        <span class="material-symbols-outlined">login</span>
-      </a>
+
+    <div class="p-6 border-t border-gray-100 dark:border-white/5 bg-white/50 dark:bg-black/20">
+      <div class="grid grid-cols-1 gap-3">
+        <a href="/admin/login" class="flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-xl hover:opacity-90 transition-all shadow-sm font-bold text-sm" title="لوحة الإدارة">
+          <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+          <span>لوحة الإدارة</span>
+        </a>
+      </div>
     </div>
   </aside>
 
-  <header class="sticky top-0 z-50 w-full bg-white/95 dark:bg-[#050505]/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10">
-    <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center h-20 md:h-24">
+  <header class="sticky top-0 z-50 w-full glass-panel border-b-0 transition-colors duration-400">
+    <div class="max-w-[90rem] mx-auto px-4 sm:px-8 py-3 flex justify-between items-center h-20 md:h-24">
       
-      <div class="flex items-center gap-4">
-        <a href="/" class="block shrink-0">
-          <img class="h-14 md:h-20 w-auto hidden dark:block" src="/assets/logo-dark.svg" alt="شعار العائلة" />
-          <img class="h-14 md:h-20 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+      <div class="flex items-center gap-3 xl:gap-4 shrink-0">
+        <a href="/" class="block shrink-0 transition-transform hover:scale-105 duration-300">
+          <img class="h-10 md:h-12 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+          <img class="h-10 md:h-12 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
         </a>
-        <div class="h-10 w-px bg-gray-300 dark:bg-white/20"></div>
-        <div class="flex items-center justify-center">
-           <h1 class="text-2xl md:text-3xl font-display text-primary dark:text-accent font-bold leading-none tracking-wide pt-1">مشجرة العائلة</h1>
+        
+        <div class="h-7 w-px bg-gray-200 dark:bg-white/10 hidden sm:block"></div>
+        
+        <div class="hidden sm:flex flex-col justify-center min-w-0">
+           <h1 class="text-lg md:text-xl font-display text-primary dark:text-accent font-bold leading-tight pt-1">شجرة العائلة</h1>
+           <span class="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5 truncate">حفظ الأنساب</span>
         </div>
       </div>
 
-      <nav class="hidden lg:flex gap-6 xl:gap-8 items-center font-sans font-bold text-sm tracking-wide uppercase text-gray-600 dark:text-gray-400">
-        <a class="hover:text-accent transition-colors" href="/">الشجرة</a>
-        <a class="hover:text-accent transition-colors" href="/about">نبذة</a>
-        <a class="hover:text-accent transition-colors" href="/honor">قائمة السير الذاتية</a>
-        <a class="hover:text-accent transition-colors" href="/news">أخبار العائلة</a>
-        <a class="hover:text-accent transition-colors" href="/kinship">صلة القرابة</a>
-        <a class="text-primary dark:text-white border-b-2 border-accent pb-1" href="/tree-pdf">مشجرة العائلة</a>
-        <a class="hover:text-accent transition-colors" href="/support">الدعم</a>
+      <nav class="hidden lg:flex flex-1 justify-center gap-2 lg:gap-3 xl:gap-5 items-center font-sans font-semibold text-[11px] xl:text-[13px] tracking-wide text-gray-500 dark:text-gray-400 overflow-x-auto scrollbar-hide px-2 xl:px-4 flex-nowrap" aria-label="التنقل الرئيسي">
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/">الشجرة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/about">نبذة عن العائلة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/honor">السير الذاتية</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/news">أخبار العائلة</a>
+        <a class="whitespace-nowrap shrink-0 text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1 transition-colors duration-200" href="/tree-pdf">المشجرة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/kinship">صلة القرابة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/submit-person">إضافة بياناتك</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/family-members">أعضاء العائلة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/chat">الشات العام</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/account">حسابي</a>
       </nav>
 
-      <div class="flex items-center gap-3 shrink-0">
-        <button id="uiThemeBtn" class="flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:text-accent dark:hover:text-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-all" type="button" title="تبديل المظهر">
-          <span class="material-symbols-outlined dark-toggle-icon-moon">dark_mode</span>
-          <span class="material-symbols-outlined hidden dark:inline text-accent">light_mode</span>
+      <div class="flex items-center justify-end gap-2 shrink-0">
+        <button id="uiThemeBtn" aria-label="تبديل المظهر" class="flex items-center justify-center w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-accent dark:hover:text-accent hover:bg-accent/5 transition-all duration-300" type="button" title="تبديل المظهر">
+          <span class="material-symbols-outlined text-[22px] dark-toggle-icon-moon">dark_mode</span>
+          <span class="material-symbols-outlined text-[22px] hidden dark:inline text-accent">light_mode</span>
         </button>
 
-        <a href="/admin/login" class="hidden sm:flex p-2.5 rounded-full bg-primary text-white dark:bg-white dark:text-black hover:opacity-90 transition-all shadow-md flex items-center justify-center" title="تسجيل الدخول">
-          <span class="material-symbols-outlined text-[22px]">login</span>
+        <a href="/admin/login" class="hidden sm:flex w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-accent hover:bg-primary/5 dark:hover:bg-accent/5 transition-all duration-300 items-center justify-center" title="لوحة الإدارة">
+          <span class="material-symbols-outlined text-[22px]">admin_panel_settings</span>
         </a>
 
-        <button id="mobileNavBtn" data-open="false" class="lg:hidden flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-primary dark:text-accent hover:bg-gray-200 dark:hover:bg-white/10 transition-colors" type="button" aria-label="فتح القائمة">
+        <button id="mobileNavBtn" data-open="false" class="lg:hidden flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-primary dark:text-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-all duration-200" type="button" aria-label="فتح القائمة">
           <span class="material-symbols-outlined text-[24px] ico-open">menu</span>
           <span class="material-symbols-outlined text-[24px] ico-close hidden">close</span>
         </button>
@@ -187,28 +210,30 @@
 
   <main class="flex-grow relative">
 
-    <section class="pt-20 pb-12 px-6 max-w-[90rem] mx-auto text-center relative overflow-hidden">
-      <div class="absolute inset-0 bg-islamic-pattern opacity-100 dark:opacity-30 pointer-events-none"></div>
+    <section class="pt-16 pb-12 px-6 max-w-[90rem] mx-auto text-center relative overflow-hidden">
+      <div class="absolute inset-0 bg-islamic-pattern opacity-40 dark:opacity-10 pointer-events-none"></div>
 
-      <img src="/assets/logo-dark.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.03] pointer-events-none hidden dark:block" alt="">
-      <img src="/assets/logo-light.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.03] pointer-events-none block dark:hidden" alt="">
+      <img src="/assets/logo-dark.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.02] pointer-events-none hidden dark:block" alt="">
+      <img src="/assets/logo-light.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.02] pointer-events-none block dark:hidden" alt="">
 
-      <div class="w-px h-12 bg-accent mx-auto mb-6 relative z-10"></div>
+      <div class="w-px h-10 bg-gradient-to-b from-transparent via-accent to-transparent mx-auto mb-5 relative z-10"></div>
       
-      <h1 class="text-5xl md:text-7xl font-display leading-tight mb-4 relative z-10 font-bold drop-shadow-sm dark:drop-shadow-none">
+      <p class="text-[10px] md:text-xs font-sans font-bold tracking-[0.2em] uppercase text-gray-400 dark:text-gray-500 mb-2 relative z-10">النسخة الرسمية</p>
+
+      <h1 class="text-4xl md:text-6xl font-display leading-tight mb-4 relative z-10 font-bold">
         <span class="text-primary dark:text-white transition-colors duration-300">مشجرة</span> <span class="text-accent">العائلة</span>
       </h1>
       
-      <p class="text-base md:text-lg font-sans text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed relative z-10 mb-10">
+      <p class="text-[14px] md:text-base font-sans text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed relative z-10 font-medium mb-10">
         <%= page?.subtitle || "النسخة الرقمية المعتمدة لشجرة العائلة، مصممة للحفظ والطباعة عالية الدقة." %>
       </p>
 
       <% if (pdfUrl) { %>
         <div class="flex flex-col sm:flex-row items-center justify-center gap-4 relative z-10">
-          <a href="<%= pdfUrl %>" target="_blank" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-accent text-black font-bold hover:bg-white hover:text-primary transition-colors shadow-[0_0_15px_rgba(229,184,105,0.4)]">
+          <a href="<%= pdfUrl %>" target="_blank" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-accent text-[#050505] font-sans font-bold hover:bg-accent-gold-dark transition-all shadow-md hover:-translate-y-0.5">
             <span class="material-symbols-outlined text-[20px]">fullscreen</span> عرض الشجرة كاملة
           </a>
-          <button id="downloadBig" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-black/50 text-gray-900 dark:text-white font-bold hover:border-accent dark:hover:border-accent transition-all backdrop-blur-md">
+          <button id="downloadBig" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-[#111]/80 text-gray-900 dark:text-white font-sans font-bold hover:border-accent dark:hover:border-accent transition-all backdrop-blur-md shadow-sm hover:-translate-y-0.5">
             <span class="material-symbols-outlined text-[20px]">download</span> تحميل النسخة الأصلية
           </button>
         </div>
@@ -218,31 +243,33 @@
     <section class="px-4 sm:px-6 lg:px-8 pb-20 relative z-10">
       
       <% if (page?.content) { %>
-        <div class="max-w-4xl mx-auto mb-10 text-center font-sans text-lg leading-relaxed text-gray-700 dark:text-gray-300 relative z-10">
-          <%= page.content.replace(/\n/g, "<br>") %>
+        <div class="max-w-4xl mx-auto mb-10 text-center font-sans text-[15px] md:text-base leading-relaxed text-gray-700 dark:text-gray-300 relative z-10 font-medium">
+          <%- page.content.replace(/\n/g, "<br>") %>
         </div>
       <% } %>
 
       <div id="pdfCanvas" class="relative mx-auto flex justify-center w-full relative z-10">
         <% if (pdfUrl) { %>
-          <div class="relative group rounded-[2rem] border border-gray-200 dark:border-white/10 bg-white dark:bg-[#050505] overflow-hidden w-full shadow-2xl p-2 md:p-3 glass-premium pdf-paper-shadow" style="max-width: 65vh;">
+          <div class="relative group rounded-[24px] border border-accent-gold/20 bg-white dark:bg-[#0A0A0A] overflow-hidden w-full shadow-luxury dark:shadow-luxury-dark p-3 md:p-4 glass-panel" style="max-width: 65vh;">
             
-            <a href="<%= pdfUrl %>" target="_blank" class="absolute inset-0 z-20 bg-black/0 hover:bg-black/50 backdrop-blur-0 hover:backdrop-blur-sm transition-all duration-500 cursor-pointer flex items-center justify-center">
-              <div class="opacity-0 group-hover:opacity-100 bg-accent text-black px-8 py-4 rounded-xl font-bold shadow-[0_0_20px_rgba(229,184,105,0.5)] flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-all duration-500">
+            <a href="<%= pdfUrl %>" target="_blank" class="absolute inset-0 z-20 bg-black/0 hover:bg-black/40 backdrop-blur-0 hover:backdrop-blur-sm transition-all duration-500 cursor-pointer flex items-center justify-center">
+              <div class="opacity-0 group-hover:opacity-100 bg-accent text-[#050505] px-8 py-4 rounded-xl font-sans font-bold shadow-[0_10px_30px_rgba(229,184,105,0.4)] flex items-center gap-2 transform translate-y-4 group-hover:translate-y-0 transition-all duration-500">
                 <span class="material-symbols-outlined text-[24px]">open_in_new</span> انقر لعرض المشجرة كاملة
               </div>
             </a>
 
-            <div id="pdfInner" class="w-full pointer-events-none flex justify-center bg-white rounded-2xl overflow-hidden shadow-inner">
+            <div id="pdfInner" class="w-full pointer-events-none flex justify-center bg-white rounded-xl overflow-hidden shadow-inner border border-gray-100 dark:border-white/5">
               <iframe id="pdfFrame" src="<%= pdfUrl %>#toolbar=0&navpanes=0&scrollbar=0&view=Fit" class="w-full bg-white border-none block" style="height: 80vh;" title="شجرة العائلة PDF"></iframe>
             </div>
 
           </div>
         <% } else { %>
-          <div class="w-full max-w-4xl h-[50vh] flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-white/10 bg-white/50 dark:bg-black/50 backdrop-blur-md text-center p-6 rounded-3xl shadow-lg">
-            <span class="material-symbols-outlined text-[64px] text-accent mb-4">picture_as_pdf</span>
-            <h3 class="text-3xl font-display text-primary dark:text-white mb-2 font-bold">لا يوجد ملف متاح</h3>
-            <p class="text-gray-500 dark:text-gray-400 font-sans text-lg">سيقوم مدير الموقع بإرفاق المشجرة قريباً.</p>
+          <div class="w-full max-w-4xl h-[50vh] flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-white/10 bg-white/50 dark:bg-black/20 backdrop-blur-md text-center p-8 rounded-[24px] shadow-sm">
+            <div class="w-20 h-20 mx-auto rounded-full bg-primary/5 dark:bg-white/5 border border-primary/10 dark:border-white/10 text-primary dark:text-accent flex items-center justify-center mb-6">
+              <span class="material-symbols-outlined text-[40px]">picture_as_pdf</span>
+            </div>
+            <h3 class="text-3xl font-display text-primary dark:text-white mb-3 font-bold">لا يوجد ملف متاح</h3>
+            <p class="text-gray-500 dark:text-gray-400 font-sans text-lg font-medium">سيقوم مدير الموقع بإرفاق المشجرة قريباً.</p>
           </div>
         <% } %>
       </div>
@@ -251,10 +278,10 @@
 
   </main>
 
-  <footer class="bg-background-light dark:bg-bg-charcoal border-t border-gray-200 dark:border-white/10 mt-auto py-8 relative z-10">
+  <footer class="bg-background-light dark:bg-[#050505] border-t border-gray-200 dark:border-white/5 mt-auto py-8 relative z-10">
     <div class="max-w-[90rem] mx-auto px-6 text-center flex flex-col items-center gap-3">
-      <p class="text-[11px] font-sans font-bold text-gray-500 uppercase tracking-[0.1em]">
-        © ٢٠٢٦ وقف عائلة خاشقجي. جميع الحقوق محفوظة.
+      <p class="text-[11px] font-sans font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest">
+        © ٢٠٢٦ وقف عائلة خاشقجي. جميع الحقوق محفوظة. حفظ الأنساب والاحتفاء بالتراث.
       </p>
     </div>
   </footer>
@@ -287,13 +314,17 @@
 
       function openNav(){
         overlay?.classList.remove("hidden");
+        overlay?.style.setProperty('display', 'block', 'important');
         navDrawer?.classList.add("isOpen");
         setOpenState(true);
+        document.body.classList.add('overflow-hidden');
       }
       function closeNav(){
         navDrawer?.classList.remove("isOpen");
         overlay?.classList.add("hidden");
+        overlay?.style.setProperty('display', 'none', 'important');
         setOpenState(false);
+        document.body.classList.remove('overflow-hidden');
       }
 
       btn?.addEventListener("click", () => {

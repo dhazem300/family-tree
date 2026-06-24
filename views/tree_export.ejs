@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>تصدير فرع من الشجرة - شجرة العائلة</title>
+  
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/styles.css" />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries,line-clamp"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#005A2B",
+            primaryDark: "#003D1D",
+            accent: "#E5B869",
+            "accent-gold": "#E5B869",
+            "background-light": "#F8F8F6",
+            "background-dark": "#050505",
+            "bg-charcoal": "#050505",
+            "bg-card": "#0A0A0A",
+            "text-cream": "#FAFAFA",
+            "text-dark": "#111827",
+            "text-muted": "#71717A",
+            "muted-slate": "#71717A",
+            "accent-gold-dark": "#D4A353",
+          },
+          fontFamily: {
+            display: ["'Aref Ruqaa'", "serif"],
+            sans: ["Tajawal", "sans-serif"],
+          },
+          backgroundImage: {
+            "islamic-pattern": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+          },
+          boxShadow: {
+            'luxury': '0 20px 40px -10px rgba(0,0,0,0.05), 0 0 20px rgba(229,184,105,0.03)',
+            'luxury-dark': '0 20px 40px -10px rgba(0,0,0,0.4), 0 0 20px rgba(229,184,105,0.05)',
+          }
+        }
+      }
+    };
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .glass-panel {
+        @apply bg-white/85 dark:bg-[#0A0A0A]/85 backdrop-blur-xl border border-gray-200 dark:border-white/10 shadow-luxury dark:shadow-luxury-dark;
+      }
+      .premium-input {
+        @apply w-full h-12 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#111] dark:text-white px-4 text-[14px] focus:border-accent-gold focus:ring-1 focus:ring-accent-gold/30 placeholder-gray-400 transition-all;
+      }
+      .logo-render-fix {
+        @apply transform-gpu drop-shadow-sm dark:drop-shadow-[0_0_8px_rgba(255,255,255,0.1)];
+      }
+    }
+  </style>
+
+  <style>
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(229, 184, 105, 0.4); border-radius: 999px; transition: background 0.3s; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(229, 184, 105, 0.8); }
+
+    /* ===== Export Specific UI ===== */
+    .export-scroll { 
+      width: 100%; 
+      overflow-x: auto; 
+      overflow-y: auto; 
+      max-height: 75vh; 
+      background: transparent; 
+    }
+    
+    /* الورقة المخصصة للطباعة والتصدير 
+      تم إجبارها على الوضع الفاتح دائماً لكي يطبع الـ PDF بخلفية بيضاء نقية
+    */
+    .export-sheet { 
+      min-width: 1100px; 
+      width: max-content;
+      margin: 0 auto;
+      background: #FFFFFF !important; 
+      color: #111827 !important; 
+      padding: 40px; 
+      font-family: 'Tajawal', sans-serif; 
+      direction: rtl; 
+    }
+    
+    .export-sheet-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 2px solid rgba(229,184,105,0.25); padding-bottom: 20px; margin-bottom: 30px; }
+    .export-title { font-family: 'Aref Ruqaa', serif; font-size: 38px; font-weight: 700; color: #005A2B !important; margin: 0; }
+    .export-subtitle { font-size: 14px; color: #6B7280 !important; font-weight: 700; margin-top: 6px; letter-spacing: 0.02em; }
+    
+    .export-meta { display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-end; font-size: 13px; color: #111827 !important; font-weight: 700; }
+    .export-meta span { border: 1px solid rgba(229,184,105,0.4) !important; background: rgba(229,184,105,0.05) !important; border-radius: 99px; padding: 8px 16px; }
+
+    /* Tree engine for PDF output */
+    .branch-tree-shell {
+      position: relative;
+      overflow: hidden;
+      border-radius: 24px;
+      border: 1px solid rgba(229,184,105,0.15) !important;
+      background: radial-gradient(circle at top, rgba(229,184,105,0.08), transparent 40%), #FAFAFA !important;
+      padding: 40px 30px;
+      min-height: 520px;
+      min-width: max-content; /* يمنع القص في الهواتف */
+    }
+    .branch-tree-shell::before {
+      content: ""; position: absolute; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23E5B869' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");
+      pointer-events: none;
+    }
+    
+    .branch-tree { position: relative; z-index: 2; display: flex; justify-content: center; align-items: flex-start; padding: 20px 0; direction: ltr; min-width: max-content; }
+    .branch-tree ul { padding-top: 46px; position: relative; display: flex; justify-content: center; gap: 32px; margin: 0; padding-inline-start: 0; direction: ltr; min-width: max-content; }
+    .branch-tree li { list-style: none; text-align: center; position: relative; padding: 42px 10px 0; display: flex; flex-direction: column; align-items: center; }
+    
+    .branch-tree li::before, .branch-tree li::after { content: ""; position: absolute; top: 0; border-top: 2px solid rgba(229,184,105,0.7); width: 50%; height: 42px; }
+    .branch-tree li::before { right: 50%; border-right: 2px solid rgba(229,184,105,0.7); border-top-right-radius: 12px; }
+    .branch-tree li::after { left: 50%; border-left: 2px solid rgba(229,184,105,0.7); border-top-left-radius: 12px; }
+    .branch-tree li:only-child::before, .branch-tree li:only-child::after { display: none; }
+    .branch-tree li:only-child { padding-top: 0; }
+    .branch-tree li:first-child::before, .branch-tree li:last-child::after { border: 0 none; }
+    .branch-tree li:last-child::before { border-top-right-radius: 12px; }
+    .branch-tree li:first-child::after { border-top-left-radius: 12px; }
+    .branch-tree ul ul::before { content: ""; position: absolute; top: 0; left: 50%; border-left: 2px solid rgba(229,184,105,0.7); width: 0; height: 46px; }
+
+    .export-node { direction: rtl; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 130px; position: relative; }
+    
+    .node-portrait {
+      width: 100px; height: 100px; border-radius: 14px;
+      border: 1.5px solid rgba(229,184,105,0.4);
+      background: #fff !important; overflow: hidden; position: relative; z-index: 10;
+      box-shadow: 0 8px 20px -4px rgba(0,0,0,0.08);
+    }
+    .node-portrait.male { border-bottom: 3px solid #005A2B; }
+    .node-portrait.female { border-bottom: 3px solid #E5B869; }
+    .export-node.root .node-portrait { border-color: #E5B869; border-width: 2px; box-shadow: 0 0 0 6px rgba(229,184,105,0.15), 0 10px 24px rgba(0,90,43,0.1); }
+    .node-portrait img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .node-portrait.placeholder { display: flex; align-items: center; justify-content: center; background: rgba(229,184,105,0.05); color: #005A2B; font-size: 32px; font-weight: 700; font-family: 'Tajawal', sans-serif; }
+    
+    .name-box {
+      background-color: rgba(255,255,255,0.95) !important;
+      border: 1px solid rgba(229,184,105,0.3) !important;
+      padding: 6px 14px; border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+      margin-top: -10px; position: relative; z-index: 20;
+      min-width: 110px; max-width: 160px; text-align: center;
+    }
+    .export-node.root .name-box { border-color: #E5B869 !important; background: #005A2B !important; }
+    
+    .node-label-text { font-family: 'Aref Ruqaa', serif; color: #111827 !important; font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; display: block; }
+    .export-node.root .node-label-text { color: #FFFFFF !important; }
+    
+    .node-job { font-size: 11px; color: #6B7280 !important; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; margin-top: 2px; font-family: 'Tajawal', sans-serif; }
+    .export-node.root .node-job { color: rgba(255,255,255,0.8) !important; }
+
+    /* Empty state inside preview */
+    .empty-state { 
+      border: 1px dashed rgba(229,184,105,0.4); 
+      border-radius: 24px; 
+      background: rgba(255,255,255,0.5); 
+      padding: 60px 40px; 
+      text-align: center; 
+      color: #6B7280; 
+      font-weight: 700; 
+      font-size: 16px; 
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    /* Active candidate selection */
+    .candidate { transition: all 0.2s ease; }
+    .candidate.is-selected { box-shadow: 0 0 0 2px #E5B869; border-color: #E5B869 !important; background: rgba(229,184,105,0.05) !important; }
+    html.dark .candidate.is-selected { background: rgba(229,184,105,0.1) !important; }
+    
+    .export-hint { font-size: 12px; color: #6B7280 !important; font-weight: 700; text-align: center; margin-top: 24px; letter-spacing: 0.02em; }
+
+    /* Mobile Nav Independent Core Fixes */
+    #mobileNavOverlay.mobile-nav-hidden { display: none !important; }
+    #mobileNavOverlay:not(.mobile-nav-hidden) { display: block !important; }
+    #mobileNavDrawer {
+      right: 0 !important; left: auto !important; transform: translateX(110%);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: transform; display: flex !important; visibility: visible !important;
+    }
+    #mobileNavDrawer.isOpen { transform: translateX(0) !important; box-shadow: -20px 0 50px rgba(0,0,0,0.1); }
+    html.dark #mobileNavDrawer.isOpen { box-shadow: -20px 0 50px rgba(0,0,0,0.6); }
+    
+    @media (max-width: 1023px) {
+      #mobileNavBtn { display: flex !important; }
+      header nav[aria-label="التنقل الرئيسي"] { display: none !important; }
+    }
+    @media (min-width: 1024px) {
+      #mobileNavBtn, #mobileNavOverlay, #mobileNavDrawer { display: none !important; }
+      header nav[aria-label="التنقل الرئيسي"] { display: flex !important; }
+    }
+  </style>
+
+  <style id="mobile-menu-hard-fix-css">
+    @media (max-width: 1023px) {
+      #mobileNavBtn { display: inline-flex !important; position: relative !important; z-index: 120 !important; }
+      #mobileNavOverlay { position: fixed !important; inset: 0 !important; background: rgba(0,0,0,0.4) !important; backdrop-filter: blur(4px) !important; z-index: 100 !important; transition: opacity 0.3s; }
+      #mobileNavDrawer {
+        position: fixed !important; top: 0 !important; left: 0 !important; right: auto !important; bottom: 0 !important;
+        width: min(320px, 85vw) !important; height: 100vh !important; max-width: 85vw !important; z-index: 110 !important;
+        display: flex !important; flex-direction: column !important;
+        transform: translateX(-110%) !important; opacity: 1 !important; visibility: visible !important; pointer-events: none !important;
+        background: #FAFAFA !important; color: #111827 !important; border-right: 1px solid rgba(229,184,105,0.2) !important;
+      }
+      html.dark #mobileNavDrawer, html[data-theme="dark"] #mobileNavDrawer {
+        background: #080808 !important; color: #FAFAFA !important; border-right-color: rgba(229,184,105,0.1) !important;
+      }
+      #mobileNavDrawer.mobile-menu-open { transform: translateX(0) !important; pointer-events: auto !important; }
+      #mobileNavDrawer nav, #mobileNavDrawer .mobile-menu-links {
+        display: flex !important; flex-direction: column !important; gap: 6px !important; padding: 24px !important; flex: 1 1 auto !important;
+      }
+      #mobileNavDrawer nav a {
+        display: flex !important; align-items: center !important; min-height: 44px !important; padding: 10px 16px !important;
+        border-radius: 12px !important; font-size: 15px !important; font-weight: 700 !important; text-decoration: none !important;
+        color: #4B5563 !important; background: transparent !important; border-right: 2px solid transparent !important;
+        transition: all 0.2s ease !important;
+      }
+      #mobileNavDrawer nav a:hover { background: rgba(229,184,105,0.05) !important; color: #005A2B !important; }
+      html.dark #mobileNavDrawer nav a, html[data-theme="dark"] #mobileNavDrawer nav a { color: #9CA3AF !important; }
+      html.dark #mobileNavDrawer nav a:hover { background: rgba(229,184,105,0.05) !important; color: #E5B869 !important; }
+      
+      #mobileNavDrawer nav a.active-mobile-link { color: #005A2B !important; border-right-color: #E5B869 !important; background: rgba(229,184,105,0.08) !important; }
+      html.dark #mobileNavDrawer nav a.active-mobile-link { color: #E5B869 !important; background: rgba(229,184,105,0.1) !important; }
+      
+      #mobileNavDrawer .mobile-login-link {
+        display: flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important;
+        min-height: 48px !important; font-weight: 700 !important; font-size: 15px !important;
+      }
+      body.mobile-menu-is-open { overflow: hidden !important; }
+    }
+  </style>
+
+  <script>
+    (function syncThemeBeforePaint() {
+      const saved = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", saved);
+      document.documentElement.classList.toggle("dark", saved === "dark");
+    })();
+  </script>
+</head>
+
+<body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col relative overflow-x-hidden selection:bg-accent-gold/30 selection:text-gray-900 dark:selection:text-white transition-colors duration-400">
+
+  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80] mobile-nav-hidden" aria-hidden="true"></div>
+
+  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-[#0A0A0A] border-r border-gray-100 dark:border-white/5 shadow-2xl z-[90] flex flex-col">
+    <div class="h-1 w-full bg-gradient-to-r from-transparent via-accent-gold to-transparent opacity-70"></div>
+
+    <div class="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/5">
+      <img class="h-9 w-auto hidden dark:block logo-render-fix" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+      <img class="h-9 w-auto block dark:hidden logo-render-fix" src="/assets/logo-light.svg" alt="شعار العائلة" />
+      <button id="mobileNavClose" class="text-gray-400 hover:text-accent-gold transition-colors" type="button" aria-label="إغلاق القائمة">
+        <span class="material-symbols-outlined text-[26px]">close</span>
+      </button>
+    </div>
+
+    <nav class="p-6 flex flex-col gap-2 text-base flex-grow font-semibold text-gray-600 dark:text-gray-400" aria-label="قائمة الجوال">
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/">الشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/about">نبذة عن العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/honor">السير الذاتية</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/news">أخبار العائلة</a>
+      <a class="px-4 py-3 rounded-xl active-mobile-link transition-colors" href="/tree-pdf">المشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/kinship">صلة القرابة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/submit-person">إضافة بياناتك</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/family-members">أعضاء العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/chat">الشات العام</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/account">حسابي</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/support">الدعم</a>
+    </nav>
+
+    <div class="p-6 border-t border-gray-100 dark:border-white/5 bg-white/50 dark:bg-black/20">
+      <div class="grid grid-cols-2 gap-3">
+        <a href="/admin/login" class="mobile-login-link flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-xl hover:opacity-90 transition-all shadow-sm font-bold text-sm" title="لوحة الإدارة">
+          <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+          <span>الإدارة</span>
+        </a>
+        <a href="/logout" class="flex items-center justify-center gap-2 py-3 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 border border-red-100 dark:border-red-900/30 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition-all font-bold text-sm" title="تسجيل الخروج">
+          <span class="material-symbols-outlined text-[20px]">logout</span>
+          <span>خروج</span>
+        </a>
+      </div>
+    </div>
+  </aside>
+
+  <header class="sticky top-0 z-50 w-full glass-panel border-b-0 transition-colors duration-400">
+    <div class="max-w-[90rem] mx-auto px-5 sm:px-8 h-20 flex items-center justify-between gap-4">
+
+      <div class="flex items-center gap-3 xl:gap-4 shrink-0">
+        <a href="/" class="block shrink-0 transition-transform hover:scale-105 duration-300">
+          <img class="h-10 md:h-12 w-auto hidden dark:block logo-render-fix" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+          <img class="h-10 md:h-12 w-auto block dark:hidden logo-render-fix" src="/assets/logo-light.svg" alt="شعار العائلة" />
+        </a>
+
+        <div class="h-7 w-px bg-gray-200 dark:bg-white/10 hidden sm:block"></div>
+
+        <div class="hidden sm:flex flex-col justify-center min-w-0">
+          <h1 class="text-lg md:text-xl font-display text-primary dark:text-accent-gold font-bold leading-tight truncate">شجرة العائلة</h1>
+          <span class="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5 truncate">حفظ الأنساب</span>
+        </div>
+      </div>
+
+      <nav class="hidden lg:flex flex-1 justify-center gap-3 xl:gap-5 items-center font-sans font-semibold text-[12px] xl:text-[13px] tracking-wide text-gray-500 dark:text-gray-400 overflow-x-auto scrollbar-hide px-4 flex-nowrap" aria-label="التنقل الرئيسي">
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/">الشجرة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/about">نبذة عن العائلة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/honor">السير الذاتية</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/news">أخبار العائلة</a>
+        
+        <a class="whitespace-nowrap text-primary dark:text-accent-gold border-b-[1.5px] border-primary dark:border-accent-gold pb-1 transition-colors duration-200" href="/tree-pdf">المشجرة</a>
+        
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/kinship">صلة القرابة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/submit-person">إضافة بياناتك</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/family-members">أعضاء العائلة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/chat">الشات العام</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/account">حسابي</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/support">الدعم</a>
+      </nav>
+
+      <div class="flex items-center justify-end gap-2 shrink-0">
+        <button id="uiThemeBtn" aria-label="تبديل المظهر" class="flex items-center justify-center w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-accent-gold dark:hover:text-accent-gold hover:bg-accent-gold/5 transition-all duration-300" type="button" title="تبديل المظهر">
+          <span class="material-symbols-outlined text-[22px] dark:hidden">dark_mode</span>
+          <span class="material-symbols-outlined text-[22px] hidden dark:inline">light_mode</span>
+        </button>
+
+        <a href="/admin/login" class="hidden sm:flex w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-accent-gold hover:bg-primary/5 dark:hover:bg-accent-gold/5 transition-all duration-300 items-center justify-center" title="لوحة الإدارة">
+          <span class="material-symbols-outlined text-[22px]">admin_panel_settings</span>
+        </a>
+
+        <a href="/logout" class="hidden sm:flex w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all duration-300 items-center justify-center" title="تسجيل الخروج">
+          <span class="material-symbols-outlined text-[22px]">logout</span>
+        </a>
+
+        <button id="mobileNavBtn" data-open="false" class="lg:hidden flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-primary dark:text-accent-gold hover:bg-gray-50 dark:hover:bg-white/5 transition-all duration-200" type="button" aria-label="فتح القائمة">
+          <span class="material-symbols-outlined text-[24px] ico-open">menu</span>
+          <span class="material-symbols-outlined text-[24px] ico-close hidden">close</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow relative z-10">
+
+    <section class="pt-16 pb-10 px-6 max-w-[90rem] mx-auto text-center relative overflow-hidden">
+      <div class="absolute inset-0 bg-islamic-pattern opacity-40 dark:opacity-10 pointer-events-none"></div>
+
+      <img src="/assets/logo-dark.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.02] pointer-events-none hidden dark:block" alt="">
+      <img src="/assets/logo-light.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.02] pointer-events-none block dark:hidden" alt="">
+
+      <div class="w-px h-10 bg-gradient-to-b from-transparent via-accent-gold to-transparent mx-auto mb-5 relative z-10"></div>
+      
+      <p class="text-[10px] md:text-xs font-sans font-bold tracking-[0.2em] uppercase text-gray-400 dark:text-gray-500 mb-2 relative z-10">استخراج وتوثيق</p>
+
+      <h1 class="text-4xl md:text-5xl font-display leading-tight mb-4 relative z-10 font-bold">
+        <span class="text-primary dark:text-white transition-colors duration-300">تصدير فرع من</span> <span class="text-accent-gold">الشجرة</span>
+      </h1>
+      
+      <p class="text-[14px] md:text-base font-sans text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed relative z-10 font-medium">
+        ابحث عن اسم بالكامل، ثم اختر خيارات التصدير وقم بإصدار المخطط بصيغة PDF للطباعة بدقة عالية.
+      </p>
+    </section>
+
+    <section class="max-w-[96rem] mx-auto p-4 sm:p-6 lg:p-8 flex flex-col xl:flex-row gap-6 lg:gap-8 relative z-20">
+      
+      <aside class="w-full xl:w-[380px] shrink-0 space-y-6">
+        
+        <div class="glass-panel rounded-[24px] p-6">
+          <h2 class="font-display text-2xl text-primary dark:text-accent-gold mb-2 font-bold">البحث في الشجرة</h2>
+          <p class="text-[13px] text-gray-500 dark:text-gray-400 font-medium leading-relaxed mb-5">
+            اكتب الاسم الثلاثي أو الرباعي لصاحب الفرع واضغط على الزر للبحث عنه.
+          </p>
+          
+          <form id="searchForm" class="space-y-3">
+            <div>
+              <label class="block text-[12px] font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-widest">اسم صاحب الفرع</label>
+              <input id="personName" value="<%= initialName || '' %>" class="premium-input" placeholder="مثال: أحمد محمد علي حسن" autocomplete="off">
+            </div>
+            <button class="w-full h-12 rounded-xl bg-primary hover:bg-primaryDark text-white dark:bg-accent-gold dark:hover:bg-[#d4a353] dark:text-[#050505] font-bold text-[14px] shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex justify-center items-center gap-2" type="submit">
+              <span class="material-symbols-outlined text-[18px]">search</span> بحث عن الاسم
+            </button>
+          </form>
+          
+          <div id="searchMessage" class="mt-4 text-[13px] font-bold text-gray-500 dark:text-gray-400 text-center"></div>
+          <div id="candidates" class="mt-3 space-y-2 max-h-[220px] overflow-y-auto pr-1"></div>
+        </div>
+
+        <div class="glass-panel rounded-[24px] p-6">
+          <h2 class="font-display text-2xl text-primary dark:text-accent-gold mb-5 font-bold">خيارات الإصدار</h2>
+          
+          <div class="space-y-4">
+            <div>
+              <label class="block text-[12px] font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-widest">عدد الأجيال المشمولة</label>
+              <select id="generations" class="premium-input font-bold text-gray-700 dark:text-gray-200 outline-none cursor-pointer">
+                <option class="dark:bg-[#111]" value="all">كل الذرية المتاحة (الشجرة كاملة للفرع)</option>
+                <option class="dark:bg-[#111]" value="1">الأبناء فقط (جيل واحد)</option>
+                <option class="dark:bg-[#111]" value="2">الأبناء والأحفاد (جيلين)</option>
+                <option class="dark:bg-[#111]" value="3">3 أجيال</option>
+                <option class="dark:bg-[#111]" value="4">4 أجيال</option>
+                <option class="dark:bg-[#111]" value="5">5 أجيال</option>
+                <option class="dark:bg-[#111]" value="6">6 أجيال</option>
+              </select>
+            </div>
+            
+            <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-[#111] cursor-pointer hover:border-accent-gold/50 transition-colors">
+              <input id="includePhotos" type="checkbox" checked class="rounded border-gray-300 text-primary dark:text-accent-gold focus:ring-accent-gold bg-white dark:bg-black w-5 h-5">
+              <span class="text-[13px] font-bold text-gray-700 dark:text-gray-300 select-none">إظهار الصور الشخصية في المخطط</span>
+            </label>
+            
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[12px] font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-widest">حجم PDF</label>
+                <select id="pdfFormat" class="premium-input font-bold text-gray-700 dark:text-gray-200 outline-none cursor-pointer px-2">
+                  <option class="dark:bg-[#111]" value="a4">A4 (عادي)</option>
+                  <option class="dark:bg-[#111]" value="a3" selected>A3 (متوسط)</option>
+                  <option class="dark:bg-[#111]" value="a2">A2 (كبير)</option>
+                  <option class="dark:bg-[#111]" value="a1">A1 (ضخم)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[12px] font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-widest">اتجاه الصفحة</label>
+                <select id="pdfOrientation" class="premium-input font-bold text-gray-700 dark:text-gray-200 outline-none cursor-pointer px-2">
+                  <option class="dark:bg-[#111]" value="landscape" selected>أفقي (عريض)</option>
+                  <option class="dark:bg-[#111]" value="portrait">رأسي (طولي)</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="pt-2 space-y-3">
+              <button id="loadBranch" disabled class="w-full h-12 rounded-xl bg-gray-200 text-gray-500 dark:bg-white/5 dark:text-gray-500 font-bold text-[14px] disabled:opacity-50 disabled:cursor-not-allowed transition-all" type="button">
+                تجهيز المعاينة
+              </button>
+              <button id="exportPdf" disabled class="w-full h-14 rounded-xl bg-primary hover:bg-primaryDark text-white dark:bg-accent-gold dark:hover:bg-[#d4a353] dark:text-[#050505] font-bold text-[15px] shadow-lg transform transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex justify-center items-center gap-2" type="button">
+                <span class="material-symbols-outlined text-[20px]">picture_as_pdf</span> إصدار PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="flex-1 min-w-0 flex flex-col">
+        
+        <div class="glass-panel rounded-t-[24px] rounded-b-none border-b-0 p-5 flex flex-wrap items-center justify-between gap-4 z-10 relative">
+          <div>
+            <h2 class="text-xl font-display font-bold text-primary dark:text-accent-gold">معاينة الفرع المحدد</h2>
+            <p id="previewStats" class="text-[13px] text-gray-500 dark:text-gray-400 font-medium mt-1">
+              قم بالبحث واختيار شخص لتظهر معاينة الشجرة هنا.
+            </p>
+          </div>
+          <a href="/" class="h-11 px-5 rounded-xl border border-gray-200 dark:border-white/10 flex items-center gap-2 font-bold text-[13px] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+            العودة للشجرة الرئيسية
+          </a>
+        </div>
+        
+        <div class="export-scroll border border-gray-200 dark:border-white/10 shadow-sm glass-panel rounded-t-none rounded-b-[24px]">
+          <div id="exportCanvas" class="export-sheet relative">
+            <div class="empty-state">
+              <span class="material-symbols-outlined text-[48px] text-gray-300 dark:text-gray-400 mb-4 block">account_tree</span>
+              لم يتم اختيار فرع بعد. قم بالبحث لاختيار بداية الشجرة.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+  </main>
+
+  <footer class="bg-background-light dark:bg-[#050505] border-t border-gray-200 dark:border-white/5 mt-auto py-8 relative z-10">
+    <div class="max-w-[90rem] mx-auto px-6 text-center flex flex-col items-center gap-3">
+      <p class="text-[11px] font-sans font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest">
+        © ٢٠٢٦ وقف عائلة خاشقجي. جميع الحقوق محفوظة. حفظ الأنساب والاحتفاء بالتراث.
+      </p>
+    </div>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" referrerpolicy="no-referrer"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
+  
+  <script>
+    (function () {
+      const btn = document.getElementById("uiThemeBtn");
+      function applyTheme(next) {
+        document.documentElement.setAttribute("data-theme", next);
+        document.documentElement.classList.toggle("dark", next === "dark");
+        localStorage.setItem("theme", next);
+      }
+      btn?.addEventListener("click", () => {
+        const current = document.documentElement.getAttribute("data-theme") || "dark";
+        applyTheme(current === "dark" ? "light" : "dark");
+      });
+      applyTheme(localStorage.getItem("theme") || "dark");
+    })();
+
+    (function mobileNavInit(){
+      const btn = document.getElementById("mobileNavBtn");
+      const navDrawer = document.getElementById("mobileNavDrawer");
+      const overlay = document.getElementById("mobileNavOverlay");
+      const closeBtn = document.getElementById("mobileNavClose");
+
+      function setOpenState(isOpen){
+        btn?.setAttribute("data-open", isOpen ? "true" : "false");
+        btn?.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      }
+
+      function openNav(){
+        overlay?.classList.remove("mobile-nav-hidden");
+        overlay?.style.setProperty('display', 'block', 'important');
+        navDrawer?.classList.add("isOpen");
+        setOpenState(true);
+        document.body.classList.add('overflow-hidden');
+      }
+      function closeNav(){
+        navDrawer?.classList.remove("isOpen");
+        overlay?.classList.add("mobile-nav-hidden");
+        overlay?.style.setProperty('display', 'none', 'important');
+        setOpenState(false);
+        document.body.classList.remove('overflow-hidden');
+      }
+
+      btn?.addEventListener("click", () => {
+        const open = btn.getAttribute("data-open") === "true";
+        open ? closeNav() : openNav();
+      });
+
+      closeBtn?.addEventListener("click", closeNav);
+      overlay?.addEventListener("click", closeNav);
+      navDrawer?.querySelectorAll("a").forEach(a => a.addEventListener("click", closeNav));
+      window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNav(); });
+
+      setOpenState(false);
+    })();
+  </script>
+
+  <script>
+    const initialPersonId = <%- JSON.stringify(initialPersonId || null) %>;
+    let selectedPerson = null;
+    let branchData = null;
+    const $ = (id) => document.getElementById(id);
+    function esc(v){return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+    function firstLetter(name){
+      const v = String(name || 'فرد').trim();
+      return v ? v[0] : 'ف';
+    }
+    
+    function photoHtml(person, root=false){
+      const genderClass = String(person.gender || '').toLowerCase().includes('female') || String(person.gender || '').includes('أنث') ? 'female' : 'male';
+      if(person.photo_url){
+        const fallback = firstLetter(person.name);
+        return `<div class="node-portrait ${genderClass}"><img src="${esc(person.photo_url)}" alt="${esc(person.name || '')}" crossorigin="anonymous" onerror="this.parentElement.outerHTML='<div class=&quot;node-portrait placeholder ${genderClass}&quot;>${esc(fallback)}</div>'"></div>`;
+      }
+      return `<div class="node-portrait placeholder ${genderClass}">${esc(firstLetter(person.name))}</div>`;
+    }
+    
+    function nodeHtml(person, root=false){
+      const children = person.children || [];
+      const job = person.job ? `<span class="node-job">${esc(person.job)}</span>` : '';
+      return `<li><div class="export-node ${root ? 'root' : ''}">
+        ${photoHtml(person, root)}
+        <div class="name-box"><span class="node-label-text" title="${esc(person.name || '')}">${esc(person.name)}</span>${job}</div>
+      </div>${children.length ? `<ul>${children.map(c=>nodeHtml(c,false)).join('')}</ul>` : ''}</li>`;
+    }
+    
+    function renderBranch(data){
+      branchData = data;
+      const created = new Date().toLocaleDateString('ar-EG');
+      $('previewStats').innerHTML = `<span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5 mr-2">${data.personsCount || 0} أفراد</span><span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5 mr-2">${data.generationsCount || 0} أجيال</span><span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5">${data.options?.includePhotos ? 'بإرفاق الصور' : 'بدون صور'}</span>`;
+      
+      $('exportCanvas').innerHTML = `
+        <div class="export-sheet-header">
+          <div><h1 class="export-title">${esc(data.title || 'فرع من شجرة العائلة')}</h1><div class="export-subtitle">ملف صادر من المنصة الرسمية لشجرة العائلة — ${created}</div></div>
+          <div class="export-meta"><span>${data.personsCount || 0} فرد</span><span>${data.generationsCount || 0} جيل</span><span>${data.options?.includePhotos ? 'مرفق بالصور' : 'بدون صور'}</span></div>
+        </div>
+        <div class="branch-tree-shell">
+          <div class="branch-tree"><ul>${nodeHtml(data.tree,true)}</ul></div>
+        </div>
+      `;
+      $('exportPdf').disabled = false;
+    }
+    
+    function candidateCard(c){
+      return `<button type="button" data-id="${c.id}" class="candidate w-full text-right p-3 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#111] hover:border-primary dark:hover:border-accent-gold transition-colors mb-2"><div class="font-bold text-[14px] text-gray-800 dark:text-white">${esc(c.name)}</div><div class="text-[11px] text-gray-500 font-bold mt-1">${esc(c.lineage_label || '')}</div></button>`;
+    }
+    
+    async function searchPeople(q){
+      $('searchMessage').textContent = 'جاري البحث...';
+      $('candidates').innerHTML = '';
+      const r = await fetch('/api/tree/export/search?q=' + encodeURIComponent(q), {cache:'no-store'});
+      const data = await r.json();
+      if(!data.ok){ $('searchMessage').innerHTML = `<span class="text-red-500">${data.error || 'تعذر البحث.'}</span>`; return; }
+      if(!data.candidates?.length){ $('searchMessage').textContent = data.message || 'لا توجد نتائج مطابقة.'; return; }
+      $('searchMessage').textContent = data.status === 'multiple' ? 'تم العثور على عدة أشخاص، اختر الشخص المطلوب:' : 'تم العثور على الشخص، اضغط للتحديد.';
+      $('candidates').innerHTML = data.candidates.map(candidateCard).join('');
+      
+      document.querySelectorAll('.candidate').forEach(btn => btn.addEventListener('click', () => {
+        selectedPerson = data.candidates.find(x => Number(x.id) === Number(btn.dataset.id));
+        document.querySelectorAll('.candidate').forEach(b => b.classList.remove('is-selected'));
+        btn.classList.add('is-selected');
+        $('loadBranch').disabled = false;
+        $('loadBranch').className = 'w-full h-12 rounded-xl bg-white dark:bg-[#111] text-primary dark:text-accent-gold border border-primary dark:border-accent-gold font-bold text-[14px] transition-all hover:bg-gray-50 dark:hover:bg-white/5';
+        $('searchMessage').innerHTML = `تم التحديد: <span class="text-primary dark:text-accent-gold font-bold">${selectedPerson.name}</span>`;
+      }));
+    }
+    
+    $('searchForm').addEventListener('submit', (e) => { e.preventDefault(); const q=$('personName').value.trim(); if(q) searchPeople(q); });
+    
+    $('loadBranch').addEventListener('click', async () => {
+      if(!selectedPerson) return;
+      $('loadBranch').innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">refresh</span> جاري التجهيز...';
+      const gen = $('generations').value === 'all' ? 'all' : $('generations').value;
+      const photos = $('includePhotos').checked ? '1' : '0';
+      const r = await fetch(`/api/tree/export/branch/${selectedPerson.id}?generations=${encodeURIComponent(gen)}&photos=${photos}`, {cache:'no-store'});
+      const data = await r.json();
+      $('loadBranch').innerHTML = 'تجهيز المعاينة مرة أخرى';
+      if(!data.ok){ alert(data.error || 'تعذر تجهيز الفرع'); return; }
+      renderBranch(data);
+    });
+    
+    async function exportToPdf(){
+      if(!branchData) return;
+      if(!window.html2canvas || !window.jspdf){ alert('مكتبات إصدار PDF لم يتم تحميلها. تأكد من اتصال الإنترنت ثم أعد المحاولة.'); return; }
+      const btn = $('exportPdf'); btn.disabled = true; btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">refresh</span> جاري الإنشاء...';
+      await document.fonts?.ready?.catch(()=>{});
+      const el = $('exportCanvas');
+      
+      // Ensures background remains white for PDF despite dark mode preference of user device.
+      const canvas = await html2canvas(el, {
+        scale: 2, 
+        useCORS: true, 
+        allowTaint: true, 
+        backgroundColor: '#ffffff', 
+        logging: false, 
+        windowWidth: el.scrollWidth, 
+        windowHeight: el.scrollHeight
+      });
+      
+      const img = canvas.toDataURL('image/png', 1.0);
+      const { jsPDF } = window.jspdf;
+      const format = $('pdfFormat').value;
+      const orientation = $('pdfOrientation').value;
+      const pdf = new jsPDF({orientation, unit:'pt', format});
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 24;
+      const imgW = pageW - margin*2;
+      const imgH = canvas.height * imgW / canvas.width;
+      const usableH = pageH - margin*2;
+      let heightLeft = imgH;
+      let position = margin;
+      pdf.addImage(img, 'PNG', margin, position, imgW, imgH, undefined, 'FAST');
+      heightLeft -= usableH;
+      while(heightLeft > 5){
+        pdf.addPage(format, orientation);
+        position = margin - (imgH - heightLeft);
+        pdf.addImage(img, 'PNG', margin, position, imgW, imgH, undefined, 'FAST');
+        heightLeft -= usableH;
+      }
+      const filename = `فرع-${(branchData.root?.name || 'الشجرة').replace(/[\\/:*?"<>|]/g,'-')}.pdf`;
+      pdf.save(filename);
+      fetch('/api/tree/export/log', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({person_id: branchData.root?.id, person_name: branchData.root?.name, export_title: branchData.title, persons_count: branchData.personsCount, generations_count: branchData.generationsCount, options: branchData.options})}).catch(()=>{});
+      btn.disabled = false; btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">picture_as_pdf</span> إصدار PDF';
+    }
+    
+    $('exportPdf').addEventListener('click', exportToPdf);
+    if(initialPersonId){ selectedPerson = {id: initialPersonId}; $('loadBranch').disabled=false; $('loadBranch').click(); }
+  </script>
+  <script src="/chat-notifications.js"></script>
+</body>
+</html>

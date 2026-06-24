@@ -1,0 +1,747 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= mode === 'register' ? 'إنشاء حساب' : 'تسجيل الدخول' %> - شجرة العائلة</title>
+
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/styles.css"/>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#005A2B",
+            primaryDark: "#003D1D", 
+            accent: "#E5B869",
+            "background-light": "#F8F8F6",
+            "background-dark": "#050505",
+            "card-light": "#FFFFFF",
+            "card-dark": "#0A0A0A",
+            "bg-charcoal": "#050505",
+            "bg-card": "#0A0A0A",
+            "text-cream": "#FAFAFA",
+            "muted-slate": "#71717A",
+            gold: "#E5B869",
+          },
+          fontFamily: {
+            display: ["'Aref Ruqaa'", "serif"],
+            sans: ["Tajawal", "sans-serif"],
+          },
+          backgroundImage: {
+            "islamic-pattern": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+          }
+        }
+      }
+    };
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .glass-premium { @apply backdrop-blur-2xl bg-white/80 dark:bg-[#0A0A0A]/80 border border-white/60 dark:border-white/10; }
+    }
+  </style>
+
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #E5B869; border-radius: 4px; }
+
+    /* حقول الإدخال الفاخرة */
+    .premium-input {
+      background: rgba(0, 0, 0, 0.03);
+      border: none;
+      border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .dark .premium-input {
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    }
+    .premium-input:focus, .premium-input:focus-within {
+      background: rgba(229, 184, 105, 0.05);
+      border-bottom-color: #E5B869;
+      box-shadow: 0 10px 20px -10px rgba(229, 184, 105, 0.2);
+      outline: none;
+      transform: translateY(-2px);
+    }
+
+
+    /* إصلاح وضوح ألوان الحروف في الوضع الداكن */
+    .dark input,
+    .dark select,
+    .dark textarea,
+    .dark .premium-input {
+      color: #FAFAFA !important;
+    }
+    .dark input::placeholder,
+    .dark textarea::placeholder {
+      color: rgba(250, 250, 250, 0.45) !important;
+    }
+    .dark label,
+    .dark .form-label-fix {
+      color: rgba(250, 250, 250, 0.72) !important;
+    }
+    .dark select.premium-input option {
+      color: #111827;
+      background: #FFFFFF;
+    }
+    .dark input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+      opacity: 0.75;
+    }
+    .dark input[type="file"] {
+      color: #E5E7EB !important;
+    }
+
+    /* شعار أوضح وحجم مناسب للمساحة */
+    .auth-logo-img {
+      width: clamp(104px, 10vw, 124px);
+      height: clamp(104px, 10vw, 124px);
+      object-fit: contain;
+    }
+
+    /* عنوان واضح بدون تلاصق حروف */
+    .auth-title {
+      font-family: Tajawal, sans-serif !important;
+      font-weight: 900 !important;
+      font-size: clamp(25px, 3vw, 34px);
+      line-height: 1.65;
+      letter-spacing: -0.01em;
+      word-spacing: 0.08em;
+      margin-bottom: 0.1rem;
+      text-rendering: geometricPrecision;
+    }
+
+    /* زر Google مضغوط وواضح في الوضعين */
+    .google-auth-btn {
+      max-width: 300px;
+      height: 38px;
+      margin-inline: auto;
+      background: #FFFFFF;
+      color: #111827 !important;
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      box-shadow: 0 5px 14px rgba(0, 0, 0, 0.055);
+      font-size: 12px;
+      line-height: 1;
+      border-radius: 10px;
+    }
+    .dark .google-auth-btn {
+      background: #FFFFFF !important;
+      color: #111827 !important;
+      border-color: rgba(229, 184, 105, 0.35);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24), 0 0 0 1px rgba(229, 184, 105, 0.08);
+    }
+    .google-auth-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.09);
+    }
+
+    /* أزرار الدخول/التسجيل أصغر لتوفير مساحة للفورم */
+    .auth-tabs {
+      max-width: 300px;
+      margin-inline: auto;
+      height: 40px;
+      padding: 3px;
+      border-radius: 12px;
+    }
+    .auth-tabs a {
+      height: 32px;
+      font-size: 12px;
+      letter-spacing: 0;
+      line-height: 1;
+      border-radius: 9px;
+    }
+    .auth-card-shell {
+      min-height: min(700px, calc(100vh - 22px));
+      max-height: calc(100vh - 16px);
+    }
+    .auth-login-shell {
+      min-height: min(670px, calc(100vh - 18px));
+    }
+    .auth-copy {
+      letter-spacing: 0 !important;
+      line-height: 1.9;
+      margin-top: 0.15rem;
+    }
+    .login-form-compact input {
+      height: 52px !important;
+      font-size: 14px !important;
+    }
+    .login-submit-btn {
+      height: 52px !important;
+    }
+    .form-scrollbar label {
+      display: block;
+      text-align: right;
+      font-size: 12px !important;
+      line-height: 1.7;
+      letter-spacing: 0 !important;
+      text-transform: none !important;
+      font-weight: 800 !important;
+      color: #4B5563 !important;
+    }
+    .dark .form-scrollbar label {
+      color: rgba(250, 250, 250, 0.78) !important;
+    }
+    .form-scrollbar input,
+    .form-scrollbar select,
+    .form-scrollbar textarea {
+      font-size: 14px !important;
+      letter-spacing: 0 !important;
+      line-height: 1.6 !important;
+    }
+    .form-scrollbar input::placeholder,
+    .form-scrollbar textarea::placeholder {
+      font-weight: 700;
+      color: rgba(107, 114, 128, 0.78) !important;
+    }
+    .dark .form-scrollbar input::placeholder,
+    .dark .form-scrollbar textarea::placeholder {
+      color: rgba(250, 250, 250, 0.50) !important;
+    }
+    .form-scrollbar .material-symbols-outlined {
+      opacity: 0.9;
+    }
+
+    /* شريط التمرير المخصص لنموذج التسجيل */
+    .form-scrollbar::-webkit-scrollbar { width: 4px; }
+    .form-scrollbar::-webkit-scrollbar-track { background: transparent; margin-block: 4px; }
+    .form-scrollbar::-webkit-scrollbar-thumb { background: rgba(229, 184, 105, 0.4); border-radius: 10px; transition: background 0.3s; }
+    .form-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(229, 184, 105, 0.8); }
+
+    /* تأثير الكسوف للزر */
+    .btn-eclipse {
+      position: relative; overflow: hidden; z-index: 1;
+    }
+    .btn-eclipse::after {
+      content: ''; position: absolute; top: 50%; left: 50%; width: 150%; height: 300%;
+      background: radial-gradient(circle, #E5B869 0%, transparent 70%);
+      transform: translate(-50%, -50%) scale(0); transition: transform 0.6s ease; z-index: -1; opacity: 0.4;
+    }
+    .btn-eclipse:hover::after { transform: translate(-50%, -50%) scale(1); }
+
+    /* الكانفاس 3D */
+    #globeCanvas {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      z-index: 0; pointer-events: none;
+    }
+
+    html.dark .dark-toggle-icon-moon { display: none; }
+    html:not(.dark) .dark-toggle-icon-sun { display: none; }
+
+    /* انيميشن الدخول للبطاقة */
+    @keyframes cardFadeIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .auth-card-anim { animation: cardFadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+  </style>
+
+  <script>
+    (function () {
+      const saved = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", saved);
+      document.documentElement.classList.toggle("dark", saved === "dark");
+    })();
+  </script>
+</head>
+
+<body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col overflow-x-hidden selection:bg-accent selection:text-background-dark transition-colors duration-300 relative">
+
+  <canvas id="globeCanvas"></canvas>
+  <div class="absolute inset-0 bg-islamic-pattern opacity-100 dark:opacity-30 pointer-events-none z-[1]"></div>
+  <div class="absolute inset-0 bg-gradient-to-b from-transparent via-white/40 to-white/60 dark:from-transparent dark:via-black/40 dark:to-black/80 pointer-events-none z-[2]"></div>
+
+  <div class="fixed top-6 left-6 right-6 z-50 flex items-center justify-end pointer-events-none">
+    <button id="uiThemeBtn"
+      class="pointer-events-auto w-12 h-12 flex items-center justify-center rounded-full glass-premium shadow-lg hover:shadow-accent/20 hover:border-accent/50 transition-all text-gray-600 dark:text-accent"
+      type="button" aria-label="تبديل المظهر" title="تبديل المظهر">
+      <span class="material-symbols-outlined dark-toggle-icon-moon">dark_mode</span>
+      <span class="material-symbols-outlined dark-toggle-icon-sun">light_mode</span>
+    </button>
+  </div>
+
+  <main class="flex-grow flex items-center justify-center p-3 sm:p-5 lg:p-6 relative z-10 w-full h-full min-h-screen">
+    
+    <div class="w-full transition-all duration-500 <%= mode === 'register' ? 'max-w-[720px]' : 'max-w-[460px]' %>">
+
+      <div class="glass-premium rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.15)] dark:shadow-[0_30px_80px_rgba(0,0,0,0.8)] overflow-hidden relative border-t border-l border-white/80 dark:border-white/10 auth-card-anim auth-card-shell <%= mode === 'login' ? 'auth-login-shell' : '' %> flex flex-col">
+        
+        <div class="h-1.5 w-full bg-gradient-to-r from-primary via-accent to-primaryDark shrink-0"></div>
+
+        <div class="px-8 sm:px-12 pt-7 pb-3 text-center shrink-0">
+          
+          <div class="mx-auto flex items-center justify-center mb-3 relative group cursor-default">
+            <div class="absolute inset-0 bg-accent/20 blur-2xl rounded-full scale-150 z-0 hidden dark:block transition-all duration-500 group-hover:bg-accent/30"></div>
+            
+            <img src="/assets/logo-light.svg" alt="شعار العائلة" class="auth-logo-img dark:hidden relative z-10 drop-shadow-xl transition-transform duration-500 group-hover:scale-105"/>
+            <img src="/assets/logo-dark.svg" alt="شعار العائلة" class="auth-logo-img hidden dark:block relative z-10 drop-shadow-[0_0_18px_rgba(229,184,105,0.32)] transition-transform duration-500 group-hover:scale-105"/>
+          </div>
+
+          <h2 class="auth-title text-primary dark:text-white">
+            <%= mode === 'register' ? 'إنشاء حساب جديد' : 'مرحباً بعودتك' %>
+          </h2>
+          <p class="auth-copy text-[12px] font-sans font-extrabold text-gray-600 dark:text-accent">
+            البوابة الرقمية الموثوقة للعائلة
+          </p>
+        </div>
+
+        <div class="px-8 sm:px-12 shrink-0">
+          <div class="auth-tabs flex bg-black/5 dark:bg-white/5 mb-3 border border-gray-200 dark:border-white/5 shadow-inner">
+            <a href="/login?next=<%= encodeURIComponent(nextUrl || '/') %>" class="flex-1 rounded-lg flex items-center justify-center font-extrabold transition-all duration-300 <%= mode === 'login' ? 'bg-white text-primary shadow-md border border-gray-200 dark:bg-[#222] dark:text-accent dark:border-white/10' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white' %>">
+              تسجيل الدخول
+            </a>
+            <a href="/register?next=<%= encodeURIComponent(nextUrl || '/') %>" class="flex-1 rounded-lg flex items-center justify-center font-extrabold transition-all duration-300 <%= mode === 'register' ? 'bg-white text-primary shadow-md border border-gray-200 dark:bg-[#222] dark:text-accent dark:border-white/10' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white' %>">
+              حساب جديد
+            </a>
+          </div>
+
+          <div class="mb-4">
+            <a href="/auth/google?next=<%= encodeURIComponent(nextUrl || '/account') %>" class="google-auth-btn relative z-20 w-full rounded-xl flex items-center justify-center gap-2.5 font-extrabold transition-all duration-300">
+              <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+              <span><%= mode === 'register' ? 'التسجيل باستخدام Google' : 'الدخول باستخدام Google' %></span>
+            </a>
+          </div>
+        </div>
+
+        <div class="px-6 sm:px-10 pb-10 overflow-y-auto form-scrollbar flex-grow">
+
+          <% if (error) { %>
+            <div class="mx-2 sm:mx-2 mb-6 rounded-xl border border-red-200 bg-red-50/90 px-4 py-3 text-red-700 text-[13px] font-bold flex items-center gap-3 dark:border-red-500/20 dark:bg-red-950/80 dark:text-red-300 backdrop-blur-sm shadow-inner">
+              <span class="material-symbols-outlined text-[20px] shrink-0">error</span>
+              <span class="leading-relaxed"><%= error %></span>
+            </div>
+          <% } %>
+          <% if (success) { %>
+            <div class="mx-2 sm:mx-2 mb-6 rounded-xl border border-green-200 bg-green-50/90 px-4 py-3 text-green-700 text-[13px] font-bold flex items-center gap-3 dark:border-green-500/20 dark:bg-[#005A2B]/20 dark:text-green-300 backdrop-blur-sm shadow-inner">
+              <span class="material-symbols-outlined text-[20px] shrink-0">check_circle</span>
+              <span class="leading-relaxed"><%= success %></span>
+            </div>
+          <% } %>
+
+          <% if (mode === 'register') { %>
+            <form class="flex flex-col gap-6 mx-2" method="post" action="/register">
+              <input type="hidden" name="next" value="<%= nextUrl || '/account' %>" />
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+                
+                <div class="md:col-span-2 mt-2">
+                  <h3 class="text-[12px] font-bold text-gray-500 dark:text-accent uppercase tracking-widest flex items-center gap-2 mb-3 border-b border-black/5 dark:border-white/10 pb-2">
+                    <span class="material-symbols-outlined text-[18px]">badge</span> البيانات الشخصية
+                  </h3>
+                </div>
+
+                <div class="flex flex-col gap-2 relative group md:col-span-2">
+                  <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest px-2">الاسم الرباعي <span class="text-red-500">*</span></label>
+                  <div class="relative">
+                    <span class="absolute top-1/2 -translate-y-1/2 right-4 text-gray-400 group-focus-within:text-accent transition-colors material-symbols-outlined text-[20px]">person</span>
+                    <input name="full_name" required value="<%= values.full_name || '' %>" type="text" placeholder="الاسم الأول والثاني والجد والعائلة" class="premium-input w-full h-12 rounded-t-xl pr-12 pl-4 text-gray-900 dark:text-white placeholder:text-gray-400 font-sans font-bold text-[14px]"/>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-2 relative group">
+                  <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest px-2">اسم الأب <span class="text-red-500">*</span></label>
+                  <div class="relative">
+                    <span class="absolute top-1/2 -translate-y-1/2 right-4 text-gray-400 group-focus-within:text-accent transition-colors material-symbols-outlined text-[20px]">man</span>
+                    <input name="father_name" required value="<%= values.father_name || '' %>" type="text" class="premium-input w-full h-12 rounded-t-xl pr-12 pl-4 text-gray-900 dark:text-white font-sans font-bold text-[14px]"/>
+                  </div>
+                </div>
+
+
+                <div class="flex flex-col gap-2 relative group">
+                  <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest px-2">تاريخ الميلاد</label>
+                  <div class="relative">
+                    <span class="absolute top-1/2 -translate-y-1/2 right-4 text-gray-400 group-focus-within:text-accent transition-colors material-symbols-outlined text-[20px]">calendar_today</span>
+                    <input name="birth_date" type="date" value="<%= values.birth_date || '' %>" class="premium-input w-full h-12 rounded-t-xl pr-12 pl-4 text-gray-900 dark:text-white font-sans font-bold text-[14px]"/>
+                  </div>
+                </div>
+
+
+
+                <div class="md:col-span-2 mt-4">
+                  <h3 class="text-[12px] font-bold text-gray-500 dark:text-accent uppercase tracking-widest flex items-center gap-2 mb-3 border-b border-black/5 dark:border-white/10 pb-2">
+                    <span class="material-symbols-outlined text-[18px]">contact_mail</span> الحساب والتواصل
+                  </h3>
+                </div>
+
+                <div class="flex flex-col gap-2 relative group">
+                  <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest px-2">البريد الإلكتروني <span class="text-red-500">*</span></label>
+                  <div class="relative">
+                    <span class="absolute top-1/2 -translate-y-1/2 right-4 text-gray-400 group-focus-within:text-accent transition-colors material-symbols-outlined text-[20px]">mail</span>
+                    <input name="email" required type="email" value="<%= values.email || '' %>" placeholder="name@email.com" dir="ltr" class="premium-input w-full h-12 rounded-t-xl pr-12 pl-4 text-gray-900 dark:text-white placeholder:text-gray-400 font-sans font-bold text-[14px] text-right"/>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-2 relative group">
+                  <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest px-2">كلمة المرور <span class="text-red-500">*</span></label>
+                  <div class="relative">
+                    <span class="absolute top-1/2 -translate-y-1/2 right-4 text-gray-400 group-focus-within:text-accent transition-colors material-symbols-outlined text-[20px]">lock</span>
+                    <input name="password" required minlength="6" type="password" placeholder="٦ أحرف أو أرقام على الأقل" class="premium-input w-full h-12 rounded-t-xl pr-12 pl-4 text-gray-900 dark:text-white placeholder:text-gray-400 font-sans font-bold text-[14px]"/>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-2 relative group">
+                  <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest px-2">رقم الجوال <span class="text-red-500">*</span></label>
+                  <div class="relative">
+                    <span class="absolute top-1/2 -translate-y-1/2 right-4 text-gray-400 group-focus-within:text-accent transition-colors material-symbols-outlined text-[20px]">phone</span>
+                    <input name="phone" required value="<%= values.phone || '' %>" type="text" dir="ltr" placeholder="+966" class="premium-input w-full h-12 rounded-t-xl pr-12 pl-4 text-gray-900 dark:text-white placeholder:text-gray-400 font-sans font-bold text-[14px] text-right"/>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-2 relative group">
+                  <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest px-2">رقم جوال إضافي</label>
+                  <div class="relative">
+                    <span class="absolute top-1/2 -translate-y-1/2 right-4 text-gray-400 group-focus-within:text-accent transition-colors material-symbols-outlined text-[20px]">phone_iphone</span>
+                    <input name="phone_alt" value="<%= values.phone_alt || '' %>" type="text" dir="ltr" class="premium-input w-full h-12 rounded-t-xl pr-12 pl-4 text-gray-900 dark:text-white font-sans font-bold text-[14px] text-right"/>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-2 relative group">
+                  <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest px-2">البلد والنشأة</label>
+                  <div class="relative">
+                    <span class="absolute top-1/2 -translate-y-1/2 right-4 text-gray-400 group-focus-within:text-accent transition-colors material-symbols-outlined text-[20px]">public</span>
+                    <input name="origin_place" value="<%= values.origin_place || values.country || '' %>" type="text" class="premium-input w-full h-12 rounded-t-xl pr-12 pl-4 text-gray-900 dark:text-white font-sans font-bold text-[14px]"/>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-2 relative group">
+                  <label class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest px-2">الإقامة الحالية</label>
+                  <div class="relative">
+                    <span class="absolute top-1/2 -translate-y-1/2 right-4 text-gray-400 group-focus-within:text-accent transition-colors material-symbols-outlined text-[20px]">location_on</span>
+                    <input name="current_residence" value="<%= values.current_residence || values.city || '' %>" type="text" class="premium-input w-full h-12 rounded-t-xl pr-12 pl-4 text-gray-900 dark:text-white font-sans font-bold text-[14px]"/>
+                  </div>
+                </div>
+
+
+              </div>
+
+              <div class="flex flex-col gap-4 mt-6 mx-2">
+                <button type="submit"
+                  class="btn-eclipse login-submit-btn w-full h-14 rounded-xl font-sans font-bold text-[15px]
+                         bg-primary text-white dark:bg-accent dark:text-black 
+                         shadow-[0_10px_20px_rgba(0,90,43,0.2)] dark:shadow-[0_10px_20px_rgba(229,184,105,0.2)]
+                         hover:shadow-lg active:scale-[0.98] transition-all duration-300">
+                  <span class="inline-flex items-center justify-center gap-2 relative z-10">
+                    إنشاء حساب والدخول
+                    <span class="material-symbols-outlined text-[20px] rtl:rotate-180">arrow_forward</span>
+                  </span>
+                </button>
+              </div>
+
+            </form>
+
+          <% } else { %>
+            <form class="login-form-compact flex flex-col gap-5 mx-auto mt-3 max-w-[360px]" method="post" action="/login">
+              <input type="hidden" name="next" value="<%= nextUrl || '/' %>" />
+
+              <div class="flex flex-col gap-2 relative group">
+                <label for="email" class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest px-2">البريد الإلكتروني</label>
+                <div class="relative">
+                  <span class="absolute top-1/2 -translate-y-1/2 right-4 text-gray-400 group-focus-within:text-accent transition-colors material-symbols-outlined text-[22px]">mail</span>
+                  <input id="email" name="email" required type="email" value="<%= values.email || '' %>"
+                    placeholder="name@email.com" dir="ltr"
+                    class="premium-input w-full h-14 rounded-t-xl pr-12 pl-4 text-gray-900 dark:text-white placeholder:text-gray-400 font-sans font-bold text-[15px] text-right"/>
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-2 relative group">
+                <label for="password" class="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest px-2 flex justify-between items-center w-full">
+                  <span>كلمة المرور</span>
+                </label>
+                <div class="relative">
+                  <span class="absolute top-1/2 -translate-y-1/2 right-4 text-gray-400 group-focus-within:text-accent transition-colors material-symbols-outlined text-[22px] pointer-events-none">lock</span>
+                  <input id="password" name="password" required type="password"
+                    placeholder="اكتب كلمة المرور"
+                    class="premium-input w-full h-14 rounded-t-xl pr-12 pl-12 text-gray-900 dark:text-white placeholder:text-gray-400 font-sans font-bold text-[15px] text-right"/>
+                  
+                  <button id="togglePass" type="button"
+                    class="absolute inset-y-0 left-0 pl-4 flex items-center justify-center text-gray-400 hover:text-accent transition-colors focus:outline-none"
+                    aria-label="إظهار/إخفاء كلمة المرور" title="إظهار/إخفاء">
+                    <span id="toggleIcon" class="material-symbols-outlined text-[22px]">visibility</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-4 mt-3">
+                <button type="submit"
+                  class="btn-eclipse login-submit-btn w-full h-14 rounded-xl font-sans font-bold text-[15px]
+                         bg-primary text-white dark:bg-accent dark:text-black 
+                         shadow-[0_10px_20px_rgba(0,90,43,0.2)] dark:shadow-[0_10px_20px_rgba(229,184,105,0.2)]
+                         hover:shadow-lg active:scale-[0.98] transition-all duration-300">
+                  <span class="inline-flex items-center justify-center gap-2 relative z-10">
+                    دخول إلى الموقع
+                    <span class="material-symbols-outlined text-[20px] rtl:rotate-180">login</span>
+                  </span>
+                </button>
+              </div>
+
+            </form>
+          <% } %>
+
+
+          <% if (!oauth.google) { %>
+            <div class="mt-4 mx-2 rounded-xl bg-orange-50/80 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-900/40 p-3">
+              <p class="text-[11px] leading-relaxed text-orange-700 dark:text-orange-400 text-center font-bold">
+                ميزة Google تتطلب إعداد المفاتيح. <a class="underline hover:text-orange-900 dark:hover:text-orange-200" href="/auth/status" target="_blank">التحقق من الحالة</a>
+              </p>
+            </div>
+          <% } %>
+
+          <div class="mt-6 text-center mx-2 pb-2">
+            <a href="/admin/login" class="text-[12px] font-bold text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-accent transition-colors inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-transparent hover:border-gray-200 dark:hover:border-white/10">
+              <span class="material-symbols-outlined text-[16px]">admin_panel_settings</span> دخول مدير النظام
+            </a>
+          </div>
+
+        </div>
+
+        <div class="border-t border-gray-200 dark:border-white/5 bg-gray-50/80 dark:bg-black/40 px-6 py-3 text-center backdrop-blur-md shrink-0">
+          <p class="text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wide inline-flex items-center gap-2">
+            <span class="material-symbols-outlined text-[16px] text-green-600 dark:text-green-500">gpp_good</span>
+            اتصال آمن ومشفّر للعائلة
+          </p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="relative z-10 py-6 text-center w-full pointer-events-none shrink-0">
+    <p class="text-xs font-bold text-gray-500 dark:text-gray-400 font-sans tracking-wide">
+      © ٢٠٢٦ شجرة عائلة خاشقجي • جميع الحقوق محفوظة
+    </p>
+  </footer>
+
+  <script>
+    // ✅ Theme toggle
+    (function () {
+      const btn = document.getElementById("uiThemeBtn");
+      function applyTheme(next) {
+        document.documentElement.setAttribute("data-theme", next);
+        document.documentElement.classList.toggle("dark", next === "dark");
+        localStorage.setItem("theme", next);
+        if(window.initGlobe) window.initGlobe();
+      }
+      btn?.addEventListener("click", () => {
+        const current = document.documentElement.getAttribute("data-theme") || "dark";
+        applyTheme(current === "dark" ? "light" : "dark");
+      });
+    })();
+
+    // ✅ Password visibility toggle
+    (function () {
+      const btn = document.getElementById("togglePass");
+      const input = document.getElementById("password");
+      const icon = document.getElementById("toggleIcon");
+      btn?.addEventListener("click", () => {
+        if (!input) return;
+        const isPass = input.type === "password";
+        input.type = isPass ? "text" : "password";
+        if (icon) icon.textContent = isPass ? "visibility_off" : "visibility";
+      });
+    })();
+
+    // ✅ Prevent double form submission
+    document.querySelectorAll('form').forEach(f => {
+      f.addEventListener('submit', function(e) {
+        const btn = this.querySelector('button[type="submit"], button:not([type="button"])');
+        if(btn) {
+          if(btn.dataset.submitted) { e.preventDefault(); return; }
+          btn.dataset.submitted = 'true';
+          btn.innerHTML = '<span class="material-symbols-outlined animate-spin">refresh</span> جاري التحميل...';
+          btn.classList.add('opacity-70', 'cursor-not-allowed');
+        }
+      });
+    });
+
+    // ==========================================
+    // 3D Interactive Globe Script
+    // ==========================================
+    (function() {
+      const canvas = document.getElementById('globeCanvas');
+      if(!canvas) return;
+      const ctx = canvas.getContext('2d');
+      
+      let width, height;
+      let particles = [];
+      const numParticles = 250; 
+      const sphereRadius = 400; 
+      
+      let rotationX = 0;
+      let rotationY = 0;
+      
+      let mouseX = window.innerWidth / 2;
+      let mouseY = window.innerHeight / 2;
+      let targetRotationX = 0;
+      let targetRotationY = 0;
+
+      let dotColor, lineColor, connectionColor;
+
+      window.initGlobe = function() {
+        const isDark = document.documentElement.classList.contains('dark');
+        dotColor = isDark ? 'rgba(229, 184, 105, 0.8)' : 'rgba(0, 90, 43, 0.6)';
+        lineColor = isDark ? 'rgba(229, 184, 105, 0.15)' : 'rgba(0, 90, 43, 0.1)';
+        connectionColor = isDark ? '229, 184, 105' : '0, 90, 43'; 
+      };
+
+      function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+      }
+
+      function initParticles() {
+        particles = [];
+        for (let i = 0; i < numParticles; i++) {
+          const phi = Math.acos(-1 + (2 * i) / numParticles);
+          const theta = Math.sqrt(numParticles * Math.PI) * phi;
+          
+          particles.push({
+            baseX: sphereRadius * Math.cos(theta) * Math.sin(phi),
+            baseY: sphereRadius * Math.sin(theta) * Math.sin(phi),
+            baseZ: sphereRadius * Math.cos(phi),
+            x: 0, y: 0, z: 0,
+            vx: (Math.random() - 0.5) * 0.5,
+            vy: (Math.random() - 0.5) * 0.5
+          });
+        }
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, width, height);
+
+        targetRotationY = (mouseX - width / 2) * 0.001;
+        targetRotationX = (mouseY - height / 2) * 0.001;
+        
+        rotationY += (targetRotationY - rotationY) * 0.05;
+        rotationX += (targetRotationX - rotationX) * 0.05 + 0.001; 
+
+        const cosX = Math.cos(rotationX);
+        const sinX = Math.sin(rotationX);
+        const cosY = Math.cos(rotationY);
+        const sinY = Math.sin(rotationY);
+
+        const projected = [];
+
+        for (let i = 0; i < numParticles; i++) {
+          const p = particles[i];
+          
+          const x1 = p.baseX * cosY - p.baseZ * sinY;
+          const z1 = p.baseZ * cosY + p.baseX * sinY;
+          
+          const y2 = p.baseY * cosX - z1 * sinX;
+          const z2 = z1 * cosX + p.baseY * sinX;
+
+          p.x = x1;
+          p.y = y2;
+          p.z = z2;
+
+          const scale = 1000 / (1000 + p.z);
+          const x2d = (width / 2) + p.x * scale;
+          const y2d = (height / 2) + p.y * scale;
+
+          projected.push({
+            original: p,
+            x: x2d,
+            y: y2d,
+            scale: scale,
+            z: p.z
+          });
+        }
+
+        projected.sort((a, b) => b.z - a.z);
+
+        for (let i = 0; i < projected.length; i++) {
+          const p1 = projected[i];
+          if (p1.z < 0) continue; 
+
+          for (let j = i + 1; j < projected.length; j++) {
+            const p2 = projected[j];
+            if (p2.z < 0) continue;
+
+            const dx = p1.x - p2.x;
+            const dy = p1.y - p2.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < 100) { 
+              ctx.beginPath();
+              ctx.moveTo(p1.x, p1.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.strokeStyle = lineColor;
+              ctx.lineWidth = p1.scale * 0.5;
+              ctx.stroke();
+            }
+          }
+
+          const mDx = mouseX - p1.x;
+          const mDy = mouseY - p1.y;
+          const mDist = Math.sqrt(mDx*mDx + mDy*mDy);
+
+          if (mDist < 180 && p1.z > -100) {
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(mouseX, mouseY);
+            const lineOpacity = 0.5 * (1 - mDist/180);
+            ctx.strokeStyle = `rgba(${connectionColor}, ${lineOpacity})`;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            p1.x += mDx * 0.03;
+            p1.y += mDy * 0.03;
+          }
+        }
+
+        for (let i = 0; i < projected.length; i++) {
+          const p = projected[i];
+          const opacity = Math.max(0.1, Math.min(1, (p.z + sphereRadius) / (sphereRadius * 1.5)));
+          const mDx = mouseX - p.x;
+          const mDy = mouseY - p.y;
+          const mDist = Math.sqrt(mDx*mDx + mDy*mDy);
+          const hoverScale = mDist < 100 ? 1.5 : 1;
+          
+          const radius = Math.max(0.5, 2.5 * p.scale * hoverScale);
+
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+          ctx.fillStyle = dotColor;
+          ctx.globalAlpha = opacity;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+
+        requestAnimationFrame(draw);
+      }
+
+      window.addEventListener('resize', resize);
+      window.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+      });
+
+      window.addEventListener('mouseout', () => {
+        mouseX = width / 2;
+        mouseY = height / 2;
+      });
+
+      window.initGlobe();
+      resize();
+      initParticles();
+      draw();
+    })();
+  </script>
+</body>
+</html>

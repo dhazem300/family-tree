@@ -51,7 +51,8 @@
       .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       .glass-premium { @apply backdrop-blur-2xl bg-white/70 dark:bg-[#0A0A0A]/70 border border-white/40 dark:border-white/10; }
     }
-  </style>
+      html.theme-switching, html.theme-switching *, html.theme-switching *::before, html.theme-switching *::after { transition: none !important; animation: none !important; }
+</style>
 
   <style>
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -142,8 +143,8 @@
           <div class="mx-auto flex items-center justify-center mb-8 relative group cursor-default">
             <div class="absolute inset-0 bg-accent/20 blur-2xl rounded-full scale-150 z-0 hidden dark:block transition-all duration-500 group-hover:bg-accent/30"></div>
             
-            <img src="/assets/logo-light.svg" alt="شعار العائلة" class="w-20 h-20 md:w-24 md:h-24 object-contain dark:hidden relative z-10 drop-shadow-xl transition-transform duration-500 group-hover:scale-105"/>
-            <img src="/assets/logo-dark.svg" alt="شعار العائلة" class="w-20 h-20 md:w-24 md:h-24 object-contain hidden dark:block relative z-10 drop-shadow-[0_0_15px_rgba(229,184,105,0.3)] transition-transform duration-500 group-hover:scale-105"/>
+            <img loading="lazy" decoding="async" src="/assets/logo-light.svg" alt="شعار العائلة" class="w-20 h-20 md:w-24 md:h-24 object-contain dark:hidden relative z-10 drop-shadow-xl transition-transform duration-500 group-hover:scale-105"/>
+            <img loading="lazy" decoding="async" src="/assets/logo-dark.svg" alt="شعار العائلة" class="w-20 h-20 md:w-24 md:h-24 object-contain hidden dark:block relative z-10 drop-shadow-[0_0_15px_rgba(229,184,105,0.3)] transition-transform duration-500 group-hover:scale-105"/>
           </div>
 
           <h2 class="text-3xl sm:text-4xl font-display font-bold text-primary dark:text-white tracking-tight mb-2">

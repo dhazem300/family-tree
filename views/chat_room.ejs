@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= roomTitle %> - شجرة العائلة</title>
+
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/styles.css"/>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries,line-clamp"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#005A2B",     /* اللون الأخضر الملكي الفاخر */
+            primaryDark: "#003D1D", /* أخضر داكن للتحويم */
+            accent: "#E5B869",      /* ذهب سائل */
+            "accent-gold": "#E5B869",
+            "background-light": "#F8F8F6",
+            "background-dark": "#050505",
+            "bg-charcoal": "#050505",
+            "card-light": "#FFFFFF",
+            "card-dark": "#0A0A0A",
+            "bg-card": "#0A0A0A",
+            "text-cream": "#FAFAFA",
+            "text-dark": "#111827",
+            "text-muted": "#71717A",
+            "muted-slate": "#71717A",
+            gold: "#E5B869",
+            "accent-gold-dark": "#D4A353",
+          },
+          fontFamily: {
+            display: ["'Aref Ruqaa'", "serif"],
+            sans: ["Tajawal", "sans-serif"],
+          },
+          backgroundImage: {
+            "islamic-pattern": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+            "islamic-pattern-dark": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
+          },
+          boxShadow: {
+            'luxury': '0 20px 40px -10px rgba(0,0,0,0.05), 0 0 20px rgba(229,184,105,0.03)',
+            'luxury-dark': '0 20px 40px -10px rgba(0,0,0,0.4), 0 0 20px rgba(229,184,105,0.05)',
+          }
+        }
+      }
+    };
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .glass-panel {
+        @apply bg-white/85 dark:bg-[#080808]/85 backdrop-blur-xl border border-accent-gold/20 shadow-luxury dark:shadow-luxury-dark;
+      }
+    }
+  </style>
+
+  <style>
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(229, 184, 105, 0.4); border-radius: 4px; transition: background 0.3s; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(229, 184, 105, 0.8); }
+
+    #mobileNavOverlay.hidden { display: none; }
+    #mobileNavOverlay { display: block; }
+    #mobileNavDrawer{
+      transform: translateX(-110%);
+      transition: transform .3s cubic-bezier(.2,.9,.2,1);
+    }
+    #mobileNavDrawer.isOpen{ transform: translateX(0); }
+    #mobileNavBtn[data-open="true"] .ico-open { display: none; }
+    #mobileNavBtn[data-open="true"] .ico-close { display: inline; }
+    #mobileNavBtn[data-open="false"] .ico-open { display: inline; }
+    #mobileNavBtn[data-open="false"] .ico-close { display: none; }
+
+    .chat-card {
+      position: relative;
+      border-radius: 12px;
+    }
+
+    /* ===== هيكل ومظهر محادثة راقي ===== */
+    .chat-shell {
+      height: calc(100vh - 280px);
+      min-height: 520px;
+      max-height: 860px;
+    }
+
+    /* خلفية متوافقة مع الهوية */
+    .chat-bg-wrapper {
+      background-color: #F8F8F6;
+    }
+    .dark .chat-bg-wrapper {
+      background-color: #050505;
+    }
+
+    .chat-scroll {
+      scroll-behavior: smooth;
+    }
+
+    .msg-row { position: relative; z-index: 10; animation: bubbleIn .18s ease-out both; }
+    
+    .bubble { max-width: min(85%, 600px); }
+    .wa-bubble {
+      position: relative;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      border-radius: 12px;
+      padding: 8px 12px;
+      transition: all 0.3s ease;
+    }
+    .dark .wa-bubble { box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+
+    /* المرسل - أنا (RTL: اليسار الفيزيائي) */
+    .wa-bubble-me {
+      background-color: #E8F5ED;
+      color: #111827;
+      border-top-left-radius: 0;
+      border: 1px solid rgba(0, 90, 43, 0.1);
+    }
+    .dark .wa-bubble-me {
+      background-color: #003D1D;
+      color: #FAFAFA;
+      border: 1px solid rgba(229, 184, 105, 0.1);
+    }
+    .wa-bubble-me.is-grouped { border-top-left-radius: 12px; }
+    .wa-bubble-me::after {
+      content: ""; position: absolute; top: 0; left: -8px; width: 8px; height: 12px;
+      background: inherit; clip-path: polygon(100% 0, 0 0, 100% 100%);
+      border-top: 1px solid rgba(0, 90, 43, 0.1);
+    }
+    .dark .wa-bubble-me::after { border-top: 1px solid rgba(229, 184, 105, 0.1); }
+    .wa-bubble-me.is-grouped::after { display: none; }
+
+    /* المرسل - الآخرون (RTL: اليمين الفيزيائي) */
+    .wa-bubble-other {
+      background-color: #FFFFFF;
+      color: #111827;
+      border-top-right-radius: 0;
+      border: 1px solid rgba(0,0,0,0.05);
+    }
+    .dark .wa-bubble-other {
+      background-color: #0A0A0A;
+      color: #FAFAFA;
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .wa-bubble-other.is-grouped { border-top-right-radius: 12px; }
+    .wa-bubble-other::after {
+      content: ""; position: absolute; top: 0; right: -8px; width: 8px; height: 12px;
+      background: inherit; clip-path: polygon(0 0, 100% 0, 0 100%);
+      border-top: 1px solid rgba(0,0,0,0.05);
+    }
+    .dark .wa-bubble-other::after { border-top: 1px solid rgba(255,255,255,0.05); }
+    .wa-bubble-other.is-grouped::after { display: none; }
+
+    /* الوقت وعلامات القراءة بداخل الفقاعة */
+    .msg-meta-inline {
+      float: left;
+      margin-right: 12px;
+      margin-top: 6px;
+      margin-bottom: -2px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      font-weight: 600;
+    }
+    .wa-bubble-me .msg-meta-inline, .wa-bubble-other .msg-meta-inline { color: #71717A; }
+    .dark .wa-bubble-me .msg-meta-inline, .dark .wa-bubble-other .msg-meta-inline { color: rgba(255,255,255,0.5); }
+    .clear-both { clear: both; }
+
+    /* علامات القراءة - ذهبي للهوية */
+    .wa-tick-read { color: #E5B869 !important; }
+    .wa-tick-unread { color: #71717A !important; }
+    .dark .wa-tick-unread { color: rgba(255,255,255,0.3) !important; }
+
+    /* خلفية صندوق الإرسال */
+    .composer-glass {
+      background: #FFFFFF;
+    }
+    .dark .composer-glass {
+      background: #0A0A0A;
+    }
+
+    #scrollDownBtn { transition: opacity .3s cubic-bezier(0.19, 1, 0.22, 1), transform .3s cubic-bezier(0.19, 1, 0.22, 1); }
+    #scrollDownBtn.is-hidden {
+      opacity: 0;
+      transform: translateY(12px) scale(.92);
+      pointer-events: none;
+    }
+
+    @keyframes recPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+    .rec-dot { animation: recPulse 1s ease-in-out infinite; }
+
+    @keyframes bubbleIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .msg-row { animation: none; }
+      .chat-scroll { scroll-behavior: auto; }
+    }
+
+    @media (max-width: 1024px) { .chat-shell { height: calc(100vh - 380px); min-height: 480px; } }
+    @media (max-width: 640px) {
+      .chat-shell { height: calc(100vh - 320px); min-height: 460px; border-radius: 12px; }
+      .bubble { max-width: 92%; }
+    }
+  </style>
+
+  <script>
+    (function () {
+      const saved = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", saved);
+      document.documentElement.classList.toggle("dark", saved === "dark");
+
+      const obs = new MutationObserver(() => {
+        const t = document.documentElement.getAttribute("data-theme") || "dark";
+        document.documentElement.classList.toggle("dark", t === "dark");
+      });
+      obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    })();
+  </script>
+
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col overflow-x-hidden selection:bg-accent/30 selection:text-gray-900 dark:selection:text-white transition-colors duration-400">
+
+  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></div>
+  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-bg-charcoal border-r border-gray-100 dark:border-white/5 shadow-2xl z-[90] flex flex-col">
+    <div class="h-1.5 w-full bg-gradient-to-r from-gray-300 via-accent to-gray-300 dark:from-gray-800 dark:via-accent dark:to-gray-800"></div>
+    <div class="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/5">
+      <img class="h-10 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+      <img class="h-10 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+      <button id="mobileNavClose" class="text-gray-400 hover:text-accent transition-colors" type="button" aria-label="إغلاق القائمة">
+        <span class="material-symbols-outlined text-[26px]">close</span>
+      </button>
+    </div>
+    <nav class="p-6 flex flex-col gap-2 text-base font-semibold flex-grow text-gray-600 dark:text-gray-400 overflow-y-auto" aria-label="قائمة الجوال">
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/">الشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/about">نبذة عن العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/honor">السير الذاتية</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/news">أخبار العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/tree-pdf">المشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/kinship">صلة القرابة</a>
+      
+      <div class="my-3 h-px bg-gray-100 dark:bg-white/5"></div>
+      
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-members">أعضاء العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-books">كتب العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-gallery">معرض العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-events">مناسبات العائلة</a>
+      <a class="px-4 py-3 rounded-xl text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent" href="/chat">الشات العام</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/notifications">الإشعارات</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/account">حسابي</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/support">الدعم</a>
+    </nav>
+    <div class="p-6 border-t border-gray-100 dark:border-white/5 bg-white/50 dark:bg-black/20">
+      <div class="grid grid-cols-2 gap-3">
+        <a href="/admin/login" class="flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-xl hover:opacity-90 transition-all shadow-sm font-bold text-sm" title="تسجيل الدخول">
+          <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+          <span>الإدارة</span>
+        </a>
+        <a href="/logout" class="flex items-center justify-center gap-2 py-3 bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400 border border-red-100 dark:border-red-900/30 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/40 transition-all font-bold text-sm" title="تسجيل الخروج">
+          <span class="material-symbols-outlined text-[20px]">logout</span>
+          <span>خروج</span>
+        </a>
+      </div>
+    </div>
+  </aside>
+
+  <header class="sticky top-0 z-50 w-full glass-panel border-b-0 transition-colors duration-400">
+    <div class="max-w-[90rem] mx-auto px-5 sm:px-8 py-3 flex justify-between items-center h-20 md:h-24">
+      
+      <div class="flex items-center gap-3 xl:gap-4 shrink-0">
+        <a href="/" class="block shrink-0 transition-transform hover:scale-105 duration-300">
+          <img class="h-10 md:h-12 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+          <img class="h-10 md:h-12 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+        </a>
+        
+        <div class="h-7 w-px bg-gray-200 dark:bg-white/10 hidden sm:block"></div>
+        
+        <div class="hidden sm:flex flex-col justify-center min-w-0">
+           <h1 class="text-lg md:text-xl font-display text-primary dark:text-accent font-bold leading-tight pt-1 truncate max-w-[150px]">غرفة المحادثة</h1>
+           <span class="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5 truncate">تواصل الأجيال</span>
+        </div>
+      </div>
+
+      <nav class="hidden lg:flex flex-1 justify-center gap-3 xl:gap-5 items-center font-sans font-semibold text-[12px] xl:text-[13px] tracking-wide text-gray-500 dark:text-gray-400 overflow-x-auto scrollbar-hide px-4 flex-nowrap" aria-label="التنقل الرئيسي">
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/">الشجرة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/about">نبذة عن العائلة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/honor">السير الذاتية</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/news">أخبار العائلة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/tree-pdf">المشجرة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/kinship">صلة القرابة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/submit-person">إضافة بياناتك</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/family-members">أعضاء العائلة</a>
+        <a class="whitespace-nowrap text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1 transition-colors duration-200" href="/chat">الشات العام</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/account">حسابي</a>
+      </nav>
+
+      <div class="flex items-center justify-end gap-2 shrink-0">
+        <a href="/chat" class="hidden sm:flex px-4 py-2.5 rounded-xl bg-primary/5 dark:bg-white/5 text-primary dark:text-accent font-sans font-bold text-[12px] hover:bg-primary/10 dark:hover:bg-white/10 transition-colors border border-primary/10 dark:border-white/5 items-center gap-1.5" title="الرجوع للرسائل">
+          <span class="material-symbols-outlined text-[16px]">arrow_forward</span> الرسائل
+        </a>
+
+        <button id="uiThemeBtn" aria-label="تبديل المظهر" class="flex items-center justify-center w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-accent dark:hover:text-accent hover:bg-accent/5 transition-all duration-300" type="button" title="تبديل المظهر">
+          <span class="material-symbols-outlined text-[22px] dark:hidden">dark_mode</span>
+          <span class="material-symbols-outlined text-[22px] hidden dark:inline">light_mode</span>
+        </button>
+
+        <a href="/admin/login" class="hidden sm:flex w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-accent hover:bg-primary/5 dark:hover:bg-accent/5 transition-all duration-300 items-center justify-center" title="لوحة الإدارة">
+          <span class="material-symbols-outlined text-[22px]">admin_panel_settings</span>
+        </a>
+
+        <button id="mobileNavBtn" data-open="false" class="lg:hidden flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-primary dark:text-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-all duration-200" type="button" aria-label="فتح القائمة">
+          <span class="material-symbols-outlined text-[24px] ico-open">menu</span>
+          <span class="material-symbols-outlined text-[24px] ico-close hidden">close</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <main class="flex-grow relative">
+
+    <% 
+      let avatarImg = '/assets/default-avatar.svg';
+      let dispName = '';
+      
+      if (typeof targetUser !== 'undefined' && targetUser) {
+         avatarImg = targetUser.photo_url || targetUser.avatar_url || targetUser.avatar || '/assets/default-avatar.svg';
+         dispName = targetUser.name || targetUser.full_name || '';
+      }
+      
+      if (!dispName && typeof roomTitle !== 'undefined') {
+         dispName = roomTitle.replace('محادثة مع ', '').trim();
+      }
+    %>
+
+    <!-- ===== الهيرو ===== -->
+    <section class="pt-16 pb-12 px-6 max-w-[90rem] mx-auto text-center relative overflow-hidden">
+      <div class="absolute inset-0 bg-islamic-pattern opacity-40 dark:opacity-10 pointer-events-none"></div>
+
+      <img src="/assets/logo-dark.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.02] pointer-events-none hidden dark:block" alt="">
+      <img src="/assets/logo-light.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.02] pointer-events-none block dark:hidden" alt="">
+      
+      <div class="w-px h-10 bg-gradient-to-b from-transparent via-accent to-transparent mx-auto mb-5 relative z-10"></div>
+      
+      <p class="text-[10px] md:text-xs font-sans font-bold tracking-[0.2em] uppercase text-gray-400 dark:text-gray-500 mb-2 relative z-10">غرفة المحادثة</p>
+
+      <h1 class="text-4xl md:text-5xl font-display leading-tight mb-4 relative z-10 font-bold">
+        <span class="text-primary dark:text-white transition-colors duration-300"><%= roomTitle %></span>
+      </h1>
+      
+      <% if (mode === 'public' && Number(thread.is_locked) === 1) { %>
+        <div class="mt-6 flex justify-center relative z-10">
+          <span class="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-500/20 font-sans font-bold text-[13px] shadow-sm">
+            <span class="material-symbols-outlined text-[18px]">lock</span> مغلق بواسطة الإدارة
+          </span>
+        </div>
+      <% } %>
+    </section>
+
+    <!-- ===== مساحة الشات والشريط الجانبي ===== -->
+    <section class="px-4 sm:px-6 lg:px-8 pb-16 max-w-[96rem] mx-auto relative z-10 flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
+      
+      <!-- الشريط الجانبي (مخفي على الموبايل، يظهر على الديسكتوب يميناً) -->
+      <aside class="hidden lg:flex w-full lg:w-80 xl:w-96 shrink-0 flex-col gap-6 sticky top-28">
+        
+        <% if (mode === 'private' && targetUser) { %>
+          <!-- Profile Card -->
+          <div class="glass-panel rounded-[16px] overflow-hidden flex flex-col relative bg-white dark:bg-[#0A0A0A] p-6 md:p-8">
+            <!-- Profile Info Area -->
+            <div class="relative flex flex-col items-center text-center">
+              <div class="relative w-28 h-28 rounded-2xl border-4 border-white dark:border-[#0A0A0A] bg-gray-100 dark:bg-[#111] overflow-hidden shadow-luxury dark:shadow-luxury-dark z-30 flex items-center justify-center">
+                <div class="absolute inset-0 flex items-center justify-center bg-primary/5 dark:bg-white/5 text-primary dark:text-accent z-0">
+                  <span class="material-symbols-outlined text-[40px]">person</span>
+                </div>
+                <img src="<%= avatarImg %>" alt="<%= dispName %>" class="w-full h-full object-cover relative z-10" onerror="this.style.display='none';">
+              </div>
+              
+              <h3 class="mt-5 text-xl md:text-2xl font-display font-bold text-primary dark:text-white leading-tight"><%= dispName %></h3>
+              <p class="text-[12px] text-accent font-sans font-bold tracking-widest uppercase mt-1.5">عضو العائلة</p>
+              
+              <div class="mt-6 pt-5 border-t border-gray-100 dark:border-white/5 w-full flex flex-col gap-2">
+                <a href="/family-members/<%= targetUser.id %>" class="w-full px-4 py-3 rounded-xl bg-primary hover:bg-primaryDark text-white dark:bg-white dark:text-[#050505] dark:hover:bg-accent transition-all duration-300 font-sans font-bold text-[13px] flex items-center justify-center gap-2 shadow-sm hover:shadow-md hover:-translate-y-0.5">
+                  <span class="material-symbols-outlined text-[18px]">person</span> عرض الملف الشخصي
+                </a>
+              </div>
+            </div>
+          </div>
+        <% } else { %>
+          <!-- Public Room Info Card -->
+          <div class="glass-panel rounded-[16px] p-8 flex flex-col items-center text-center relative overflow-hidden bg-white dark:bg-[#0A0A0A]">
+            <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-transparent via-accent to-transparent opacity-60"></div>
+            <div class="w-16 h-16 rounded-full bg-primary/5 dark:bg-white/5 border border-primary/10 dark:border-white/10 text-primary dark:text-accent flex items-center justify-center mb-5 shadow-sm">
+               <span class="material-symbols-outlined text-[32px]">public</span>
+            </div>
+            <h3 class="text-2xl font-display font-bold text-primary dark:text-white leading-tight mb-2"><%= roomTitle %></h3>
+            <p class="text-[14px] text-gray-500 dark:text-gray-400 font-sans font-medium mt-1 leading-relaxed"><%= roomSubtitle %></p>
+            
+            <div class="mt-6 pt-6 border-t border-gray-100 dark:border-white/5 w-full flex flex-col gap-4">
+               <div class="flex items-center justify-between text-[12px] font-sans font-bold text-gray-600 dark:text-gray-400">
+                 <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px] text-accent">category</span> نوع الغرفة</span>
+                 <span class="px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/5">عامة</span>
+               </div>
+               <div class="flex items-center justify-between text-[12px] font-sans font-bold text-gray-600 dark:text-gray-400">
+                 <span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px] text-accent">group</span> المشاركون</span>
+                 <span class="px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/5">متاح للجميع</span>
+               </div>
+            </div>
+          </div>
+        <% } %>
+
+        <!-- Shared Interactive Info Box -->
+        <div class="glass-panel rounded-[16px] p-6 border-r-2 border-accent relative overflow-hidden group">
+           <div class="absolute inset-0 bg-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+           <h4 class="text-[12px] font-bold text-accent uppercase tracking-widest mb-3 flex items-center gap-2 relative z-10">
+              <span class="material-symbols-outlined text-[18px]">policy</span> إرشادات المحادثة
+           </h4>
+           <p class="text-[13px] leading-[1.8] text-gray-500 dark:text-gray-400 font-medium relative z-10">
+             نأمل من الجميع الالتزام بآداب الحوار، والمحافظة على الاحترام المتبادل بين أفراد العائلة. هذه المساحة وُجدت لتوطيد صلة الرحم والتواصل الفعّال.
+           </p>
+        </div>
+      </aside>
+
+      <!-- حاوية الشات الرئيسية (تمتد بكامل العرض على الموبايل) -->
+      <div class="chat-card chat-shell glass-panel flex-1 w-full flex flex-col border border-accent-gold/20 overflow-hidden shadow-luxury dark:shadow-luxury-dark rounded-[16px]">
+        
+        <!-- ترويسة الكارت الداخلية -->
+        <div class="shrink-0 border-b border-gray-100 dark:border-white/5 bg-white/85 dark:bg-[#0A0A0A]/85 relative z-30 backdrop-blur-xl">
+          <div class="p-4 sm:p-5 flex items-center gap-4">
+            <a href="/chat" class="sm:hidden flex items-center w-10 h-10 rounded-full justify-center bg-gray-50 dark:bg-white/5 text-gray-500 hover:text-accent hover:bg-primary/5 transition-colors ml-1">
+              <span class="material-symbols-outlined text-[24px]">arrow_forward</span>
+            </a>
+            
+            <div class="relative shrink-0 w-12 h-12 rounded-full overflow-hidden border-2 border-white dark:border-[#0A0A0A] shadow-sm bg-gray-100 dark:bg-[#111] flex items-center justify-center">
+              <% if (mode === 'private' && targetUser) { %>
+                <div class="absolute inset-0 flex items-center justify-center bg-primary/5 dark:bg-white/5 text-primary dark:text-accent z-0">
+                  <span class="material-symbols-outlined text-[24px]">person</span>
+                </div>
+                <img src="<%= avatarImg %>" alt="<%= dispName %>" class="w-full h-full object-cover relative z-10" onerror="this.style.display='none';">
+                <span class="absolute bottom-0 left-0 w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white dark:border-[#0A0A0A] z-20"></span>
+              <% } else { %>
+                <div class="w-full h-full bg-primary/5 dark:bg-white/5 text-primary dark:text-accent flex items-center justify-center z-10">
+                  <span class="material-symbols-outlined text-[24px]">group</span>
+                </div>
+              <% } %>
+            </div>
+            
+            <div class="min-w-0 flex flex-col justify-center flex-grow">
+              <h3 class="text-[17px] font-sans font-bold text-gray-900 dark:text-white truncate leading-tight"><%= roomTitle %></h3>
+              <p class="text-[13px] font-sans font-medium text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+                <% if (mode === 'private') { %>متصل الآن<% } else { %><%= roomSubtitle %><% } %>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- منطقة التمرير والخلفية النظيفة -->
+        <div class="relative flex-grow overflow-hidden z-20 chat-bg-wrapper">
+          <div class="absolute inset-0 bg-islamic-pattern opacity-[0.03] dark:opacity-[0.015] z-0 pointer-events-none mix-blend-multiply dark:mix-blend-screen"></div>
+          
+          <div id="messages" class="chat-scroll absolute inset-0 overflow-y-auto p-4 sm:p-6 lg:p-8 z-10 bg-transparent scrollbar-hide"></div>
+        </div>
+
+        <button id="scrollDownBtn" type="button" class="is-hidden absolute bottom-[130px] left-1/2 -translate-x-1/2 z-40 inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-white dark:bg-[#202C33] text-gray-800 dark:text-gray-200 font-sans font-bold text-[13px] shadow-luxury border border-gray-200 dark:border-white/10 hover:text-accent dark:hover:text-accent transition-colors" title="النزول لآخر الرسائل">
+          <span class="material-symbols-outlined text-[18px]">south</span>
+          <span>أحدث الرسائل</span>
+        </button>
+
+        <!-- شريط الكتابة الراقي -->
+        <div class="shrink-0 border-t border-gray-200 dark:border-white/5 composer-glass relative z-30 shadow-[0_-4px_20px_rgba(0,0,0,0.02)]">
+          <div class="p-3 sm:p-4 lg:p-5">
+            <div id="errorBox" class="hidden mb-3 rounded-xl bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300 p-3.5 text-[13px] font-sans font-bold border border-red-100 dark:border-red-500/20 shadow-sm"></div>
+            
+            <div id="editBox" class="hidden mb-3 rounded-xl bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-200 p-3 text-[13px] font-sans font-bold flex items-center justify-between gap-3 border border-amber-200 dark:border-amber-500/20 shadow-sm">
+              <span class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px]">edit_note</span> أنت تعدّل رسالة سابقة. اضغط حفظ عند الانتهاء.</span>
+              <button type="button" id="cancelEdit" class="px-4 py-2 rounded-lg bg-white dark:bg-black/30 border border-amber-200 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors shadow-sm">إلغاء</button>
+            </div>
+
+            <div id="recordingIndicator" class="hidden mb-3 rounded-xl bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300 p-3.5 text-[13px] font-sans font-bold flex items-center justify-between gap-3 border border-red-100 dark:border-red-500/20 shadow-sm">
+              <span class="flex items-center gap-2.5">
+                <span class="rec-dot w-2.5 h-2.5 rounded-full bg-red-500 inline-block shadow-[0_0_8px_rgba(239,68,68,0.6)]"></span>
+                جارٍ التسجيل… <span id="recTimer" class="tabular-nums ml-2">0:00</span>
+              </span>
+              <span class="text-[11px] opacity-80 hidden sm:inline">اضغط زر الميكروفون مرة أخرى للإيقاف</span>
+            </div>
+
+            <form id="chatForm" class="space-y-3">
+              <div id="emojiBar" class="hidden items-center gap-2 overflow-x-auto scrollbar-hide pb-2 flex">
+                <% ['😀','😂','❤️','👍','🙏','🌹','🔥','👏','🎉','😢','🤝','✅'].forEach(function(e){ %>
+                  <button type="button" class="emoji h-10 w-10 shrink-0 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-xl flex items-center justify-center"><%= e %></button>
+                <% }) %>
+              </div>
+
+              <div id="filePreview" class="hidden rounded-xl bg-gray-50 dark:bg-[#111] border border-gray-200 dark:border-white/5 p-3.5 text-[13px] font-sans font-bold text-gray-700 dark:text-gray-300 flex items-center justify-between gap-3 shadow-sm">
+                <span id="filePreviewText" class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-accent">attach_file</span> <span></span></span>
+                <button type="button" id="clearFile" class="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-[#222] border border-gray-200 dark:border-white/5 hover:bg-red-50 hover:border-red-200 hover:text-red-500 dark:hover:bg-red-500/10 dark:hover:border-red-500/20 text-gray-400 transition-colors shadow-sm" title="إزالة المرفق">
+                  <span class="material-symbols-outlined text-[16px]">close</span>
+                </button>
+              </div>
+
+              <div class="flex items-end gap-2 relative z-40">
+                <button type="button" id="emojiBtn" class="h-12 w-12 shrink-0 rounded-full text-gray-500 hover:text-primary hover:bg-primary/5 dark:hover:bg-white/5 dark:hover:text-accent flex items-center justify-center transition-colors" title="رموز تعبيرية">
+                  <span class="material-symbols-outlined text-[24px]">mood</span>
+                </button>
+                <button type="button" id="attachBtn" class="h-12 w-12 shrink-0 rounded-full text-gray-500 hover:text-primary hover:bg-primary/5 dark:hover:bg-white/5 dark:hover:text-accent flex items-center justify-center transition-colors" title="إرفاق صورة أو صوت">
+                  <span class="material-symbols-outlined text-[24px]">attach_file</span>
+                </button>
+                
+                <div class="flex-1 relative">
+                  <textarea id="body" name="body" rows="1" placeholder="اكتب رسالتك هنا..." class="block w-full min-h-[48px] max-h-32 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#111] focus:bg-white dark:focus:bg-[#1A1A1A] resize-none px-5 py-3.5 font-sans font-medium text-[15px] text-gray-800 dark:text-white placeholder-gray-400 focus:ring-1 focus:ring-accent focus:border-accent shadow-inner transition-all duration-300 leading-relaxed scrollbar-hide"></textarea>
+                </div>
+
+                <button type="button" id="recordBtn" class="h-12 w-12 shrink-0 rounded-full text-gray-500 hover:text-primary hover:bg-primary/5 dark:hover:bg-white/5 dark:hover:text-accent flex items-center justify-center transition-colors" title="تسجيل صوت">
+                  <span class="material-symbols-outlined text-[24px]">mic</span>
+                </button>
+                <button class="h-12 w-12 shrink-0 rounded-full bg-primary hover:bg-primaryDark text-white dark:bg-white dark:text-[#050505] dark:hover:bg-accent font-sans font-bold flex items-center justify-center shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5" title="إرسال">
+                  <span class="material-symbols-outlined text-[20px] rtl:-scale-x-100">send</span>
+                </button>
+              </div>
+
+              <input id="chatFile" name="chat_file" type="file" accept="image/*,audio/*" class="hidden" />
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="bg-background-light dark:bg-[#050505] border-t border-gray-200 dark:border-white/5 mt-auto py-8 relative z-10">
+    <div class="max-w-[90rem] mx-auto px-6 text-center flex flex-col items-center gap-3">
+      <p class="text-[11px] font-sans font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest">
+        © ٢٠٢٦ وقف عائلة خاشقجي. جميع الحقوق محفوظة. حفظ الأنساب والاحتفاء بالتراث.
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      const btn = document.getElementById("uiThemeBtn");
+      function applyTheme(next) {
+        document.documentElement.setAttribute("data-theme", next);
+        document.documentElement.classList.toggle("dark", next === "dark");
+        localStorage.setItem("theme", next);
+      }
+      btn?.addEventListener("click", () => {
+        const current = document.documentElement.getAttribute("data-theme") || "dark";
+        applyTheme(current === "dark" ? "light" : "dark");
+      });
+      applyTheme(localStorage.getItem("theme") || "dark");
+    })();
+
+    (function mobileNavInit(){
+      const btn = document.getElementById("mobileNavBtn");
+      const navDrawer = document.getElementById("mobileNavDrawer");
+      const overlay = document.getElementById("mobileNavOverlay");
+      const closeBtn = document.getElementById("mobileNavClose");
+
+      function setOpenState(isOpen){
+        btn?.setAttribute("data-open", isOpen ? "true" : "false");
+        btn?.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      }
+
+      function openNav(){
+        overlay?.classList.remove("hidden");
+        overlay?.style.setProperty('display', 'block', 'important');
+        navDrawer?.classList.add("isOpen");
+        setOpenState(true);
+        document.body.classList.add('overflow-hidden');
+      }
+      function closeNav(){
+        navDrawer?.classList.remove("isOpen");
+        overlay?.classList.add("hidden");
+        overlay?.style.setProperty('display', 'none', 'important');
+        setOpenState(false);
+        document.body.classList.remove('overflow-hidden');
+      }
+
+      btn?.addEventListener("click", () => {
+        const open = btn.getAttribute("data-open") === "true";
+        open ? closeNav() : openNav();
+      });
+
+      closeBtn?.addEventListener("click", closeNav);
+      overlay?.addEventListener("click", closeNav);
+      navDrawer?.querySelectorAll("a").forEach(a => a.addEventListener("click", closeNav));
+      window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNav(); });
+
+      setOpenState(false);
+    })();
+  </script>
+
+  <script>
+    const THREAD_ID = <%= Number(thread.id) %>;
+    const ME_ID = <%= Number(siteUser.id) %>;
+    const API_URL = `/api/chat/threads/${THREAD_ID}/messages`;
+    let sending = false;
+    let recorder = null;
+    let chunks = [];
+    let recordedBlob = null;
+    let recordedName = '';
+    let editingMessageId = null;
+    let lastRenderedSignature = '';
+    let recTimerInt = null;
+
+    const messagesEl = document.getElementById('messages');
+    const form = document.getElementById('chatForm');
+    const bodyEl = document.getElementById('body');
+    const fileEl = document.getElementById('chatFile');
+    const filePreview = document.getElementById('filePreview');
+    const filePreviewText = document.getElementById('filePreviewText').querySelector('span:last-child');
+    const clearFileBtn = document.getElementById('clearFile');
+    const errorBox = document.getElementById('errorBox');
+    const recordBtn = document.getElementById('recordBtn');
+    const attachBtn = document.getElementById('attachBtn');
+    const emojiBtn = document.getElementById('emojiBtn');
+    const emojiBar = document.getElementById('emojiBar');
+    const editBox = document.getElementById('editBox');
+    const cancelEditBtn = document.getElementById('cancelEdit');
+    const scrollDownBtn = document.getElementById('scrollDownBtn');
+    const recordingIndicator = document.getElementById('recordingIndicator');
+    const recTimerEl = document.getElementById('recTimer');
+
+    function escapeHtml(v){return String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
+    function showError(msg){errorBox.textContent = msg || 'حدث خطأ'; errorBox.classList.remove('hidden'); setTimeout(()=>errorBox.classList.add('hidden'), 5000);}
+    function bottom(){messagesEl.scrollTop = messagesEl.scrollHeight;}
+    function messageSignature(messages){return messages.map(m => `${m.id}:${m.body || ''}:${m.edited_at || ''}:${m.attachment_url || ''}:${m.read_by_others || 0}`).join('|');}
+
+    function renderAttachment(m){
+      if(!m.attachment_url) return '';
+      if(m.message_type === 'image') return `<a href="${escapeHtml(m.attachment_url)}" target="_blank"><img src="${escapeHtml(m.attachment_url)}" class="mt-2.5 max-h-72 rounded-lg object-contain border border-black/5 dark:border-white/5 bg-black/5" /></a>`;
+      if(m.message_type === 'audio') return `<audio controls src="${escapeHtml(m.attachment_url)}" class="mt-2.5 w-full min-w-[240px] rounded-full"></audio>`;
+      return `<a href="${escapeHtml(m.attachment_url)}" target="_blank" class="mt-2.5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors font-sans font-bold text-[13px] border border-black/5 dark:border-white/5"><span class="material-symbols-outlined text-[18px] text-accent">draft</span>${escapeHtml(m.attachment_name || 'ملف مرفق')}</a>`;
+    }
+
+    function emptyState(){
+      const div = document.createElement('div');
+      div.className = 'h-full w-full flex flex-col items-center justify-center text-center px-6 select-none relative z-10';
+      div.innerHTML = `
+        <div class="w-px h-12 bg-gradient-to-b from-transparent via-accent to-transparent mb-6"></div>
+        <div class="w-20 h-20 rounded-full bg-white dark:bg-[#111] border border-gray-200 dark:border-white/5 text-primary dark:text-accent flex items-center justify-center mb-5 shadow-luxury dark:shadow-luxury-dark">
+          <span class="material-symbols-outlined text-[40px]">forum</span>
+        </div>
+        <p class="font-display text-2xl md:text-3xl font-bold text-primary dark:text-white mb-2">ابدأ المحادثة</p>
+        <p class="mt-2 text-[14px] md:text-[15px] font-sans font-medium text-gray-500 dark:text-gray-400 max-w-sm leading-relaxed">لا توجد رسائل بعد. اكتب أول رسالة وافتح باب الكلام بين أفراد العائلة.</p>`;
+      return div;
+    }
+
+    function addMessage(m, grouped){
+      const isMe = Number(m.sender_user_id) === ME_ID;
+      const canEdit = isMe && !m.is_deleted;
+      const canReport = !isMe && !m.is_deleted;
+      
+      const wrap = document.createElement('div');
+      // في RTL: justify-start = اليمين (الآخرون) ، justify-end = اليسار (أنا)
+      wrap.className = `msg-row flex w-full ${grouped ? 'mt-1' : 'mt-4'} ${isMe ? 'justify-end msg-me' : 'justify-start msg-other'}`;
+      wrap.dataset.messageId = m.id;
+
+      const showName = !isMe && !grouped;
+      const showAvatar = !isMe;
+
+      // إضافة الصورة الشخصية للمتحدث بدعم Fallback موثوق
+      const imgUrl = escapeHtml(m.sender_photo_url || m.sender_avatar || '/assets/default-avatar.svg');
+      const avatarHtml = showAvatar
+        ? `<div class="shrink-0 ml-3 w-9 h-9 sm:w-10 sm:h-10 relative flex items-center justify-center">
+             ${!grouped ? `
+               <div class="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-[#111] rounded-full z-0 border border-gray-200 dark:border-white/5 shadow-sm">
+                 <span class="material-symbols-outlined text-[18px] text-gray-400">person</span>
+               </div>
+               <img title="${escapeHtml(m.sender_name)}" src="${imgUrl}" class="w-full h-full rounded-full object-cover relative z-10 border border-white dark:border-[#0A0A0A] shadow-sm" onerror="this.style.display='none';">
+             ` : ''}
+           </div>`
+        : '';
+
+      wrap.innerHTML = `
+        <div class="bubble flex items-start ${isMe ? 'flex-row-reverse' : 'flex-row'} max-w-[88%] sm:max-w-[75%]">
+          ${avatarHtml}
+          <div class="flex flex-col min-w-0">
+            <div class="wa-bubble ${isMe ? 'wa-bubble-me' : 'wa-bubble-other'} ${grouped ? 'is-grouped' : ''}">
+              ${showName ? `<div class="text-[13px] font-bold text-primary dark:text-accent mb-1 tracking-wide">${escapeHtml(m.sender_name)}</div>` : ''}
+              ${m.body ? `<div class="message-body whitespace-pre-wrap leading-relaxed text-[15px] break-words">${escapeHtml(m.body)}</div>` : ''}
+              ${renderAttachment(m)}
+              <div class="msg-meta-inline">
+                <span>${escapeHtml(m.created_at || 'الآن')}</span>
+                ${m.edited_at ? '<span>• معدلة</span>' : ''}
+                ${isMe ? `<span class="material-symbols-outlined text-[16px] ${m.read_by_others ? 'wa-tick-read' : 'wa-tick-unread'}">${m.read_by_others ? 'done_all' : 'check'}</span>` : ''}
+              </div>
+              <div class="clear-both"></div>
+              ${canEdit || canReport ? `
+                <div class="mt-2 pt-2 border-t ${isMe ? 'border-primary/10 dark:border-white/10' : 'border-gray-100 dark:border-white/5'} flex gap-3 text-[11px] font-bold opacity-70 transition-opacity hover:opacity-100">
+                  ${canEdit ? `<button type="button" data-edit-id="${Number(m.id)}" data-edit-body="${escapeHtml(m.body || '')}" class="hover:text-accent transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">edit</span>تعديل</button>` : ''}
+                  ${canReport ? `<button type="button" data-report-id="${Number(m.id)}" class="hover:text-red-500 transition-colors flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">flag</span>إبلاغ</button>` : ''}
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>`;
+      messagesEl.appendChild(wrap);
+    }
+
+    function renderMessages(messages){
+      const sig = messageSignature(messages);
+      if(sig === lastRenderedSignature) return;
+      const shouldScroll = messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 140;
+      messagesEl.innerHTML = '';
+
+      if(!messages.length){
+        messagesEl.appendChild(emptyState());
+        lastRenderedSignature = sig;
+        updateScrollBtn();
+        return;
+      }
+
+      let prevSender = null;
+      for(const m of messages){
+        const grouped = Number(m.sender_user_id) === prevSender;
+        addMessage(m, grouped);
+        prevSender = Number(m.sender_user_id);
+      }
+      lastRenderedSignature = sig;
+      if(shouldScroll) bottom();
+      updateScrollBtn();
+    }
+
+    async function loadMessages(){
+      try{
+        const r = await fetch(`${API_URL}?refresh=1&limit=300`, {cache:'no-store'});
+        const data = await r.json();
+        if(!data.ok) return;
+        if(data.locked){bodyEl.placeholder='الشات مغلق مؤقتًا بواسطة الإدارة'; bodyEl.disabled=true;}
+        renderMessages(data.messages || []);
+      }catch(e){}
+    }
+
+    function updatePreview(){
+      if(editingMessageId){filePreview.classList.add('hidden'); return;}
+      if(recordedBlob){filePreviewText.textContent = 'تم تسجيل رسالة صوتية جاهزة للإرسال'; filePreview.classList.remove('hidden'); return;}
+      if(fileEl.files && fileEl.files[0]){filePreviewText.textContent = `ملف مرفق: ${fileEl.files[0].name}`; filePreview.classList.remove('hidden'); return;}
+      filePreview.classList.add('hidden');
+    }
+
+    function clearAttachment(){
+      fileEl.value=''; recordedBlob=null; recordedName=''; updatePreview();
+    }
+
+    function startEdit(id, currentBody){
+      editingMessageId = Number(id);
+      bodyEl.value = currentBody || '';
+      bodyEl.focus();
+      bodyEl.style.height='auto'; bodyEl.style.height=Math.min(bodyEl.scrollHeight,128)+'px';
+      editBox.classList.remove('hidden');
+      attachBtn.disabled = true; recordBtn.disabled = true;
+      attachBtn.classList.add('opacity-40','cursor-not-allowed'); recordBtn.classList.add('opacity-40','cursor-not-allowed');
+      fileEl.value=''; recordedBlob=null; recordedName=''; updatePreview();
+    }
+    function cancelEdit(){
+      editingMessageId = null;
+      bodyEl.value=''; bodyEl.style.height='auto';
+      editBox.classList.add('hidden');
+      attachBtn.disabled = false; recordBtn.disabled = false;
+      attachBtn.classList.remove('opacity-40','cursor-not-allowed'); recordBtn.classList.remove('opacity-40','cursor-not-allowed');
+    }
+
+    document.addEventListener('click', (e)=>{
+      const btn = e.target.closest('[data-edit-id]');
+      if(!btn) return;
+      startEdit(btn.dataset.editId, btn.dataset.editBody || '');
+    });
+    document.addEventListener('click', async (e)=>{
+      const btn = e.target.closest('[data-report-id]');
+      if(!btn) return;
+      const reason = prompt('اكتب سبب البلاغ للإدارة:', 'محتوى غير مناسب');
+      if(reason === null) return;
+      try{
+        const r = await fetch(`/api/chat/messages/${btn.dataset.reportId}/report`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({reason})});
+        const data = await r.json();
+        showError(data.message || (data.ok ? 'تم إرسال البلاغ' : 'تعذر إرسال البلاغ'));
+      }catch(err){ showError('تعذر إرسال البلاغ.'); }
+    });
+
+    cancelEditBtn.addEventListener('click', cancelEdit);
+    clearFileBtn.addEventListener('click', clearAttachment);
+    attachBtn.addEventListener('click',()=>{ if(!editingMessageId) fileEl.click(); });
+    fileEl.addEventListener('change',()=>{recordedBlob=null; recordedName=''; updatePreview();});
+
+    emojiBtn.addEventListener('click',()=>{ emojiBar.classList.toggle('hidden'); });
+    document.querySelectorAll('.emoji').forEach(btn=>btn.addEventListener('click',()=>{ bodyEl.value += btn.textContent; bodyEl.focus(); }));
+
+    bodyEl.addEventListener('input',()=>{bodyEl.style.height='auto'; bodyEl.style.height=Math.min(bodyEl.scrollHeight,128)+'px';});
+
+    function startRecTimer(){
+      let s = 0;
+      recTimerEl.textContent = '0:00';
+      recordingIndicator.classList.remove('hidden');
+      recTimerInt = setInterval(()=>{
+        s++;
+        const mm = Math.floor(s/60), ss = String(s%60).padStart(2,'0');
+        recTimerEl.textContent = `${mm}:${ss}`;
+      }, 1000);
+    }
+    function stopRecTimer(){
+      if(recTimerInt){ clearInterval(recTimerInt); recTimerInt = null; }
+      recordingIndicator.classList.add('hidden');
+    }
+
+    recordBtn.addEventListener('click', async ()=>{
+      if(editingMessageId) return;
+      try{
+        if(recorder && recorder.state === 'recording') { recorder.stop(); recordBtn.classList.remove('text-red-500', 'bg-red-50', 'dark:bg-red-500/10'); stopRecTimer(); return; }
+        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+        chunks=[]; recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = e => { if(e.data.size) chunks.push(e.data); };
+        recorder.onstop = () => { recordedBlob = new Blob(chunks, {type:'audio/webm'}); recordedName = `voice-${Date.now()}.webm`; stream.getTracks().forEach(t=>t.stop()); fileEl.value=''; updatePreview(); };
+        recorder.start(); recordBtn.classList.add('text-red-500', 'bg-red-50', 'dark:bg-red-500/10'); startRecTimer();
+      }catch(e){ showError('المتصفح لم يسمح باستخدام الميكروفون.'); stopRecTimer(); }
+    });
+
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault(); if(sending) return; sending=true;
+      try{
+        if(editingMessageId){
+          const r = await fetch(`/api/chat/messages/${editingMessageId}/edit`, {
+            method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({body: bodyEl.value || ''})
+          });
+          const data = await r.json();
+          if(!data.ok){ showError(data.message); return; }
+          cancelEdit();
+          lastRenderedSignature = '';
+          await loadMessages();
+          return;
+        }
+        const fd = new FormData(); fd.append('body', bodyEl.value || '');
+        if(recordedBlob) fd.append('chat_file', recordedBlob, recordedName || 'voice.webm'); else if(fileEl.files && fileEl.files[0]) fd.append('chat_file', fileEl.files[0]);
+        const r = await fetch(API_URL, {method:'POST', body:fd}); const data = await r.json();
+        if(!data.ok){ showError(data.message); return; }
+        bodyEl.value=''; bodyEl.style.height='auto'; fileEl.value=''; recordedBlob=null; recordedName=''; updatePreview();
+        emojiBar.classList.add('hidden');
+        lastRenderedSignature = '';
+        await loadMessages(); bottom();
+      }catch(err){ showError('تعذر حفظ الرسالة.'); }
+      finally{ sending=false; }
+    });
+
+    function updateScrollBtn(){
+      if(!scrollDownBtn) return;
+      const nearBottom = messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 140;
+      scrollDownBtn.classList.toggle('is-hidden', nearBottom);
+    }
+    messagesEl.addEventListener('scroll', updateScrollBtn);
+    scrollDownBtn?.addEventListener('click', ()=>{ bottom(); updateScrollBtn(); });
+
+    loadMessages();
+    let socketConnected = false;
+    if(window.io){
+      try{
+        const socket = io({path:'/socket.io'});
+        socket.on('connect',()=>{ socketConnected = true; socket.emit('join-chat-thread', THREAD_ID); });
+        socket.on('chat-thread-updated',()=>{ lastRenderedSignature=''; loadMessages(); });
+      }catch(e){}
+    }
+    setInterval(loadMessages, socketConnected ? 12000 : 3500);
+  </script>
+  <script src="/chat-notifications.js"></script>
+</body>
+</html>

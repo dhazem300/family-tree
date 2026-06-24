@@ -2,6 +2,7 @@ require("dotenv").config();
 const nodemailer = require("nodemailer");
 
 const express = require("express");
+const http = require("http");
 const path = require("path");
 const fs = require("fs");
 const crypto = require("crypto");
@@ -11,21 +12,71 @@ const session = require("express-session");
 const SQLiteStore = require("connect-sqlite3")(session);
 const multer = require("multer");
 const rateLimit = require("express-rate-limit");
+
+// Optional OAuth support. The site still works with email/password if these
+// packages or provider credentials are not installed/configured yet.
+let passport = null;
+let GoogleStrategy = null;
+let SocketIOServer = null;
+try {
+  SocketIOServer = require("socket.io").Server;
+} catch (e) {
+  SocketIOServer = null;
+}
+try {
+  passport = require("passport");
+  GoogleStrategy = require("passport-google-oauth20").Strategy;
+} catch (e) {
+  passport = null;
+  GoogleStrategy = null;
+}
 const { answerFromAssistantKnowledge } = require("./assistantKnowledge");
 const { answerFromEntertainment } = require("./assistantEntertainment");
 
 const app = express();
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+const server = http.createServer(app);
+let io = null;
+
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), geolocation=(), microphone=(self)");
+  next();
+});
+
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+app.use(express.json({ limit: "1mb" }));
+
+const sessionSecret = process.env.SESSION_SECRET || "CHANGE_THIS_SECRET";
+if (sessionSecret === "CHANGE_THIS_SECRET") {
+  console.warn("Security warning: set SESSION_SECRET in .env before production.");
+}
 
 app.use(
   session({
+    name: process.env.SESSION_COOKIE_NAME || "family_tree_sid",
     store: new SQLiteStore({ db: "sessions.db", dir: __dirname }),
-    secret: process.env.SESSION_SECRET || "CHANGE_THIS_SECRET",
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
+    rolling: true,
+    cookie: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: envFlag("COOKIE_SECURE", process.env.NODE_ENV === "production"),
+      maxAge: Number(process.env.SESSION_MAX_AGE_MS || 1000 * 60 * 60 * 24 * 7),
+    },
   })
 );
+
+if (passport) {
+  app.use(passport.initialize());
+  app.use(passport.session());
+}
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
@@ -54,7 +105,64 @@ app.use(async (req, res, next) => {
   }
 });
 
-app.use(express.static(path.join(__dirname, "public")));
+// Private-site gate: every public page, API, image and static file is blocked
+// unless the visitor has a normal site account session. Admin routes keep their
+// own independent login flow.
+app.use(async (req, res, next) => {
+  try {
+    if (isPublicAccessPath(req.path)) return next();
+
+    const userSession = req.session?.siteUser || null;
+    if (!userSession?.id) {
+      if (req.path.startsWith("/api/")) {
+        return res.status(401).json({ ok: false, loginRequired: true, redirect: "/login" });
+      }
+      const nextUrl = encodeURIComponent(req.originalUrl || "/");
+      return res.redirect(`/login?next=${nextUrl}`);
+    }
+
+    const now = Date.now();
+    const lastCheck = Number(req.session.siteUserCheckedAt || 0);
+    if (!lastCheck || now - lastCheck > 60 * 1000) {
+      const fresh = await getSiteUserById(userSession.id);
+      if (!fresh || Number(fresh.is_active) === 0) {
+        delete req.session.siteUser;
+        delete req.session.siteUserCheckedAt;
+        return res.redirect("/login?error=" + encodeURIComponent("تم إيقاف الحساب أو لم يعد متاحًا"));
+      }
+      const approvalStatus = String(fresh.approval_status || "approved");
+      req.session.siteUser = publicSiteUserSession(fresh);
+      if (approvalStatus !== "approved") {
+        res.locals.siteUser = req.session.siteUser;
+        if (req.path === "/account-pending" || req.path === "/logout" || req.path === "/theme.js") return next();
+        if (req.path.startsWith("/api/")) return res.status(403).json({ ok:false, pendingApproval:true, status: approvalStatus, redirect:"/account-pending" });
+        return res.redirect("/account-pending");
+      }
+      req.session.siteUser = publicSiteUserSession(fresh);
+      req.session.siteUserCheckedAt = now;
+      await run(`UPDATE site_users SET last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [fresh.id]).catch(() => {});
+    }
+
+    res.locals.siteUser = req.session.siteUser;
+    maybeLogSiteVisit(req);
+    return next();
+  } catch (e) {
+    console.error("private site gate error:", e);
+    return next(e);
+  }
+});
+
+app.use(express.static(path.join(__dirname, "public"), {
+  etag: true,
+  maxAge: "7d",
+  setHeaders: (res, filePath) => {
+    if (/\.(html|ejs)$/i.test(filePath) || /theme\.js$/i.test(filePath)) {
+      res.setHeader("Cache-Control", "no-cache");
+    } else if (/\.(png|jpg|jpeg|gif|svg|webp|ico|woff2?|ttf|pdf)$/i.test(filePath)) {
+      res.setHeader("Cache-Control", "public, max-age=604800");
+    }
+  }
+}));
 
 
 function findUploadedImageByName(filename) {
@@ -135,6 +243,13 @@ const PERMISSION_GROUPS = [
   { key: "support", label: "رسائل الدعم", description: "عرض وحذف وتصدير رسائل الدعم" },
   { key: "roles", label: "وظائف وصلاحيات الأفراد", description: "تعيين أفراد العائلة كمستخدمين في الإدارة" },
   { key: "person_requests", label: "طلبات إضافة الأفراد", description: "مراجعة واعتماد بيانات الأفراد المرسلة من الزوار" },
+  { key: "users", label: "مستخدمي الموقع", description: "مراجعة حسابات المستخدمين ونشاطهم داخل الموقع" },
+  { key: "chats", label: "محادثات الموقع", description: "إدارة الشات العام والرسائل بين المستخدمين" },
+  { key: "approvals", label: "مركز الموافقات", description: "مراجعة الحسابات الجديدة وطلبات الربط والمحتوى المرسل" },
+  { key: "reports", label: "البلاغات العامة", description: "مراجعة بلاغات الحسابات والمحتوى" },
+  { key: "events", label: "مناسبات العائلة", description: "اعتماد وإدارة مناسبات العائلة" },
+  { key: "gallery", label: "معرض الصور", description: "اعتماد وإدارة صور ووثائق العائلة" },
+  { key: "backups", label: "النسخ الاحتياطي", description: "تنزيل نسخة احتياطية من قاعدة البيانات والملفات" },
 ];
 
 function userCan(admin, permission) {
@@ -155,6 +270,13 @@ function firstAllowedAdminPath(admin) {
     support: "/admin/support-messages",
     roles: "/admin/roles",
     person_requests: "/admin/person-requests",
+    users: "/admin/users",
+    chats: "/admin/chats",
+    approvals: "/admin/approvals",
+    reports: "/admin/approvals#reports",
+    events: "/admin/events",
+    gallery: "/admin/gallery",
+    backups: "/admin/backups",
   };
   if (!admin) return "/admin/login";
   if (Number(admin.is_super_admin) === 1) return "/admin";
@@ -184,6 +306,18 @@ function requirePermission(permission) {
   };
 }
 
+
+function requireAnyPermission(permissions = []) {
+  return function (req, res, next) {
+    if (permissions.some((permission) => userCan(req.session?.admin, permission))) return next();
+    return res.status(403).render("admin_no_access", {
+      admin: req.session.admin,
+      permissionGroups: PERMISSION_GROUPS,
+      userCan: (perm) => userCan(req.session.admin, perm),
+    });
+  };
+}
+
 function requireSuperAdmin(req, res, next) {
   if (Number(req.session?.admin?.is_super_admin) === 1) return next();
   return res.status(403).render("admin_no_access", {
@@ -201,39 +335,141 @@ fs.mkdirSync(uploadsDir, { recursive: true });
 const thumbsDir = path.join(__dirname, "public", "uploads", "thumbs");
 fs.mkdirSync(thumbsDir, { recursive: true });
 
+function isInsideDir(parentDir, childPath) {
+  const relative = path.relative(parentDir, childPath);
+  return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function uploadedUrlToDiskPath(fileUrl) {
+  const value = String(fileUrl || "").trim();
+  if (!value || !value.startsWith("/uploads/")) return null;
+  if (/^https?:\/\//i.test(value)) return null;
+  const cleanUrl = value.split("?")[0].split("#")[0];
+  const decoded = decodeURIComponent(cleanUrl).replace(/\\/g, "/");
+  const relative = decoded.replace(/^\/uploads\/+/, "");
+  if (!relative || relative.includes("..")) return null;
+  const absolute = path.resolve(uploadsDir, relative);
+  if (!isInsideDir(uploadsDir, absolute)) return null;
+  return absolute;
+}
+
+async function removeUploadedFileByUrl(fileUrl) {
+  try {
+    const absolute = uploadedUrlToDiskPath(fileUrl);
+    if (!absolute) return;
+    await fs.promises.unlink(absolute).catch((err) => {
+      if (err?.code !== "ENOENT") throw err;
+    });
+
+    // امسح الصورة المصغّرة إن وُجدت، بدون التأثير على أي ملف آخر.
+    const requested = path.basename(absolute);
+    const safeName = requested.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.[^.]+$/, "") || "thumb";
+    const thumbPath = path.join(thumbsDir, safeName + ".webp");
+    await fs.promises.unlink(thumbPath).catch((err) => {
+      if (err?.code !== "ENOENT") throw err;
+    });
+  } catch (e) {
+    console.error("remove uploaded image error:", e.message || e);
+  }
+}
+
+function removeUploadedFilesFromRequest(files = {}) {
+  const list = Object.values(files || {}).flat().filter(Boolean);
+  return Promise.all(list.map((file) => fs.promises.unlink(file.path).catch(() => {})));
+}
+
 const pdfUploadsDir = path.join(__dirname, "public", "uploads", "pdfs");
 fs.mkdirSync(pdfUploadsDir, { recursive: true });
 
 /* =========================
    Multer uploads
    ========================= */
+const MAX_IMAGE_UPLOAD_SIZE = Number(process.env.MAX_IMAGE_UPLOAD_SIZE || 5 * 1024 * 1024);
+const MAX_CHAT_UPLOAD_SIZE = Number(process.env.MAX_CHAT_UPLOAD_SIZE || 15 * 1024 * 1024);
+const MAX_PDF_UPLOAD_SIZE = Number(process.env.MAX_PDF_UPLOAD_SIZE || 25 * 1024 * 1024);
+
+const ALLOWED_IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const ALLOWED_IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
+const ALLOWED_AUDIO_MIMES = new Set(["audio/webm", "audio/ogg", "audio/mpeg", "audio/mp3", "audio/mp4", "audio/wav", "audio/x-wav", "audio/aac"]);
+const ALLOWED_AUDIO_EXTS = new Set([".webm", ".ogg", ".mp3", ".m4a", ".mp4", ".wav", ".aac"]);
+
+function safeUploadBaseName(value, fallback = "file") {
+  return String(value || fallback)
+    .normalize("NFKD")
+    .replace(/[\/]+/g, "-")
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9._\-؀-ۿ]/g, "")
+    .replace(/^\.+/, "")
+    .slice(0, 70) || fallback;
+}
+
+function safeUploadFilename(originalName, fallbackExt = ".bin") {
+  const rawExt = path.extname(String(originalName || "")).toLowerCase();
+  const ext = rawExt && rawExt.length <= 10 ? rawExt : fallbackExt;
+  const base = safeUploadBaseName(path.basename(String(originalName || "file"), rawExt), "file");
+  return `${Date.now()}-${crypto.randomBytes(8).toString("hex")}-${base}${ext}`;
+}
+
+function isAllowedImageFile(file) {
+  const mime = String(file.mimetype || "").toLowerCase();
+  const ext = path.extname(String(file.originalname || "")).toLowerCase();
+  return ALLOWED_IMAGE_MIMES.has(mime) && ALLOWED_IMAGE_EXTS.has(ext);
+}
+
+function imageFileFilter(req, file, cb) {
+  if (isAllowedImageFile(file)) return cb(null, true);
+  return cb(new Error("يسمح برفع الصور فقط بصيغ JPG / PNG / WEBP / GIF وبحجم مناسب."));
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => cb(null, safeUploadFilename(file.originalname, ".jpg")),
+});
+const upload = multer({
+  storage,
+  fileFilter: imageFileFilter,
+  limits: { fileSize: MAX_IMAGE_UPLOAD_SIZE, files: 6 },
+});
+
+const chatUploadsDir = path.join(__dirname, "public", "uploads", "chat");
+fs.mkdirSync(chatUploadsDir, { recursive: true });
+const chatStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, chatUploadsDir),
   filename: (req, file, cb) => {
-    const safe = Date.now() + "-" + String(file.originalname || "file").replace(/\s+/g, "_");
-    cb(null, safe);
+    const mime = String(file.mimetype || "").toLowerCase();
+    const fallbackExt = mime.startsWith("audio/") ? ".webm" : ".jpg";
+    cb(null, safeUploadFilename(file.originalname || "chat-file", fallbackExt));
   },
 });
-const upload = multer({ storage });
+function chatFileFilter(req, file, cb) {
+  const mime = String(file.mimetype || "").toLowerCase();
+  const ext = path.extname(String(file.originalname || "")).toLowerCase();
+  const okImage = ALLOWED_IMAGE_MIMES.has(mime) && ALLOWED_IMAGE_EXTS.has(ext);
+  const okAudio = ALLOWED_AUDIO_MIMES.has(mime) && ALLOWED_AUDIO_EXTS.has(ext);
+  const okBrowserBlob = mime === "application/octet-stream" && ALLOWED_AUDIO_EXTS.has(ext);
+  if (okImage || okAudio || okBrowserBlob) return cb(null, true);
+  return cb(new Error("يسمح بإرفاق الصور والتسجيلات الصوتية فقط داخل الشات."));
+}
+const chatUpload = multer({
+  storage: chatStorage,
+  fileFilter: chatFileFilter,
+  limits: { fileSize: MAX_CHAT_UPLOAD_SIZE, files: 1 },
+});
 
 const pdfStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, pdfUploadsDir),
-  filename: (req, file, cb) => {
-    const safeOriginal = String(file.originalname || "file.pdf").replace(/\s+/g, "_");
-    const safe = Date.now() + "-" + safeOriginal;
-    cb(null, safe);
-  },
+  filename: (req, file, cb) => cb(null, safeUploadFilename(file.originalname || "file.pdf", ".pdf")),
 });
 function pdfFileFilter(req, file, cb) {
-  const okByMime = file.mimetype === "application/pdf";
+  const okByMime = String(file.mimetype || "").toLowerCase() === "application/pdf";
   const okByName = /\.pdf$/i.test(file.originalname || "");
-  if (okByMime || okByName) return cb(null, true);
+  if (okByMime && okByName) return cb(null, true);
   cb(new Error("Only PDF files are allowed"));
 }
 const uploadPdf = multer({
   storage: pdfStorage,
   fileFilter: pdfFileFilter,
-  limits: { fileSize: 25 * 1024 * 1024 },
+  limits: { fileSize: MAX_PDF_UPLOAD_SIZE, files: 1 },
 });
 
 /* =========================
@@ -259,6 +495,302 @@ function run(sql, params = []) {
   });
 }
 
+function isPublicAccessPath(pathname) {
+  const p = String(pathname || "");
+  if (p === "/login" || p === "/register" || p === "/logout" || p === "/account-pending") return true;
+  if (p.startsWith("/auth/")) return true;
+  if (p.startsWith("/admin")) return true;
+  if (p === "/theme.js" || p === "/favicon.ico" || p === "/robots.txt") return true;
+  if (p.startsWith("/assets/")) return true;
+  if (p.startsWith("/uploads/")) return true;
+  if (p.startsWith("/image-thumb/")) return true;
+  if (p.startsWith("/images/")) return true;
+  return false;
+}
+
+function isStaticLikePath(pathname) {
+  return /\.(css|js|png|jpg|jpeg|gif|svg|webp|ico|map|woff2?|ttf|pdf)$/i.test(String(pathname || ""));
+}
+
+function safeRedirectUrl(value, fallback = "/") {
+  const v = String(value || "").trim();
+  if (!v || !v.startsWith("/") || v.startsWith("//")) return fallback;
+  if (v.startsWith("/login") || v.startsWith("/register") || v.startsWith("/auth/")) return fallback;
+  return v;
+}
+
+function publicSiteUserSession(user) {
+  return {
+    id: user.id,
+    full_name: user.full_name || "",
+    father_name: user.father_name || "",
+    email: user.email || "",
+    phone: user.phone || "",
+    country: user.country || "",
+    city: user.city || "",
+    provider: user.provider || "email",
+    avatar_url: user.avatar_url || "",
+    cover_url: user.cover_url || "",
+    avatar_pos_x: user.avatar_pos_x ?? 50,
+    avatar_pos_y: user.avatar_pos_y ?? 50,
+    cover_pos_x: user.cover_pos_x ?? 50,
+    cover_pos_y: user.cover_pos_y ?? 50,
+    chat_privacy: user.chat_privacy || "all",
+    approval_status: user.approval_status || "approved",
+    verification_status: user.verification_status || "unverified",
+    matched_person_id: user.matched_person_id || null,
+  };
+}
+
+function normalizePhone(value) {
+  return cleanText(value, 80).replace(/[^0-9+\-\s]/g, "").trim();
+}
+
+function optionalUrl(value, max = 300) {
+  const v = cleanText(value, max);
+  if (!v) return "";
+  if (/^(https?:\/\/)/i.test(v)) return v;
+  if (/^(www\.)/i.test(v)) return "https://" + v;
+  return v;
+}
+
+function normalizePercent(value, fallback = 50) {
+  const n = Number.parseFloat(String(value ?? "").replace(",", "."));
+  const base = Number.isFinite(n) ? n : Number.parseFloat(fallback);
+  const safe = Number.isFinite(base) ? base : 50;
+  return Math.max(0, Math.min(100, safe)).toFixed(2);
+}
+
+function getSiteUserAvatar(user) {
+  return user?.avatar_url || "/assets/default-avatar.svg";
+}
+
+function extractSiteUserProfileFields(body = {}) {
+  const childrenRaw = String(body.children_count ?? "").trim();
+  let childrenCount = childrenRaw === "" ? null : Number.parseInt(childrenRaw, 10);
+  if (!Number.isFinite(childrenCount) || childrenCount < 0) childrenCount = null;
+  if (childrenCount !== null && childrenCount > 99) childrenCount = 99;
+
+  return {
+    full_name: cleanText(body.full_name, 180),
+    father_name: cleanText(body.father_name, 180),
+    mother_name: cleanText(body.mother_name, 180),
+    children_count: childrenCount,
+    birth_date: cleanText(body.birth_date, 40),
+    origin_place: cleanText(body.origin_place, 180),
+    current_residence: cleanText(body.current_residence, 180),
+    phone: normalizePhone(body.phone),
+    phone_alt: normalizePhone(body.phone_alt),
+    email: String(body.email || "").trim().toLowerCase(),
+    work: cleanText(body.work, 180),
+    qualification: cleanText(body.qualification, 180),
+    spouse_family: cleanText(body.spouse_family, 180),
+    spouse_name: cleanText(body.spouse_name, 180),
+    country: cleanText(body.country, 120),
+    city: cleanText(body.city, 120),
+    facebook_url: optionalUrl(body.facebook_url),
+    instagram_url: optionalUrl(body.instagram_url),
+    x_url: optionalUrl(body.x_url),
+    linkedin_url: optionalUrl(body.linkedin_url),
+    chat_privacy: ["all", "linked_only", "nobody"].includes(String(body.chat_privacy || "all")) ? String(body.chat_privacy || "all") : "all",
+    profile_visibility: ["members", "linked_only", "private"].includes(String(body.profile_visibility || "members")) ? String(body.profile_visibility || "members") : "members",
+    show_phone: body.show_phone === "1" || body.show_phone === "on" ? 1 : 0,
+    show_email: body.show_email === "1" || body.show_email === "on" ? 1 : 0,
+    show_birth_date: body.show_birth_date === "1" || body.show_birth_date === "on" ? 1 : 0,
+    show_social_links: body.show_social_links === "1" || body.show_social_links === "on" ? 1 : 0,
+  };
+}
+
+function isSiteUserProfileComplete(user) {
+  return Boolean(cleanText(user?.full_name, 180) && cleanText(user?.father_name, 180) && isValidEmail(user?.email) && cleanText(user?.phone, 80));
+}
+
+function personFocusUrl(person) {
+  return person?.id ? `/?focus=${encodeURIComponent(person.id)}` : "";
+}
+
+async function findTreePersonForSiteUser(user) {
+  try {
+    if (!user || !user.matched_person_id) return null;
+    const direct = await get(`SELECT id, name, father_id, mother_id, photo_url, short_bio FROM persons WHERE id = ?`, [user.matched_person_id]);
+    return direct || null;
+  } catch (e) {
+    console.error("findTreePersonForSiteUser error:", e.message || e);
+  }
+  return null;
+}
+
+async function findHonorForUser(user, person) {
+  try {
+    if (person?.id) {
+      const byPerson = await get(`SELECT id, name FROM honor_items WHERE person_id = ? LIMIT 1`, [person.id]);
+      if (byPerson) return byPerson;
+    }
+    const full = normalizeArabicForMatch(user?.full_name || "");
+    if (!full) return null;
+    const items = await all(`SELECT id, name FROM honor_items`);
+    return items.find((item) => normalizeArabicForMatch(item.name) === full) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function getSiteUserProfileStats(userId) {
+  const id = Number(userId);
+  const [activityCount, pageVisits, profileViews, uniqueViewers] = await Promise.all([
+    get(`SELECT COUNT(*) AS total FROM site_user_activity_logs WHERE user_id = ?`, [id]).catch(() => ({ total: 0 })),
+    get(`SELECT COUNT(*) AS total FROM site_user_activity_logs WHERE user_id = ? AND action = 'زيارة صفحة'`, [id]).catch(() => ({ total: 0 })),
+    get(`SELECT COUNT(*) AS total FROM site_profile_views WHERE profile_user_id = ?`, [id]).catch(() => ({ total: 0 })),
+    get(`SELECT COUNT(DISTINCT viewer_user_id) AS total FROM site_profile_views WHERE profile_user_id = ? AND viewer_user_id IS NOT NULL`, [id]).catch(() => ({ total: 0 })),
+  ]);
+  return {
+    activityCount: activityCount?.total || 0,
+    pageVisits: pageVisits?.total || 0,
+    profileViews: profileViews?.total || 0,
+    uniqueViewers: uniqueViewers?.total || 0,
+  };
+}
+
+async function logProfileView(req, profileUserId) {
+  try {
+    const viewerId = Number(req.session?.siteUser?.id || 0) || null;
+    const profileId = Number(profileUserId || 0);
+    if (!profileId || viewerId === profileId) return;
+    const throttleKey = `profileView:${profileId}`;
+    const now = Date.now();
+    if (req.session[throttleKey] && now - Number(req.session[throttleKey]) < 10 * 60 * 1000) return;
+    req.session[throttleKey] = now;
+    await run(
+      `INSERT INTO site_profile_views (profile_user_id, viewer_user_id, ip_address, user_agent, created_at)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [profileId, viewerId, getClientIp(req), String(req.headers["user-agent"] || "").slice(0, 300)]
+    );
+  } catch (e) {
+    console.error("logProfileView error:", e.message || e);
+  }
+}
+
+async function getSiteUserById(id) {
+  return get(`SELECT * FROM site_users WHERE id = ?`, [id]);
+}
+
+async function getSiteUserByEmail(email) {
+  const clean = String(email || "").trim().toLowerCase();
+  if (!clean) return null;
+  return get(`SELECT * FROM site_users WHERE LOWER(email) = ?`, [clean]);
+}
+
+function oauthStatus() {
+  return {
+    google: Boolean(passport && GoogleStrategy && process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+    passportInstalled: Boolean(passport),
+  };
+}
+
+function getPublicBaseUrl() {
+  const raw = process.env.PUBLIC_BASE_URL || process.env.SITE_URL || process.env.BASE_URL || process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`;
+  return String(raw || "").trim().replace(/\/+$/, "");
+}
+
+function absoluteOAuthCallbackUrl(provider = "google") {
+  const envName = "GOOGLE_CALLBACK_URL";
+  const fallbackPath = "/auth/google/callback";
+  const value = String(process.env[envName] || "").trim();
+  if (/^https?:\/\//i.test(value)) return value;
+  const pathValue = value || fallbackPath;
+  return `${getPublicBaseUrl()}${pathValue.startsWith("/") ? pathValue : `/${pathValue}`}`;
+}
+
+function envFlag(name, defaultValue = false) {
+  const value = String(process.env[name] ?? "").trim().toLowerCase();
+  if (!value) return Boolean(defaultValue);
+  return ["1", "true", "yes", "on"].includes(value);
+}
+
+function newUserApprovalStatus(provider = "email") {
+  if (envFlag("AUTO_APPROVE_NEW_USERS", false)) return "approved";
+  if (provider !== "email" && envFlag("AUTO_APPROVE_OAUTH_USERS", true)) return "approved";
+  return "pending";
+}
+
+function oauthLoginError(provider, err, info) {
+  const providerName = "Google";
+  const raw = String(err?.message || err?.oauthError?.data || err?.oauthError?.message || info?.message || "");
+  console.error(`${providerName} OAuth failed:`, err || info || "unknown error");
+  if (/invalid_client|unauthorized_client|client_secret/i.test(raw)) {
+    return `فشل تسجيل الدخول عبر ${providerName}: Client Secret غير صحيح أو غير موجود في ملف .env.`;
+  }
+  if (/redirect_uri|redirect_uri_mismatch/i.test(raw)) {
+    return `فشل تسجيل الدخول عبر ${providerName}: رابط الرجوع غير مطابق لما هو مسجل في Google Cloud.`;
+  }
+  if (/access_denied/i.test(raw)) {
+    return `تم إلغاء تسجيل الدخول عبر ${providerName}.`;
+  }
+  if (/email/i.test(raw)) {
+    return `فشل تسجيل الدخول عبر ${providerName}: لم يتم استلام البريد الإلكتروني من الحساب.`;
+  }
+  return `فشل تسجيل الدخول عبر ${providerName}. افتح التيرمنال لمعرفة السبب التفصيلي.`;
+}
+
+function rotateSessionPreservingAdmin(req) {
+  return new Promise((resolve, reject) => {
+    const preservedAdmin = req.session?.admin || null;
+    const preservedOAuthNext = req.session?.oauthNext || null;
+    req.session.regenerate((err) => {
+      if (err) return reject(err);
+      if (preservedAdmin) req.session.admin = preservedAdmin;
+      if (preservedOAuthNext) req.session.oauthNext = preservedOAuthNext;
+      resolve();
+    });
+  });
+}
+
+async function signInSiteUser(req, user) {
+  await rotateSessionPreservingAdmin(req);
+  req.session.siteUser = publicSiteUserSession(user);
+  req.session.siteUserCheckedAt = Date.now();
+}
+
+function clearSiteUserSession(req) {
+  delete req.session.siteUser;
+  delete req.session.siteUserCheckedAt;
+  delete req.session.oauthNext;
+}
+
+async function logSiteUserActivity(req, action, details = {}) {
+  try {
+    const user = req.session?.siteUser || null;
+    if (!user?.id) return;
+    await run(
+      `INSERT INTO site_user_activity_logs
+       (user_id, action, path, method, details, ip_address, user_agent, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [
+        user.id,
+        cleanText(action, 120),
+        cleanText(req.originalUrl || req.path || "", 500),
+        cleanText(req.method || "GET", 20),
+        JSON.stringify(details || {}),
+        getClientIp(req),
+        String(req.headers["user-agent"] || "").slice(0, 300),
+      ]
+    );
+  } catch (e) {
+    console.error("site user activity log error:", e.message || e);
+  }
+}
+
+function maybeLogSiteVisit(req) {
+  if (req.method !== "GET") return;
+  if (isStaticLikePath(req.path)) return;
+  if (req.path.startsWith("/image-thumb/") || req.path.startsWith("/uploads/")) return;
+  const lastKey = `${req.method}:${req.originalUrl}`;
+  const now = Date.now();
+  if (req.session.lastSiteActivityKey === lastKey && now - Number(req.session.lastSiteActivityAt || 0) < 30 * 1000) return;
+  req.session.lastSiteActivityKey = lastKey;
+  req.session.lastSiteActivityAt = now;
+  logSiteUserActivity(req, req.path.startsWith("/api/") ? "استخدام API" : "زيارة صفحة", {}).catch(() => {});
+}
 
 async function ensureAdminRoleSchema() {
   const columns = await all(`PRAGMA table_info(admins)`);
@@ -366,6 +898,14 @@ const commentLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "محاولات كثيرة. حاول بعد قليل.",
 });
 
 /* =========================
@@ -704,12 +1244,664 @@ async function ensureAdminEnhancements() {
   }
 }
 
+async function ensureSiteUsersTables() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      full_name TEXT,
+      email TEXT UNIQUE,
+      phone TEXT,
+      country TEXT,
+      city TEXT,
+      password_hash TEXT,
+      provider TEXT DEFAULT 'email',
+      provider_id TEXT,
+      avatar_url TEXT,
+      is_active INTEGER DEFAULT 1,
+      login_count INTEGER DEFAULT 0,
+      last_login_at TEXT,
+      last_seen_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const columns = await all(`PRAGMA table_info(site_users)`);
+  const existing = new Set(columns.map((c) => c.name));
+  const extras = [
+    ["full_name", "TEXT"],
+    ["father_name", "TEXT"],
+    ["mother_name", "TEXT"],
+    ["children_count", "INTEGER"],
+    ["birth_date", "TEXT"],
+    ["origin_place", "TEXT"],
+    ["current_residence", "TEXT"],
+    ["email", "TEXT"],
+    ["phone", "TEXT"],
+    ["phone_alt", "TEXT"],
+    ["country", "TEXT"],
+    ["city", "TEXT"],
+    ["work", "TEXT"],
+    ["qualification", "TEXT"],
+    ["spouse_family", "TEXT"],
+    ["spouse_name", "TEXT"],
+    ["facebook_url", "TEXT"],
+    ["instagram_url", "TEXT"],
+    ["x_url", "TEXT"],
+    ["linkedin_url", "TEXT"],
+    ["matched_person_id", "INTEGER"],
+    ["password_hash", "TEXT"],
+    ["provider", "TEXT DEFAULT 'email'"],
+    ["provider_id", "TEXT"],
+    ["avatar_url", "TEXT"],
+    ["cover_url", "TEXT"],
+    ["avatar_pos_x", "REAL DEFAULT 50"],
+    ["avatar_pos_y", "REAL DEFAULT 50"],
+    ["cover_pos_x", "REAL DEFAULT 50"],
+    ["cover_pos_y", "REAL DEFAULT 50"],
+    ["chat_privacy", "TEXT DEFAULT 'all'"],
+    ["profile_visibility", "TEXT DEFAULT 'members'"],
+    ["show_phone", "INTEGER DEFAULT 1"],
+    ["show_email", "INTEGER DEFAULT 1"],
+    ["show_birth_date", "INTEGER DEFAULT 0"],
+    ["show_social_links", "INTEGER DEFAULT 1"],
+    ["approval_status", "TEXT DEFAULT 'approved'"],
+    ["approved_by_admin_id", "INTEGER"],
+    ["approved_at", "TEXT"],
+    ["rejected_reason", "TEXT"],
+    ["verification_status", "TEXT DEFAULT 'unverified'"],
+    ["invite_code_used", "TEXT"],
+    ["failed_login_count", "INTEGER DEFAULT 0"],
+    ["locked_until", "TEXT"],
+    ["is_active", "INTEGER DEFAULT 1"],
+    ["login_count", "INTEGER DEFAULT 0"],
+    ["last_login_at", "TEXT"],
+    ["last_seen_at", "TEXT"],
+    ["created_at", "TEXT"],
+    ["updated_at", "TEXT"],
+  ];
+  for (const [name, definition] of extras) {
+    if (!existing.has(name)) await ensureColumn("site_users", name, definition);
+  }
+
+  await run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_site_users_email ON site_users(LOWER(email)) WHERE email IS NOT NULL AND TRIM(email) <> ''`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_users_provider ON site_users(provider, provider_id)`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_users_approval ON site_users(approval_status, created_at)`).catch(() => {});
+  await run(`UPDATE site_users SET approval_status='approved' WHERE approval_status IS NULL OR TRIM(approval_status)=''`).catch(() => {});
+  await run(`UPDATE site_users SET verification_status='verified' WHERE matched_person_id IS NOT NULL AND (verification_status IS NULL OR verification_status='')`).catch(() => {});
+  await run(`UPDATE site_users SET avatar_pos_x=50 WHERE avatar_pos_x IS NULL`).catch(() => {});
+  await run(`UPDATE site_users SET avatar_pos_y=50 WHERE avatar_pos_y IS NULL`).catch(() => {});
+  await run(`UPDATE site_users SET cover_pos_x=50 WHERE cover_pos_x IS NULL`).catch(() => {});
+  await run(`UPDATE site_users SET cover_pos_y=50 WHERE cover_pos_y IS NULL`).catch(() => {});
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_user_activity_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      action TEXT,
+      path TEXT,
+      method TEXT,
+      details TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_user_activity_user ON site_user_activity_logs(user_id, created_at)`);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_profile_views (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      profile_user_id INTEGER NOT NULL,
+      viewer_user_id INTEGER,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_profile_views_profile ON site_profile_views(profile_user_id, created_at)`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_profile_views_viewer ON site_profile_views(viewer_user_id, created_at)`);
+}
+
+
+/* =========================
+   Chat helpers
+   ========================= */
+function chatDisplayName(user) {
+  const full = cleanText(user?.full_name || user?.sender_name || "", 180);
+  const father = cleanText(user?.father_name || "", 180);
+  if (full && father && !full.includes(father)) return `${full} ${father}`;
+  return full || cleanText(user?.email || "عضو العائلة", 180) || "عضو العائلة";
+}
+
+function chatAttachmentType(file) {
+  const mime = String(file?.mimetype || "").toLowerCase();
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("audio/") || mime === "application/octet-stream") return "audio";
+  return "file";
+}
+
+function emitChatThreadUpdate(threadId, event = "message", payload = {}) {
+  try {
+    if (!io || !threadId) return;
+    io.to(`chat-thread:${Number(threadId)}`).emit("chat-thread-updated", { threadId: Number(threadId), event, ...payload });
+  } catch (e) {}
+}
+
+async function getChatBannedWords() {
+  const row = await get(`SELECT value FROM site_settings WHERE key='chat_banned_words'`).catch(() => null);
+  const raw = String(row?.value || "");
+  return raw.split(/[\n,،]+/).map((w) => cleanText(w, 80).trim()).filter(Boolean);
+}
+
+async function filterChatBody(body) {
+  let text = cleanText(body || "", 2000);
+  if (!text) return text;
+  const words = await getChatBannedWords();
+  for (const word of words) {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!escaped) continue;
+    text = text.replace(new RegExp(escaped, "giu"), "***");
+  }
+  return text;
+}
+
+async function isUserChatBlocked(userId) {
+  const uid = Number(userId || 0);
+  if (!uid) return false;
+  const row = await get(`SELECT id FROM site_chat_blocks WHERE user_id=? AND COALESCE(is_active,1)=1 LIMIT 1`, [uid]).catch(() => null);
+  return Boolean(row);
+}
+
+async function canStartPrivateChat(senderId, receiverId) {
+  const sid = Number(senderId || 0);
+  const rid = Number(receiverId || 0);
+  if (!sid || !rid || sid === rid) return { ok: false, message: "محادثة غير صحيحة" };
+  if (await isUserChatBlocked(sid)) return { ok: false, message: "تم حظرك من استخدام الشات بواسطة الإدارة" };
+  const receiver = await get(`SELECT id, chat_privacy, matched_person_id FROM site_users WHERE id=? AND COALESCE(is_active,1)=1`, [rid]).catch(() => null);
+  if (!receiver) return { ok: false, message: "المستخدم غير موجود" };
+  const privacy = receiver.chat_privacy || "all";
+  if (privacy === "nobody") return { ok: false, message: "هذا العضو لا يستقبل رسائل خاصة حاليًا" };
+  if (privacy === "linked_only") {
+    const sender = await get(`SELECT id, matched_person_id FROM site_users WHERE id=? AND COALESCE(is_active,1)=1`, [sid]).catch(() => null);
+    if (!sender?.matched_person_id || !receiver?.matched_person_id) {
+      return { ok: false, message: "هذا العضو يستقبل الرسائل من الحسابات المرتبطة بالشجرة فقط" };
+    }
+  }
+  return { ok: true };
+}
+
+async function archiveChatMessageBeforeDelete(messageId, adminId) {
+  const msg = await get(`SELECT * FROM site_chat_messages WHERE id=?`, [messageId]).catch(() => null);
+  if (!msg) return null;
+  await run(
+    `INSERT INTO site_chat_deleted_archive
+     (original_message_id, thread_id, sender_user_id, body, message_type, attachment_url, attachment_name, attachment_mime, attachment_size, created_at, deleted_by_admin_id, deleted_at, raw_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
+    [msg.id, msg.thread_id, msg.sender_user_id, msg.body || "", msg.message_type || "text", msg.attachment_url || "", msg.attachment_name || "", msg.attachment_mime || "", msg.attachment_size || 0, msg.created_at || null, adminId || null, JSON.stringify(msg)]
+  ).catch(() => {});
+  return msg;
+}
+
+async function ensurePublicChatThread() {
+  let thread = await get(
+    `SELECT * FROM site_chat_threads
+     WHERE type='public' OR COALESCE(is_public,0)=1
+     ORDER BY id ASC
+     LIMIT 1`
+  ).catch(() => null);
+
+  if (thread) {
+    await run(
+      `UPDATE site_chat_threads
+       SET type='public', is_public=1, title=COALESCE(NULLIF(title,''), 'الشات العام للعائلة')
+       WHERE id=?`,
+      [thread.id]
+    ).catch(() => {});
+    return get(`SELECT * FROM site_chat_threads WHERE id=?`, [thread.id]).catch(() => thread);
+  }
+
+  const result = await run(
+    `INSERT INTO site_chat_threads
+     (type, title, is_public, is_locked, is_active, created_at, updated_at)
+     VALUES ('public', 'الشات العام للعائلة', 1, 0, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+  );
+  return get(`SELECT * FROM site_chat_threads WHERE id=?`, [result.lastID]);
+}
+
+async function getPrivateThreadBetween(userA, userB) {
+  const a = Number(userA || 0);
+  const b = Number(userB || 0);
+  if (!a || !b || a === b) return null;
+
+  let thread = await get(
+    `SELECT t.*
+     FROM site_chat_threads t
+     JOIN site_chat_participants p1 ON p1.thread_id=t.id AND p1.user_id=?
+     JOIN site_chat_participants p2 ON p2.thread_id=t.id AND p2.user_id=?
+     WHERE t.type='private'
+     ORDER BY t.id ASC
+     LIMIT 1`,
+    [a, b]
+  ).catch(() => null);
+
+  if (thread) {
+    if (Number(thread.is_active) !== 1) {
+      await run(`UPDATE site_chat_threads SET is_active=1, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [thread.id]).catch(() => {});
+      thread = await get(`SELECT * FROM site_chat_threads WHERE id=?`, [thread.id]).catch(() => thread);
+    }
+    await run(`INSERT OR IGNORE INTO site_chat_participants (thread_id, user_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)`, [thread.id, a]).catch(() => {});
+    await run(`INSERT OR IGNORE INTO site_chat_participants (thread_id, user_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)`, [thread.id, b]).catch(() => {});
+    return thread;
+  }
+
+  const result = await run(
+    `INSERT INTO site_chat_threads
+     (type, title, is_public, is_locked, is_active, created_by_user_id, created_at, updated_at)
+     VALUES ('private', '', 0, 0, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [a]
+  );
+  const threadId = result.lastID;
+  await run(`INSERT OR IGNORE INTO site_chat_participants (thread_id, user_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)`, [threadId, a]);
+  await run(`INSERT OR IGNORE INTO site_chat_participants (thread_id, user_id, created_at) VALUES (?, ?, CURRENT_TIMESTAMP)`, [threadId, b]);
+  return get(`SELECT * FROM site_chat_threads WHERE id=?`, [threadId]);
+}
+
+async function userCanAccessThread(userId, threadId) {
+  const uid = Number(userId || 0);
+  const tid = Number(threadId || 0);
+  if (!uid || !tid) return null;
+
+  const thread = await get(`SELECT * FROM site_chat_threads WHERE id=?`, [tid]).catch(() => null);
+  if (!thread || Number(thread.is_active) !== 1) return null;
+  if (thread.type === "public" || Number(thread.is_public) === 1) return thread;
+
+  const participant = await get(
+    `SELECT id FROM site_chat_participants WHERE thread_id=? AND user_id=? LIMIT 1`,
+    [tid, uid]
+  ).catch(() => null);
+  return participant ? thread : null;
+}
+
+async function unreadPrivateMessagesCount(userId) {
+  const uid = Number(userId || 0);
+  if (!uid) return 0;
+  const row = await get(
+    `SELECT COUNT(*) AS total
+     FROM site_chat_messages m
+     JOIN site_chat_threads t ON t.id=m.thread_id AND t.type='private' AND COALESCE(t.is_active,1)=1
+     JOIN site_chat_participants p ON p.thread_id=m.thread_id AND p.user_id=?
+     WHERE COALESCE(m.is_deleted,0)=0
+       AND m.sender_user_id <> ?
+       AND m.id > COALESCE(p.last_read_message_id,0)`,
+    [uid, uid]
+  ).catch(() => ({ total: 0 }));
+  return Number(row?.total || 0);
+}
+
+async function serializeChatMessages(rows = [], options = {}) {
+  const currentUserId = Number(options.currentUserId || 0);
+  const threadId = Number(options.threadId || rows?.[0]?.thread_id || 0);
+  let readByOthers = new Set();
+  if (currentUserId && threadId) {
+    const participantReads = await all(
+      `SELECT user_id, COALESCE(last_read_message_id,0) AS last_read_message_id
+       FROM site_chat_participants
+       WHERE thread_id=? AND user_id <> ?`,
+      [threadId, currentUserId]
+    ).catch(() => []);
+    for (const row of rows) {
+      if (Number(row.sender_user_id) === currentUserId && participantReads.some((p) => Number(p.last_read_message_id || 0) >= Number(row.id))) {
+        readByOthers.add(Number(row.id));
+      }
+    }
+  }
+  return rows
+    .filter((row) => Number(row.is_deleted || 0) !== 1)
+    .map((row) => ({
+      id: row.id,
+      thread_id: row.thread_id,
+      sender_user_id: row.sender_user_id,
+      sender_name: chatDisplayName({ full_name: row.sender_name, email: row.sender_email }),
+      sender_avatar: row.sender_avatar || "/assets/default-avatar.svg",
+      body: row.body || "",
+      message_type: row.message_type || "text",
+      attachment_url: row.attachment_url || "",
+      attachment_name: row.attachment_name || "",
+      attachment_mime: row.attachment_mime || "",
+      attachment_size: row.attachment_size || 0,
+      is_deleted: 0,
+      edited_at: row.edited_at || "",
+      created_at: row.created_at || "",
+      read_by_others: readByOthers.has(Number(row.id)) ? 1 : 0,
+    }));
+}
+
+async function ensureChatTables() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_chat_threads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL DEFAULT 'private',
+      title TEXT,
+      is_public INTEGER DEFAULT 0,
+      is_locked INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
+      created_by_user_id INTEGER,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_chat_threads_type ON site_chat_threads(type, is_active, updated_at)`);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_chat_participants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thread_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      last_read_message_id INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(thread_id, user_id)
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_chat_participants_user ON site_chat_participants(user_id, thread_id)`);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      thread_id INTEGER NOT NULL,
+      sender_user_id INTEGER,
+      body TEXT,
+      message_type TEXT DEFAULT 'text',
+      attachment_url TEXT,
+      attachment_name TEXT,
+      attachment_mime TEXT,
+      attachment_size INTEGER DEFAULT 0,
+      is_deleted INTEGER DEFAULT 0,
+      deleted_by_admin_id INTEGER,
+      deleted_at TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_chat_messages_thread ON site_chat_messages(thread_id, id)`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_chat_messages_sender ON site_chat_messages(sender_user_id, created_at)`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_chat_messages_deleted ON site_chat_messages(is_deleted, thread_id, id)`).catch(() => {});
+  await run(`ALTER TABLE site_chat_messages ADD COLUMN edited_at TEXT`).catch(() => {});
+  await run(`ALTER TABLE site_chat_messages ADD COLUMN edited_by_user_id INTEGER`).catch(() => {});
+  await run(`ALTER TABLE site_chat_messages ADD COLUMN filtered_at TEXT`).catch(() => {});
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_chat_blocks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      blocked_by_admin_id INTEGER,
+      reason TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id)
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_chat_blocks_user ON site_chat_blocks(user_id, is_active)`);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_chat_message_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      message_id INTEGER NOT NULL,
+      reporter_user_id INTEGER NOT NULL,
+      reason TEXT,
+      status TEXT DEFAULT 'pending',
+      reviewed_by_admin_id INTEGER,
+      reviewed_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_chat_reports_message ON site_chat_message_reports(message_id, status)`);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_chat_reports_reporter ON site_chat_message_reports(reporter_user_id, created_at)`);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_chat_deleted_archive (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      original_message_id INTEGER,
+      thread_id INTEGER,
+      sender_user_id INTEGER,
+      body TEXT,
+      message_type TEXT,
+      attachment_url TEXT,
+      attachment_name TEXT,
+      attachment_mime TEXT,
+      attachment_size INTEGER,
+      created_at TEXT,
+      deleted_by_admin_id INTEGER,
+      deleted_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      raw_json TEXT
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_chat_archive_original ON site_chat_deleted_archive(original_message_id, deleted_at)`);
+
+  const banned = await get(`SELECT key FROM site_settings WHERE key='chat_banned_words'`).catch(() => null);
+  if (!banned) {
+    await run(`INSERT INTO site_settings (key, value, updated_at) VALUES ('chat_banned_words', ?, CURRENT_TIMESTAMP)`, ["شتيمة\nإهانة"] ).catch(() => {});
+  }
+
+  await ensurePublicChatThread().catch(() => {});
+}
+
+
+async function ensureFamilyPlatformTables() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_invite_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE NOT NULL,
+      note TEXT,
+      max_uses INTEGER DEFAULT 1,
+      used_count INTEGER DEFAULT 0,
+      expires_at TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_by_admin_id INTEGER,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_user_tree_link_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      requested_person_id INTEGER,
+      lineage_text TEXT,
+      status TEXT DEFAULT 'pending',
+      admin_note TEXT,
+      reviewed_by_admin_id INTEGER,
+      reviewed_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_tree_link_requests_status ON site_user_tree_link_requests(status, created_at)`).catch(() => {});
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      title TEXT,
+      body TEXT,
+      url TEXT,
+      type TEXT DEFAULT 'system',
+      is_read INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      read_at TEXT
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_notifications_user ON site_notifications(user_id, is_read, created_at)`).catch(() => {});
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS site_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      reporter_user_id INTEGER,
+      target_type TEXT,
+      target_id INTEGER,
+      reason TEXT,
+      details TEXT,
+      status TEXT DEFAULT 'pending',
+      reviewed_by_admin_id INTEGER,
+      reviewed_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_site_reports_status ON site_reports(status, created_at)`).catch(() => {});
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS family_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      submitted_by_user_id INTEGER,
+      title TEXT NOT NULL,
+      event_type TEXT,
+      event_date TEXT,
+      location TEXT,
+      description TEXT,
+      image_url TEXT,
+      status TEXT DEFAULT 'pending',
+      reviewed_by_admin_id INTEGER,
+      reviewed_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_family_events_status ON family_events(status, event_date)`).catch(() => {});
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS family_gallery_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      submitted_by_user_id INTEGER,
+      title TEXT,
+      category TEXT,
+      image_url TEXT NOT NULL,
+      description TEXT,
+      status TEXT DEFAULT 'pending',
+      reviewed_by_admin_id INTEGER,
+      reviewed_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_family_gallery_status ON family_gallery_items(status, created_at)`).catch(() => {});
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS tree_edit_suggestions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      submitted_by_user_id INTEGER,
+      person_id INTEGER,
+      field_name TEXT,
+      current_value TEXT,
+      suggested_value TEXT,
+      reason TEXT,
+      status TEXT DEFAULT 'pending',
+      reviewed_by_admin_id INTEGER,
+      reviewed_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_tree_edit_suggestions_status ON tree_edit_suggestions(status, created_at)`).catch(() => {});
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS tree_export_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      person_id INTEGER,
+      person_name TEXT,
+      export_title TEXT,
+      export_options TEXT,
+      persons_count INTEGER DEFAULT 0,
+      generations_count INTEGER DEFAULT 0,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await run(`CREATE INDEX IF NOT EXISTS idx_tree_export_logs_created ON tree_export_logs(created_at)`).catch(() => {});
+  await run(`CREATE INDEX IF NOT EXISTS idx_tree_export_logs_user ON tree_export_logs(user_id, created_at)`).catch(() => {});
+
+  const settings = [
+    ["require_invite_to_register", "0"],
+    ["new_accounts_require_approval", "1"],
+    ["profile_default_visibility", "members"],
+  ];
+  for (const [key, value] of settings) {
+    const exists = await get(`SELECT key FROM site_settings WHERE key=?`, [key]).catch(() => null);
+    if (!exists) await run(`INSERT INTO site_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)`, [key, value]);
+  }
+}
+
+async function createNotification(userId, title, body = "", url = "", type = "system") {
+  const uid = Number(userId || 0);
+  if (!uid) return null;
+  return run(
+    `INSERT INTO site_notifications (user_id, title, body, url, type, is_read, created_at)
+     VALUES (?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
+    [uid, cleanText(title, 180), cleanText(body, 500), cleanText(url, 500), cleanText(type, 80)]
+  ).catch(() => null);
+}
+
+async function unreadNotificationsCount(userId) {
+  const row = await get(`SELECT COUNT(*) AS total FROM site_notifications WHERE user_id=? AND COALESCE(is_read,0)=0`, [userId]).catch(() => ({ total: 0 }));
+  return Number(row?.total || 0);
+}
+
+async function verifyInviteCode(code) {
+  const clean = cleanText(code, 80).toUpperCase();
+  const required = String((await get(`SELECT value FROM site_settings WHERE key='require_invite_to_register'`).catch(() => ({ value: "0" })))?.value || "0") === "1";
+  if (!clean) return required ? { ok:false, message:"كود الدعوة مطلوب لإنشاء حساب داخل الموقع." } : { ok:true, code:"" };
+  const invite = await get(`SELECT * FROM site_invite_codes WHERE UPPER(code)=? AND COALESCE(is_active,1)=1`, [clean]).catch(() => null);
+  if (!invite) return { ok:false, message:"كود الدعوة غير صحيح أو غير مفعل." };
+  if (invite.expires_at && new Date(invite.expires_at).getTime() < Date.now()) return { ok:false, message:"كود الدعوة منتهي الصلاحية." };
+  if (Number(invite.max_uses || 0) > 0 && Number(invite.used_count || 0) >= Number(invite.max_uses || 0)) return { ok:false, message:"تم استخدام كود الدعوة للحد الأقصى." };
+  return { ok:true, code: invite.code, invite };
+}
+
+async function consumeInviteCode(code) {
+  if (!code) return;
+  await run(`UPDATE site_invite_codes SET used_count=COALESCE(used_count,0)+1 WHERE code=?`, [code]).catch(() => {});
+}
+
+async function ensurePerformanceIndexes() {
+  const indexes = [
+    `CREATE INDEX IF NOT EXISTS idx_persons_father ON persons(father_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_persons_mother ON persons(mother_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_persons_name ON persons(name)`,
+    `CREATE INDEX IF NOT EXISTS idx_site_users_email ON site_users(email)`,
+    `CREATE INDEX IF NOT EXISTS idx_site_users_provider ON site_users(provider, provider_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_site_users_approval ON site_users(approval_status, is_active)`,
+    `CREATE INDEX IF NOT EXISTS idx_site_users_last_seen ON site_users(last_seen_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_site_user_activity_user ON site_user_activity_logs(user_id, created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_site_profile_views_profile ON site_profile_views(profile_user_id, created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_site_profile_views_viewer ON site_profile_views(viewer_user_id, created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_site_chat_participants_user ON site_chat_participants(user_id, thread_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_site_chat_messages_unread ON site_chat_messages(thread_id, sender_user_id, created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_site_notifications_user_read ON site_notifications(user_id, is_read, created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_person_requests_status_created ON person_requests(status, created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_admin_activity_created ON admin_activity_logs(created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_tree_export_logs_person ON tree_export_logs(person_id, created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_site_chat_messages_created_fast ON site_chat_messages(is_deleted, created_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_family_events_submitter_status ON family_events(submitted_by_user_id, status)`,
+    `CREATE INDEX IF NOT EXISTS idx_family_gallery_submitter_status ON family_gallery_items(submitted_by_user_id, status)`,
+  ];
+  for (const sql of indexes) {
+    await run(sql).catch((e) => console.warn("Index skipped:", e.message || e));
+  }
+}
+
 async function bootstrap() {
   await ensurePersonsColumns();
   await ensureCmsTables();
   await ensureSpousesTable();
   await ensurePersonRequestsTable();
   await ensureAdminEnhancements();
+  await ensureSiteUsersTables();
+  await ensureChatTables();
+  await ensureFamilyPlatformTables();
+  await ensurePerformanceIndexes();
 }
 bootstrap().catch((err) => console.error("Bootstrap error:", err));
 
@@ -977,13 +2169,36 @@ async function getFullDashboardData() {
   const latestNews = await all(`SELECT id, title, published_at, is_active, views_count FROM news_posts ORDER BY id DESC LIMIT 10`);
   const latestSupport = await all(`SELECT id, sender_name, phone, created_at FROM support_messages ORDER BY id DESC LIMIT 10`);
   const latestActivity = await all(`SELECT * FROM admin_activity_logs ORDER BY id DESC LIMIT 10`);
+  const siteUsersRow = await get(`SELECT COUNT(*) AS total FROM site_users`).catch(() => ({ total: 0 }));
+  const activeSiteUsersRow = await get(`SELECT COUNT(*) AS total FROM site_users WHERE COALESCE(is_active, 1)=1`).catch(() => ({ total: 0 }));
+  const latestSiteUsers = await all(`SELECT id, full_name, email, provider, created_at, last_seen_at FROM site_users ORDER BY id DESC LIMIT 5`).catch(() => []);
   const maintenance = await get(`SELECT value FROM site_settings WHERE key='maintenance_enabled'`);
+  const pagesTotalRow = await get(`SELECT COUNT(*) AS total FROM site_pages`).catch(() => ({ total: 0 }));
+  const timelineTotalRow = await get(`SELECT COUNT(*) AS total FROM timeline_events`).catch(() => ({ total: 0 }));
+  const chatMessagesTotalRow = await get(`SELECT COUNT(*) AS total FROM site_chat_messages WHERE COALESCE(is_deleted,0)=0`).catch(() => ({ total: 0 }));
+  const treeExportsTotalRow = await get(`SELECT COUNT(*) AS total FROM tree_export_logs`).catch(() => ({ total: 0 }));
+  const pendingUsersRow = await get(`SELECT COUNT(*) AS total FROM site_users WHERE COALESCE(approval_status,'approved')='pending'`).catch(() => ({ total: 0 }));
+  const pendingLinkRequestsRow = await get(`SELECT COUNT(*) AS total FROM site_user_tree_link_requests WHERE COALESCE(status,'pending')='pending'`).catch(() => ({ total: 0 }));
+  const pendingReportsRow = await get(`SELECT COUNT(*) AS total FROM site_reports WHERE COALESCE(status,'pending')='pending'`).catch(() => ({ total: 0 }));
+  const pendingEventsRow = await get(`SELECT COUNT(*) AS total FROM family_events WHERE COALESCE(status,'pending')='pending'`).catch(() => ({ total: 0 }));
+  const pendingGalleryRow = await get(`SELECT COUNT(*) AS total FROM family_gallery_items WHERE COALESCE(status,'pending')='pending'`).catch(() => ({ total: 0 }));
+  const pendingSuggestionsRow = await get(`SELECT COUNT(*) AS total FROM tree_edit_suggestions WHERE COALESCE(status,'pending')='pending'`).catch(() => ({ total: 0 }));
+  const pendingApprovalsTotal = [pendingUsersRow, pendingLinkRequestsRow, pendingReportsRow, pendingEventsRow, pendingGalleryRow, pendingSuggestionsRow]
+    .reduce((sum, row) => sum + Number(row?.total || 0), 0);
   return {
     stats,
     latestPersons,
     latestNews,
     latestSupport,
     latestActivity,
+    siteUsersTotal: Number(siteUsersRow?.total || 0),
+    activeSiteUsers: Number(activeSiteUsersRow?.total || 0),
+    latestSiteUsers,
+    pagesTotal: Number(pagesTotalRow?.total || 0),
+    timelineTotal: Number(timelineTotalRow?.total || 0),
+    chatMessagesTotal: Number(chatMessagesTotalRow?.total || 0),
+    treeExportsTotal: Number(treeExportsTotalRow?.total || 0),
+    pendingApprovalsTotal,
     maintenanceEnabled: String(maintenance?.value || "0") === "1",
   };
 }
@@ -1120,6 +2335,15 @@ async function getNewsStatsPageData() {
     hidden: hidden?.total || 0,
     notifications: notifications?.total || 0,
   };
+}
+
+async function getAdminPersonOptions() {
+  return all(`
+    SELECT id, name, father_id, mother_id, gender, photo_url
+    FROM persons
+    ORDER BY name COLLATE NOCASE ASC, id ASC
+    LIMIT 5000
+  `).catch(() => []);
 }
 
 async function resolvePersonIdByName(name) {
@@ -1334,15 +2558,112 @@ function matchPersonByFlexibleName(query, rows, byId) {
   return { status: top.length === 1 ? "matched" : top.length > 1 ? "multiple" : "not_found", matches: top };
 }
 
-function ancestorMap(person, byId) {
+
+function publicPersonForExport(person) {
+  if (!person) return null;
+  return {
+    id: Number(person.id || 0),
+    name: person.name || "",
+    father_id: person.father_id ? Number(person.father_id) : null,
+    mother_id: person.mother_id ? Number(person.mother_id) : null,
+    gender: person.gender || "",
+    photo_url: person.photo_url || "",
+    job: person.job || "",
+    birth_date: person.birth_date || "",
+    lineage_label: person.lineage_label || "",
+  };
+}
+
+function safeExportDepth(value) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "all" || raw === "كل" || raw === "all-generations") return 99;
+  const n = Number(raw || 0);
+  if (!Number.isFinite(n) || n <= 0) return 99;
+  return Math.min(Math.max(Math.floor(n), 1), 12);
+}
+
+function buildBranchExportTree(root, rows, options = {}) {
+  const maxDepth = safeExportDepth(options.maxDepth || options.generations || 99);
+  const includePhotos = options.includePhotos !== false;
+  const byParent = new Map();
+
+  for (const p of rows || []) {
+    for (const parentId of [p.father_id, p.mother_id]) {
+      const pid = Number(parentId || 0);
+      if (!pid) continue;
+      if (!byParent.has(pid)) byParent.set(pid, []);
+      byParent.get(pid).push(p);
+    }
+  }
+
+  for (const list of byParent.values()) {
+    list.sort((a, b) => Number(a.id || 0) - Number(b.id || 0));
+  }
+
+  const seen = new Set();
+  let count = 0;
+  let maxLevel = 0;
+
+  function walk(person, depth) {
+    const id = Number(person?.id || 0);
+    if (!person || !id || seen.has(id) || depth > maxDepth) return null;
+
+    seen.add(id);
+    count += 1;
+    maxLevel = Math.max(maxLevel, depth);
+
+    const payload = publicPersonForExport(person);
+    if (!includePhotos) payload.photo_url = "";
+    payload.level = depth;
+
+    const children = depth >= maxDepth
+      ? []
+      : (byParent.get(id) || [])
+          .map((child) => walk(child, depth + 1))
+          .filter(Boolean);
+
+    payload.children = children;
+    payload.children_count = children.length;
+    return payload;
+  }
+
+  const tree = walk(root, 0);
+  return { tree, count, generations: maxLevel + 1 };
+}
+
+async function findExportPersonCandidates(query) {
+  const { rows, byId } = await getPersonsForRelationship();
+  const matched = matchPersonByFlexibleName(query, rows, byId);
+  return {
+    status: matched.status,
+    candidates: (matched.matches || []).slice(0, 12).map((p) => ({
+      id: Number(p.id),
+      name: p.name,
+      photo_url: p.photo_url || "",
+      lineage_label: p.lineage_label || lineagePhraseForPerson(p, byId, 4),
+      father_id: p.father_id || null,
+      mother_id: p.mother_id || null,
+      gender: p.gender || "",
+      match_score: p.match_score || 0,
+    })),
+  };
+}
+
+function ancestorMap(person, byId, maxDepth = 30) {
   const map = new Map();
+  const visiting = new Set();
   function walk(node, dist, path) {
-    if (!node || map.has(Number(node.id))) return;
-    map.set(Number(node.id), { person: node, distance: dist, path: [...path, node] });
+    const id = Number(node?.id || 0);
+    if (!node || !id || dist > maxDepth || visiting.has(id)) return;
+    const existing = map.get(id);
+    if (existing && existing.distance <= dist) return;
+    visiting.add(id);
+    map.set(id, { person: node, distance: dist, path: [...path, node] });
     const father = node.father_id ? byId.get(Number(node.father_id)) : null;
     const mother = node.mother_id ? byId.get(Number(node.mother_id)) : null;
     if (father) walk(father, dist + 1, [...path, node]);
     if (mother) walk(mother, dist + 1, [...path, node]);
+    visiting.delete(id);
   }
   walk(person, 0, []);
   return map;
@@ -1352,10 +2673,117 @@ function personPathText(path) {
   return path.map((p)=>p.name).join(" ← ");
 }
 
+function uniquePeoplePath(path) {
+  const seen = new Set();
+  const out = [];
+  for (const p of path || []) {
+    const id = Number(p?.id || 0);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(p);
+  }
+  return out;
+}
+
+function buildKinshipGraph(a, b, best) {
+  const chainA = uniquePeoplePath(best?.a?.path || []);
+  const chainB = uniquePeoplePath(best?.b?.path || []);
+  const common = best?.common || chainA[chainA.length - 1] || chainB[chainB.length - 1];
+  if (!a || !b || !common) return null;
+
+  const commonId = Number(common.id);
+  const branchA = uniquePeoplePath(chainA.slice().reverse());
+  const branchB = uniquePeoplePath(chainB.slice().reverse());
+  const hasA = branchA.length > 1;
+  const hasB = branchB.length > 1;
+  const leftX = hasA && hasB ? -220 : 0;
+  const rightX = hasA && hasB ? 220 : 0;
+  const levelGap = 145;
+  const topY = 70;
+  const nodeMap = new Map();
+  const edgesMap = new Map();
+
+  function nodeRole(p) {
+    const id = Number(p.id);
+    if (id === Number(a.id) && id === Number(b.id)) return "both";
+    if (id === Number(a.id)) return "person_a";
+    if (id === Number(b.id)) return "person_b";
+    if (id === commonId) return "common";
+    return "connector";
+  }
+
+  function addNode(p, x, y) {
+    if (!p?.id) return;
+    const id = Number(p.id);
+    const existing = nodeMap.get(id);
+    const payload = {
+      id,
+      name: p.name || "",
+      photo_url: p.photo_url || "",
+      gender: p.gender || "",
+      focus_url: `/?focus=${encodeURIComponent(id)}`,
+      role: nodeRole(p),
+      x,
+      y,
+    };
+    if (!existing) nodeMap.set(id, payload);
+    else {
+      existing.x = Math.round((Number(existing.x || 0) + x) / 2);
+      existing.y = Math.min(Number(existing.y || y), y);
+      if (existing.role === "connector") existing.role = payload.role;
+    }
+  }
+
+  function addEdge(parent, child) {
+    if (!parent?.id || !child?.id) return;
+    const from = Number(parent.id);
+    const to = Number(child.id);
+    if (from === to) return;
+    edgesMap.set(`${from}-${to}`, { from, to });
+  }
+
+  addNode(common, 0, topY);
+  function layBranch(branch, x) {
+    for (let i = 0; i < branch.length; i++) {
+      const p = branch[i];
+      addNode(p, i === 0 ? 0 : x, topY + (i * levelGap));
+      if (i > 0) addEdge(branch[i - 1], p);
+    }
+  }
+  layBranch(branchA, leftX);
+  layBranch(branchB, rightX);
+
+  const nodes = Array.from(nodeMap.values()).sort((x, y) => Number(x.y) - Number(y.y) || Number(x.x) - Number(y.x));
+  const maxY = nodes.reduce((m, n) => Math.max(m, Number(n.y || 0)), topY);
+  const minX = nodes.reduce((m, n) => Math.min(m, Number(n.x || 0)), 0);
+  const maxX = nodes.reduce((m, n) => Math.max(m, Number(n.x || 0)), 0);
+  return {
+    nodes,
+    edges: Array.from(edgesMap.values()),
+    commonAncestor: { id: commonId, name: common.name || "" },
+    personA: { id: Number(a.id), name: a.name || "" },
+    personB: { id: Number(b.id), name: b.name || "" },
+    viewBox: {
+      x: Math.min(minX - 190, -420),
+      y: 0,
+      width: Math.max(maxX - minX + 380, 840),
+      height: Math.max(maxY + 160, 380),
+    },
+  };
+}
+
 function describeKinship(a, b, byId) {
   if (!a || !b) return { ok:false, message:"لم يتم العثور على أحد الشخصين." };
   if (Number(a.id) === Number(b.id)) {
-    return { ok:true, message:`${a.name} و ${b.name} هما نفس الشخص داخل الشجرة.`, path:[a] };
+    const graph = {
+      nodes: [{ id:Number(a.id), name:a.name || "", photo_url:a.photo_url || "", gender:a.gender || "", focus_url:`/?focus=${encodeURIComponent(a.id)}`, role:"both", x:0, y:90 }],
+      edges: [],
+      commonAncestor: { id:Number(a.id), name:a.name || "" },
+      personA: { id:Number(a.id), name:a.name || "" },
+      personB: { id:Number(b.id), name:b.name || "" },
+      viewBox: { x:-260, y:0, width:520, height:280 },
+    };
+    return { ok:true, message:`${a.name} و ${b.name} هما نفس الشخص داخل الشجرة.`, path:[{ id:a.id, name:a.name, photo_url:a.photo_url || "", gender:a.gender || "" }], commonAncestor:{ id:a.id, name:a.name }, graph };
   }
 
   const aAnc = ancestorMap(a, byId);
@@ -1365,14 +2793,23 @@ function describeKinship(a, b, byId) {
     const vb = bAnc.get(id);
     if (!vb) continue;
     const total = va.distance + vb.distance;
-    if (!best || total < best.total) best = { id, common: va.person, a: va, b: vb, total };
+    const maxDistance = Math.max(va.distance, vb.distance);
+    if (!best || total < best.total || (total === best.total && maxDistance < best.maxDistance)) best = { id, common: va.person, a: va, b: vb, total, maxDistance };
   }
 
-  if (!best) return { ok:false, message:"لا توجد صلة قرابة واضحة بين الاسمين داخل البيانات الحالية للشجرة." };
+  if (!best) {
+    return {
+      ok:false,
+      code:"NO_COMMON_ANCESTOR",
+      message:"لا توجد صلة قرابة واضحة بين الاسمين داخل البيانات الحالية للشجرة. قد يكون أحد فروع الأب أو الأم غير مكتمل في قاعدة البيانات.",
+      suggestions:["راجع كتابة الاسم كاملًا", "جرّب الاسم الرباعي", "تأكد من وجود الأب أو الأم داخل الشجرة"]
+    };
+  }
   const dA = best.a.distance;
   const dB = best.b.distance;
   const common = best.common;
-  const fullPath = [...best.a.path, common, ...best.b.path.slice(0, -1).reverse()].filter(Boolean);
+  const fullPath = uniquePeoplePath([...best.a.path, ...best.b.path.slice(0, -1).reverse()].filter(Boolean));
+  const graph = buildKinshipGraph(a, b, best);
 
   let relation = "";
   if (dA === 0) {
@@ -1399,22 +2836,41 @@ function describeKinship(a, b, byId) {
   return {
     ok:true,
     message:`${relation}\nمسار القرابة: ${personPathText(fullPath)}`,
-    path: fullPath.map((p)=>({ id:p.id, name:p.name })),
+    path: fullPath.map((p)=>({ id:p.id, name:p.name, photo_url:p.photo_url || "", gender:p.gender || "" })),
     commonAncestor: { id: common.id, name: common.name },
+    graph,
   };
 }
 
+function kinshipCandidatePayload(matches) {
+  return (matches || []).slice(0, 8).map((x) => ({
+    id: Number(x.id),
+    name: x.name || "",
+    lineage_label: x.lineage_label || "",
+    photo_url: x.photo_url || "",
+    focus_url: `/?focus=${encodeURIComponent(x.id)}`,
+  }));
+}
+
 async function calculateKinshipByNames(personA, personB) {
+  const cleanA = cleanText(personA, 220);
+  const cleanB = cleanText(personB, 220);
+  if (!cleanA || !cleanB) return { ok:false, code:"MISSING_NAMES", message:"اكتب اسم الشخصين أولًا لحساب صلة القرابة." };
+  if (normalizeArabicForMatch(cleanA) === normalizeArabicForMatch(cleanB)) {
+    return { ok:false, code:"SAME_QUERY", message:"الاسمان المكتوبان متطابقان. اكتب اسمين مختلفين، أو افتح موقع الشخص مباشرة من الشجرة." };
+  }
   const { rows, byId } = await getPersonsForRelationship();
-  const aMatch = matchPersonByFlexibleName(personA, rows, byId);
-  const bMatch = matchPersonByFlexibleName(personB, rows, byId);
+  const aMatch = matchPersonByFlexibleName(cleanA, rows, byId);
+  const bMatch = matchPersonByFlexibleName(cleanB, rows, byId);
   if (aMatch.status !== "matched") {
-    if (aMatch.status === "multiple") return { ok:false, message:`يوجد أكثر من شخص مطابق للاسم الأول. برجاء كتابة الاسم رباعي أو توضيح أكبر.\nالنتائج المحتملة: ${aMatch.matches.map(x=>`${x.name} (${x.lineage_label})`).join("، ")}` };
-    return { ok:false, message:"لم يتم العثور على الشخص الأول داخل الشجرة. برجاء كتابة الاسم ثلاثي أو رباعي." };
+    if (aMatch.status === "multiple") return { ok:false, code:"MULTIPLE_A", field:"person_a", message:`يوجد أكثر من شخص مطابق للاسم الأول. اكتب الاسم رباعي أو أضف اسم الأب/الجد بدقة.
+النتائج المحتملة: ${aMatch.matches.map(x=>`${x.name} (${x.lineage_label})`).join("، ")}`, candidates: kinshipCandidatePayload(aMatch.matches) };
+    return { ok:false, code:"NOT_FOUND_A", field:"person_a", message:"لم يتم العثور على الشخص الأول داخل الشجرة. برجاء كتابة الاسم ثلاثي أو رباعي.", suggestions:["اكتب الاسم بدون ألقاب", "جرّب اسم الأب والجد", "تأكد من أن الشخص موجود في الشجرة"] };
   }
   if (bMatch.status !== "matched") {
-    if (bMatch.status === "multiple") return { ok:false, message:`يوجد أكثر من شخص مطابق للاسم الثاني. برجاء كتابة الاسم رباعي أو توضيح أكبر.\nالنتائج المحتملة: ${bMatch.matches.map(x=>`${x.name} (${x.lineage_label})`).join("، ")}` };
-    return { ok:false, message:"لم يتم العثور على الشخص الثاني داخل الشجرة. برجاء كتابة الاسم ثلاثي أو رباعي." };
+    if (bMatch.status === "multiple") return { ok:false, code:"MULTIPLE_B", field:"person_b", message:`يوجد أكثر من شخص مطابق للاسم الثاني. اكتب الاسم رباعي أو أضف اسم الأب/الجد بدقة.
+النتائج المحتملة: ${bMatch.matches.map(x=>`${x.name} (${x.lineage_label})`).join("، ")}`, candidates: kinshipCandidatePayload(bMatch.matches) };
+    return { ok:false, code:"NOT_FOUND_B", field:"person_b", message:"لم يتم العثور على الشخص الثاني داخل الشجرة. برجاء كتابة الاسم ثلاثي أو رباعي.", suggestions:["اكتب الاسم بدون ألقاب", "جرّب اسم الأب والجد", "تأكد من أن الشخص موجود في الشجرة"] };
   }
   return describeKinship(aMatch.matches[0], bMatch.matches[0], byId);
 }
@@ -3560,6 +5016,725 @@ freeGeneralKnowledgeAnswer = function(question) {
 };
 
 /* =========================
+   Site User Auth + OAuth
+   ========================= */
+
+async function createOrUpdateOAuthUser(provider, profile) {
+  const emails = profile?.emails || [];
+  const email = String(emails[0]?.value || profile?.email || "").trim().toLowerCase();
+  const providerId = String(profile?.id || profile?.sub || "").trim();
+  const fullName = cleanText(profile?.displayName || [profile?.name?.givenName, profile?.name?.familyName].filter(Boolean).join(" ") || email.split("@")[0] || "مستخدم الموقع", 180);
+  const avatar = profile?.photos?.[0]?.value || "";
+
+  let user = email ? await getSiteUserByEmail(email) : null;
+  if (!user && providerId) {
+    user = await get(`SELECT * FROM site_users WHERE provider = ? AND provider_id = ? LIMIT 1`, [provider, providerId]);
+  }
+
+  if (user) {
+    await run(
+      `UPDATE site_users
+       SET provider = COALESCE(NULLIF(provider, ''), ?),
+           provider_id = COALESCE(NULLIF(provider_id, ''), ?),
+           full_name = CASE WHEN TRIM(COALESCE(full_name, '')) = '' THEN ? ELSE full_name END,
+           avatar_url = CASE WHEN ? <> '' THEN ? ELSE avatar_url END,
+           is_active = COALESCE(is_active, 1),
+           login_count = COALESCE(login_count, 0) + 1,
+           last_login_at = CURRENT_TIMESTAMP,
+           last_seen_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [provider, providerId, fullName, avatar, avatar, user.id]
+    );
+    return getSiteUserById(user.id);
+  }
+
+  if (!email) throw new Error("لم يرجع مزود الدخول بريدًا إلكترونيًا صالحًا");
+
+  const approvalStatus = newUserApprovalStatus(provider);
+  const result = await run(
+    `INSERT INTO site_users
+     (full_name, email, provider, provider_id, avatar_url, approval_status, is_active, login_count, last_login_at, last_seen_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [fullName, email, provider, providerId, avatar, approvalStatus]
+  );
+  return getSiteUserById(result.lastID);
+}
+
+function configurePassportStrategies() {
+  if (!passport) return;
+  passport.serializeUser((user, done) => done(null, user?.id));
+  passport.deserializeUser(async (id, done) => {
+    try {
+      const user = await getSiteUserById(id);
+      done(null, user || false);
+    } catch (e) {
+      done(e);
+    }
+  });
+
+  const status = oauthStatus();
+  if (status.google) {
+    passport.use(new GoogleStrategy({
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: absoluteOAuthCallbackUrl("google"),
+    }, async (accessToken, refreshToken, profile, done) => {
+      try {
+        const user = await createOrUpdateOAuthUser("google", profile);
+        return done(null, user);
+      } catch (e) {
+        return done(e);
+      }
+    }));
+  }
+
+  
+}
+configurePassportStrategies();
+
+function renderUserAuth(res, options = {}) {
+  return res.render("user_auth", {
+    mode: options.mode || "login",
+    error: options.error || null,
+    success: options.success || null,
+    nextUrl: safeRedirectUrl(options.nextUrl || "/"),
+    values: options.values || {},
+    oauth: oauthStatus(),
+  });
+}
+
+app.get("/auth/status", (req, res) => {
+  res.json({
+    ok: true,
+    passportInstalled: oauthStatus().passportInstalled,
+    googleEnabled: oauthStatus().google,
+    autoApproveNewUsers: envFlag("AUTO_APPROVE_NEW_USERS", false),
+    autoApproveOAuthUsers: envFlag("AUTO_APPROVE_OAUTH_USERS", true),
+    publicBaseUrl: getPublicBaseUrl(),
+    googleCallbackUrl: absoluteOAuthCallbackUrl("google"),
+  });
+});
+
+app.get("/login", (req, res) => {
+  if (req.session?.siteUser?.id) return res.redirect(safeRedirectUrl(req.query.next || "/"));
+  renderUserAuth(res, { mode: "login", error: req.query.error || null, success: req.query.success || null, nextUrl: req.query.next || "/" });
+});
+
+app.get("/register", (req, res) => {
+  if (req.session?.siteUser?.id) return res.redirect(safeRedirectUrl(req.query.next || "/"));
+  renderUserAuth(res, { mode: "register", error: req.query.error || null, nextUrl: req.query.next || "/" });
+});
+
+app.post("/register", loginLimiter, upload.fields([{ name: "avatar_file", maxCount: 1 }, { name: "cover_file", maxCount: 1 }]), async (req, res) => {
+  try {
+    const fields = extractSiteUserProfileFields(req.body);
+    const password = String(req.body.password || "");
+    const nextUrl = safeRedirectUrl(req.body.next || "/account");
+    const inviteCheck = await verifyInviteCode(req.body.invite_code || "");
+    if (!inviteCheck.ok) {
+      return renderUserAuth(res, { mode: "register", error: inviteCheck.message, nextUrl, values: fields });
+    }
+
+    const avatarFile = req.files?.avatar_file?.[0] || null;
+    const coverFile = req.files?.cover_file?.[0] || null;
+    const avatarUrl = avatarFile ? `/uploads/${avatarFile.filename}` : "";
+    const coverUrl = coverFile ? `/uploads/${coverFile.filename}` : "";
+
+    if (!fields.full_name || !fields.father_name || !isValidEmail(fields.email) || !fields.phone || password.length < 6) {
+      return renderUserAuth(res, {
+        mode: "register",
+        error: "البيانات الإجبارية: الاسم، اسم الأب، البريد الإلكتروني، رقم الجوال، وكلمة مرور لا تقل عن ٦ أحرف.",
+        nextUrl,
+        values: fields,
+      });
+    }
+
+    const exists = await getSiteUserByEmail(fields.email);
+    if (exists) {
+      return renderUserAuth(res, {
+        mode: "register",
+        error: "هذا البريد مسجل بالفعل. جرّب تسجيل الدخول بدل إنشاء حساب جديد.",
+        nextUrl,
+        values: fields,
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const approvalStatus = newUserApprovalStatus("email");
+    const result = await run(
+      `INSERT INTO site_users
+       (full_name, father_name, mother_name, children_count, birth_date, origin_place, current_residence,
+        phone, phone_alt, email, avatar_url, work, qualification, spouse_family, spouse_name, country, city,
+        facebook_url, instagram_url, x_url, linkedin_url, cover_url, chat_privacy, profile_visibility, show_phone, show_email, show_birth_date, show_social_links, invite_code_used, approval_status,
+        password_hash, provider, is_active, login_count, last_login_at, last_seen_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'email', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [
+        fields.full_name, fields.father_name, fields.mother_name, fields.children_count, fields.birth_date,
+        fields.origin_place, fields.current_residence, fields.phone, fields.phone_alt, fields.email, avatarUrl,
+        fields.work, fields.qualification, fields.spouse_family, fields.spouse_name, fields.country, fields.city,
+        fields.facebook_url, fields.instagram_url, fields.x_url, fields.linkedin_url, coverUrl, fields.chat_privacy,
+        fields.profile_visibility, 1, 1, 0, 1, inviteCheck.code || "", approvalStatus, passwordHash,
+      ]
+    );
+
+    const user = await getSiteUserById(result.lastID);
+    await consumeInviteCode(inviteCheck.code);
+    await signInSiteUser(req, user);
+    await logSiteUserActivity(req, "إنشاء حساب", { email: fields.email });
+    return res.redirect((user.approval_status || "approved") === "approved" ? "/account" : "/account-pending");
+  } catch (e) {
+    console.error(e);
+    return renderUserAuth(res, { mode: "register", error: "حدث خطأ أثناء إنشاء الحساب. تأكد أن البريد غير مستخدم.", values: req.body || {} });
+  }
+});
+
+app.post("/login", loginLimiter, async (req, res) => {
+  try {
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const password = String(req.body.password || "");
+    const nextUrl = safeRedirectUrl(req.body.next || "/");
+    const user = await getSiteUserByEmail(email);
+
+    if (!user || Number(user.is_active) === 0 || !user.password_hash) {
+      return renderUserAuth(res, { mode: "login", error: "بيانات الدخول غير صحيحة أو الحساب غير نشط.", nextUrl, values: { email } });
+    }
+    if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
+      return renderUserAuth(res, { mode: "login", error: "تم قفل الدخول مؤقتًا بسبب محاولات خاطئة كثيرة. جرّب لاحقًا.", nextUrl, values: { email } });
+    }
+
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) {
+      const failed = Number(user.failed_login_count || 0) + 1;
+      const lockedUntil = failed >= 5 ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
+      await run(`UPDATE site_users SET failed_login_count=?, locked_until=? WHERE id=?`, [failed, lockedUntil, user.id]).catch(() => {});
+      return renderUserAuth(res, { mode: "login", error: failed >= 5 ? "محاولات كثيرة خاطئة. تم قفل الدخول ١٥ دقيقة." : "بيانات الدخول غير صحيحة.", nextUrl, values: { email } });
+    }
+
+    await run(
+      `UPDATE site_users
+       SET login_count = COALESCE(login_count, 0) + 1, failed_login_count=0, locked_until=NULL, last_login_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [user.id]
+    );
+    const fresh = await getSiteUserById(user.id);
+    await signInSiteUser(req, fresh);
+    await logSiteUserActivity(req, "تسجيل دخول", { method: "email" });
+    if ((fresh.approval_status || "approved") !== "approved") return res.redirect("/account-pending");
+    return res.redirect(nextUrl);
+  } catch (e) {
+    console.error(e);
+    return renderUserAuth(res, { mode: "login", error: "حدث خطأ أثناء تسجيل الدخول." });
+  }
+});
+
+app.get("/logout", async (req, res) => {
+  await logSiteUserActivity(req, "تسجيل خروج", {});
+  clearSiteUserSession(req);
+  req.session.save(() => res.redirect("/login?success=" + encodeURIComponent("تم تسجيل الخروج بنجاح")));
+});
+
+app.post("/logout", async (req, res) => {
+  await logSiteUserActivity(req, "تسجيل خروج", {});
+  clearSiteUserSession(req);
+  req.session.save(() => res.redirect("/login?success=" + encodeURIComponent("تم تسجيل الخروج بنجاح")));
+});
+
+app.get("/auth/google", (req, res, next) => {
+  if (!oauthStatus().google) return res.redirect("/login?error=" + encodeURIComponent("تسجيل الدخول عبر Google يحتاج ضبط GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET، مع ضبط PUBLIC_BASE_URL أو GOOGLE_CALLBACK_URL كامل."));
+  req.session.oauthNext = safeRedirectUrl(req.query.next || req.headers.referer || "/");
+  return passport.authenticate("google", { scope: ["profile", "email"], prompt: "select_account" })(req, res, next);
+});
+
+app.get("/auth/google/callback", (req, res, next) => {
+  if (!oauthStatus().google) return res.redirect("/login?error=" + encodeURIComponent("Google OAuth غير مفعل"));
+  passport.authenticate("google", async (err, user, info) => {
+    if (err || !user) {
+      return res.redirect("/login?error=" + encodeURIComponent(oauthLoginError("google", err, info)));
+    }
+    await signInSiteUser(req, user);
+    await logSiteUserActivity(req, "تسجيل دخول", { method: "google" });
+    const requestedNext = safeRedirectUrl(req.session.oauthNext || "/");
+    const nextUrl = (user.approval_status || "approved") !== "approved" ? "/account-pending" : (isSiteUserProfileComplete(user) ? requestedNext : "/account?complete=1");
+    delete req.session.oauthNext;
+    return res.redirect(nextUrl);
+  })(req, res, next);
+});
+
+
+/* =========================
+   Site User Account + Family Members
+   ========================= */
+
+app.get("/account", async (req, res) => {
+  try {
+    const user = await getSiteUserById(req.session.siteUser.id);
+    if (!user) return res.redirect("/login");
+    const treePerson = await findTreePersonForSiteUser(user);
+    const honorItem = await findHonorForUser(user, treePerson);
+    const stats = await getSiteUserProfileStats(user.id);
+    const latestViews = await all(
+      `SELECT v.created_at, u.id AS viewer_id, u.full_name AS viewer_name, u.avatar_url AS viewer_avatar
+       FROM site_profile_views v
+       LEFT JOIN site_users u ON u.id = v.viewer_user_id
+       WHERE v.profile_user_id = ?
+       ORDER BY v.id DESC
+       LIMIT 12`,
+      [user.id]
+    ).catch(() => []);
+    const pendingLink = await get(`SELECT r.*, p.name AS person_name FROM site_user_tree_link_requests r LEFT JOIN persons p ON p.id=r.requested_person_id WHERE r.user_id=? ORDER BY r.id DESC LIMIT 1`, [user.id]).catch(() => null);
+    const message = req.query.complete ? "أكمل البيانات الأساسية حتى يظهر حسابك بشكل صحيح لأعضاء العائلة." : (req.query.success || null);
+    res.render("user_account", {
+      active: "account",
+      siteUser: publicSiteUserSession(user),
+      user,
+      stats,
+      latestViews,
+      treePerson,
+      honorItem,
+      pendingLink,
+      profileComplete: isSiteUserProfileComplete(user),
+      success: message,
+      error: req.query.error || null,
+      avatar: getSiteUserAvatar(user),
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء تحميل حسابك");
+  }
+});
+
+app.post(
+  "/account",
+  upload.fields([
+    { name: "avatar_file", maxCount: 1 },
+    { name: "avatar_file_alt", maxCount: 1 },
+    { name: "cover_file", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    try {
+      const current = await getSiteUserById(req.session.siteUser.id);
+      if (!current) {
+        await removeUploadedFilesFromRequest(req.files);
+        return res.redirect("/login");
+      }
+
+      const fields = extractSiteUserProfileFields(req.body);
+
+      if (!fields.full_name || !fields.father_name || !isValidEmail(fields.email) || !fields.phone) {
+        await removeUploadedFilesFromRequest(req.files);
+        return res.redirect("/account?error=" + encodeURIComponent("البيانات الإجبارية: الاسم، اسم الأب، البريد الإلكتروني، ورقم الجوال."));
+      }
+
+      const sameEmail = await getSiteUserByEmail(fields.email);
+      if (sameEmail && Number(sameEmail.id) !== Number(current.id)) {
+        await removeUploadedFilesFromRequest(req.files);
+        return res.redirect("/account?error=" + encodeURIComponent("هذا البريد مستخدم في حساب آخر."));
+      }
+
+      const avatarFile = req.files?.avatar_file?.[0] || req.files?.avatar_file_alt?.[0] || null;
+      const coverFile = req.files?.cover_file?.[0] || null;
+      const deleteAvatar = String(req.body.delete_avatar || "0") === "1";
+      const deleteCover = String(req.body.delete_cover || "0") === "1";
+
+      const oldAvatarUrl = current.avatar_url || "";
+      const oldCoverUrl = current.cover_url || "";
+
+      let avatarUrl = oldAvatarUrl;
+      let coverUrl = oldCoverUrl;
+
+      if (deleteAvatar) avatarUrl = "";
+      if (deleteCover) coverUrl = "";
+      if (avatarFile) avatarUrl = `/uploads/${avatarFile.filename}`;
+      if (coverFile) coverUrl = `/uploads/${coverFile.filename}`;
+
+      const avatarPosX = (deleteAvatar && !avatarFile) ? "50.00" : normalizePercent(req.body.avatar_pos_x, current.avatar_pos_x ?? 50);
+      const avatarPosY = (deleteAvatar && !avatarFile) ? "50.00" : normalizePercent(req.body.avatar_pos_y, current.avatar_pos_y ?? 50);
+      const coverPosX = (deleteCover && !coverFile) ? "50.00" : normalizePercent(req.body.cover_pos_x, current.cover_pos_x ?? 50);
+      const coverPosY = (deleteCover && !coverFile) ? "50.00" : normalizePercent(req.body.cover_pos_y, current.cover_pos_y ?? 50);
+
+      await run(
+        `UPDATE site_users
+         SET full_name=?, father_name=?, mother_name=?, children_count=?, birth_date=?, origin_place=?, current_residence=?,
+             phone=?, phone_alt=?, email=?, avatar_url=?, avatar_pos_x=?, avatar_pos_y=?, work=?, qualification=?, spouse_family=?, spouse_name=?, country=?, city=?,
+             facebook_url=?, instagram_url=?, x_url=?, linkedin_url=?, cover_url=?, cover_pos_x=?, cover_pos_y=?, chat_privacy=?, profile_visibility=?, show_phone=?, show_email=?, show_birth_date=?, show_social_links=?, matched_person_id=?, updated_at=CURRENT_TIMESTAMP
+         WHERE id=?`,
+        [
+          fields.full_name, fields.father_name, fields.mother_name, fields.children_count, fields.birth_date,
+          fields.origin_place, fields.current_residence, fields.phone, fields.phone_alt, fields.email, avatarUrl, avatarPosX, avatarPosY,
+          fields.work, fields.qualification, fields.spouse_family, fields.spouse_name, fields.country, fields.city,
+          fields.facebook_url, fields.instagram_url, fields.x_url, fields.linkedin_url, coverUrl, coverPosX, coverPosY, fields.chat_privacy,
+          fields.profile_visibility, fields.show_phone, fields.show_email, fields.show_birth_date, fields.show_social_links, current.matched_person_id || null, current.id,
+        ]
+      );
+
+      const filesToRemove = [];
+      if ((deleteAvatar || avatarFile) && oldAvatarUrl && oldAvatarUrl !== avatarUrl) filesToRemove.push(oldAvatarUrl);
+      if ((deleteCover || coverFile) && oldCoverUrl && oldCoverUrl !== coverUrl) filesToRemove.push(oldCoverUrl);
+      await Promise.all(filesToRemove.map(removeUploadedFileByUrl));
+
+      const fresh = await getSiteUserById(current.id);
+      req.session.siteUser = publicSiteUserSession(fresh);
+      req.session.siteUserCheckedAt = Date.now();
+      await logSiteUserActivity(req, "تعديل الحساب الشخصي", {
+        updated: true,
+        avatarDeleted: deleteAvatar && !avatarFile,
+        coverDeleted: deleteCover && !coverFile,
+        avatarMoved: avatarPosX !== normalizePercent(current.avatar_pos_x, 50) || avatarPosY !== normalizePercent(current.avatar_pos_y, 50),
+        coverMoved: coverPosX !== normalizePercent(current.cover_pos_x, 50) || coverPosY !== normalizePercent(current.cover_pos_y, 50),
+      });
+      res.redirect("/account?success=" + encodeURIComponent("تم حفظ بيانات الحساب بنجاح"));
+    } catch (e) {
+      await removeUploadedFilesFromRequest(req.files);
+      console.error(e);
+      res.redirect("/account?error=" + encodeURIComponent("حدث خطأ أثناء حفظ بيانات الحساب"));
+    }
+  }
+);
+
+app.get("/family-members", async (req, res) => {
+  try {
+    const q = cleanText(req.query.q || "", 160);
+    const viewer = await getSiteUserById(req.session.siteUser.id).catch(() => null);
+    const params = [];
+    let where = "WHERE COALESCE(is_active, 1)=1 AND COALESCE(approval_status, 'approved')='approved' AND COALESCE(profile_visibility, 'members') <> 'private'";
+    if (!viewer?.matched_person_id) where += " AND COALESCE(profile_visibility, 'members') <> 'linked_only'";
+    if (q) {
+      where += ` AND (full_name LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR email LIKE ? OR phone LIKE ? OR current_residence LIKE ? OR origin_place LIKE ? OR work LIKE ?)`;
+      const like = `%${q}%`;
+      params.push(like, like, like, like, like, like, like, like);
+    }
+    const members = await all(
+      `SELECT u.id, u.full_name, u.father_name, u.mother_name, u.email, u.phone, u.avatar_url, u.current_residence, u.origin_place, u.work, u.qualification,
+              u.spouse_name, u.spouse_family, u.matched_person_id, u.cover_url, u.created_at, u.last_seen_at,
+              (SELECT COUNT(*) FROM site_profile_views v WHERE v.profile_user_id = u.id) AS profile_views
+       FROM site_users u
+       ${where}
+       ORDER BY COALESCE(u.last_seen_at, u.created_at) DESC, u.full_name ASC
+       LIMIT 300`,
+      params
+    );
+    res.render("family_members", {
+      active: "members",
+      siteUser: req.session.siteUser,
+      members,
+      q,
+      total: members.length,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء تحميل أعضاء العائلة");
+  }
+});
+
+app.get("/family-members/:id", async (req, res) => {
+  try {
+    const user = await get(`SELECT * FROM site_users WHERE id = ? AND COALESCE(is_active,1)=1 AND COALESCE(approval_status, 'approved')='approved'`, [req.params.id]);
+    if (!user) return res.status(404).send("الحساب غير موجود");
+    const viewer = await getSiteUserById(req.session.siteUser.id).catch(() => null);
+    const isMeProfile = Number(req.session?.siteUser?.id) === Number(user.id);
+    if (!isMeProfile && user.profile_visibility === "private") return res.status(403).send("هذا العضو أخفى حسابه الشخصي.");
+    if (!isMeProfile && user.profile_visibility === "linked_only" && !viewer?.matched_person_id) return res.status(403).send("هذا الحساب يظهر للأعضاء المرتبطين بالشجرة فقط.");
+    await logProfileView(req, user.id);
+    const stats = await getSiteUserProfileStats(user.id);
+    const treePerson = await findTreePersonForSiteUser(user);
+    const honorItem = await findHonorForUser(user, treePerson);
+    const canMessageResult = Number(req.session?.siteUser?.id) === Number(user.id) ? { ok: false, message: "هذا حسابك" } : await canStartPrivateChat(req.session.siteUser.id, user.id);
+    res.render("family_member_profile", {
+      active: "members",
+      siteUser: req.session.siteUser,
+      user,
+      stats,
+      treePerson,
+      honorItem,
+      avatar: getSiteUserAvatar(user),
+      isMe: isMeProfile,
+      canMessageResult,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء تحميل بيانات العضو");
+  }
+});
+
+/* =========================
+   Site Chat: public + private messages
+   ========================= */
+
+app.get("/chat", async (req, res) => {
+  try {
+    const userId = Number(req.session.siteUser.id);
+    if (await isUserChatBlocked(userId)) return res.status(403).send("تم حظرك من استخدام الشات بواسطة الإدارة");
+    const publicThread = await ensurePublicChatThread();
+    const threads = await all(
+      `SELECT t.id, t.type, t.updated_at,
+              peer.id AS peer_id, peer.full_name AS peer_name, peer.avatar_url AS peer_avatar,
+              lm.body AS last_body, lm.message_type AS last_type, lm.created_at AS last_created_at,
+              COALESCE(unread.total, 0) AS unread_count
+       FROM site_chat_threads t
+       JOIN site_chat_participants mine ON mine.thread_id = t.id AND mine.user_id = ?
+       LEFT JOIN site_chat_participants otherp ON otherp.thread_id = t.id AND otherp.user_id <> ?
+       LEFT JOIN site_users peer ON peer.id = otherp.user_id
+       LEFT JOIN site_chat_messages lm ON lm.id = (SELECT id FROM site_chat_messages WHERE thread_id=t.id AND COALESCE(is_deleted,0)=0 ORDER BY id DESC LIMIT 1)
+       LEFT JOIN (
+         SELECT m.thread_id, COUNT(*) AS total
+         FROM site_chat_messages m
+         JOIN site_chat_participants p ON p.thread_id=m.thread_id AND p.user_id=?
+         WHERE COALESCE(m.is_deleted,0)=0 AND m.sender_user_id <> ? AND m.id > COALESCE(p.last_read_message_id,0)
+         GROUP BY m.thread_id
+       ) unread ON unread.thread_id = t.id
+       WHERE t.type='private' AND COALESCE(t.is_active,1)=1
+       ORDER BY COALESCE(lm.id, t.id) DESC
+       LIMIT 100`,
+      [userId, userId, userId, userId]
+    ).catch(() => []);
+    const members = await all(
+      `SELECT id, full_name, father_name, avatar_url, current_residence, last_seen_at
+       FROM site_users
+       WHERE COALESCE(is_active,1)=1 AND id <> ?
+       ORDER BY COALESCE(last_seen_at, created_at) DESC, full_name ASC
+       LIMIT 80`,
+      [userId]
+    ).catch(() => []);
+    const unread = await unreadPrivateMessagesCount(userId);
+    res.render("chat_inbox", { active: "chat", siteUser: req.session.siteUser, publicThread, threads, members, unread });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء تحميل الرسائل");
+  }
+});
+
+app.get("/chat/public", async (req, res) => {
+  try {
+    if (await isUserChatBlocked(req.session.siteUser.id)) return res.status(403).send("تم حظرك من استخدام الشات بواسطة الإدارة");
+    const thread = await ensurePublicChatThread();
+    res.render("chat_room", {
+      active: "chat",
+      siteUser: req.session.siteUser,
+      thread,
+      roomTitle: thread.title || "الشات العام للعائلة",
+      roomSubtitle: "كل أعضاء الموقع يستطيعون رؤية هذه المحادثة. الإدارة يمكنها حذف الرسائل أو إغلاق الشات العام.",
+      mode: "public",
+      targetUser: null,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء تحميل الشات العام");
+  }
+});
+
+app.get("/chat/private/:userId", async (req, res) => {
+  try {
+    const me = Number(req.session.siteUser.id);
+    const otherId = Number(req.params.userId || 0);
+    if (!otherId || otherId === me) return res.redirect("/chat");
+    const target = await get(`SELECT id, full_name, father_name, avatar_url, is_active FROM site_users WHERE id=? AND COALESCE(is_active,1)=1`, [otherId]);
+    if (!target) return res.status(404).send("المستخدم غير موجود أو موقوف");
+    const allowedPrivate = await canStartPrivateChat(me, otherId);
+    if (!allowedPrivate.ok) return res.status(403).send(allowedPrivate.message);
+    const thread = await getPrivateThreadBetween(me, otherId);
+    res.render("chat_room", {
+      active: "chat",
+      siteUser: req.session.siteUser,
+      thread,
+      roomTitle: `محادثة مع ${chatDisplayName(target)}`,
+      roomSubtitle: "محادثة خاصة بينك وبين هذا العضو فقط، ويمكن للإدارة مراجعتها عند الحاجة لإدارة الموقع.",
+      mode: "private",
+      targetUser: target,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء فتح المحادثة");
+  }
+});
+
+app.get("/api/chat/threads/:threadId/messages", async (req, res) => {
+  try {
+    const userId = Number(req.session.siteUser.id);
+    const threadId = Number(req.params.threadId || 0);
+    const thread = await userCanAccessThread(userId, threadId);
+    if (!thread) return res.status(403).json({ ok: false, message: "لا تملك صلاحية مشاهدة هذه المحادثة" });
+    const after = Number(req.query.after || 0);
+    const refresh = String(req.query.refresh || "") === "1";
+    const limit = Math.min(Math.max(Number(req.query.limit || 160), 20), 500);
+    let rows = [];
+    if (refresh || after <= 0) {
+      rows = await all(
+        `SELECT * FROM (
+           SELECT m.*, u.full_name AS sender_name, u.avatar_url AS sender_avatar
+           FROM site_chat_messages m
+           LEFT JOIN site_users u ON u.id = m.sender_user_id
+           WHERE m.thread_id = ? AND COALESCE(m.is_deleted,0)=0
+           ORDER BY m.id DESC
+           LIMIT ?
+         ) ORDER BY id ASC`,
+        [threadId, limit]
+      );
+    } else {
+      rows = await all(
+        `SELECT m.*, u.full_name AS sender_name, u.avatar_url AS sender_avatar
+         FROM site_chat_messages m
+         LEFT JOIN site_users u ON u.id = m.sender_user_id
+         WHERE m.thread_id = ? AND m.id > ? AND COALESCE(m.is_deleted,0)=0
+         ORDER BY m.id ASC
+         LIMIT ?`,
+        [threadId, after, limit]
+      );
+    }
+    const lastId = rows.length ? rows[rows.length - 1].id : after;
+    if (thread.type === "private") {
+      await run(`UPDATE site_chat_participants SET last_read_message_id = MAX(COALESCE(last_read_message_id,0), ?) WHERE thread_id=? AND user_id=?`, [lastId, threadId, userId]).catch(() => {});
+    }
+    return res.json({ ok: true, messages: await serializeChatMessages(rows, { currentUserId: userId, threadId }), lastId, locked: Number(thread.is_locked) === 1, socket: Boolean(io) });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ ok: false, message: "حدث خطأ أثناء تحميل الرسائل" });
+  }
+});
+
+app.get("/api/chat/unread-count", async (req, res) => {
+  try {
+    const userId = Number(req.session?.siteUser?.id || 0);
+    if (!userId) return res.status(401).json({ ok: false, unread: 0 });
+    const unread = await unreadPrivateMessagesCount(userId);
+    return res.json({ ok: true, unread });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ ok: false, unread: 0 });
+  }
+});
+
+app.post("/api/chat/threads/:threadId/messages", (req, res, next) => {
+  chatUpload.single("chat_file")(req, res, function (err) {
+    if (err) return res.status(400).json({ ok: false, message: err.message || "تعذر رفع الملف" });
+    return next();
+  });
+}, async (req, res) => {
+  try {
+    const userId = Number(req.session.siteUser.id);
+    const threadId = Number(req.params.threadId || 0);
+    if (await isUserChatBlocked(userId)) return res.status(403).json({ ok: false, message: "تم حظرك من استخدام الشات بواسطة الإدارة" });
+    const thread = await userCanAccessThread(userId, threadId);
+    if (!thread) return res.status(403).json({ ok: false, message: "لا تملك صلاحية إرسال رسالة هنا" });
+    if (Number(thread.is_locked) === 1) return res.status(403).json({ ok: false, message: "الشات مغلق مؤقتًا بواسطة الإدارة" });
+    if (thread.type === "private") {
+      const other = await get(`SELECT user_id FROM site_chat_participants WHERE thread_id=? AND user_id<>? LIMIT 1`, [threadId, userId]).catch(() => null);
+      if (other?.user_id) {
+        const allowedPrivate = await canStartPrivateChat(userId, other.user_id);
+        if (!allowedPrivate.ok) return res.status(403).json({ ok: false, message: allowedPrivate.message });
+      }
+    }
+
+    const body = await filterChatBody(req.body.body || "");
+    const file = req.file || null;
+    if (!body && !file) return res.status(400).json({ ok: false, message: "اكتب رسالة أو أرفق صورة/تسجيلًا صوتيًا" });
+
+    const messageType = file ? chatAttachmentType(file) : "text";
+    const attachmentUrl = file ? `/uploads/chat/${file.filename}` : "";
+    const result = await run(
+      `INSERT INTO site_chat_messages
+       (thread_id, sender_user_id, body, message_type, attachment_url, attachment_name, attachment_mime, attachment_size, ip_address, user_agent, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [threadId, userId, body, messageType, attachmentUrl, file?.originalname || "", file?.mimetype || "", file?.size || 0, getClientIp(req), String(req.headers["user-agent"] || "").slice(0, 300)]
+    );
+    await run(`UPDATE site_chat_threads SET updated_at=CURRENT_TIMESTAMP WHERE id=?`, [threadId]);
+    await logSiteUserActivity(req, thread.type === "public" ? "رسالة في الشات العام" : "رسالة خاصة", { threadId, messageId: result.lastID, type: messageType });
+    if (thread.type === "private") {
+      const recipient = await get(`SELECT user_id FROM site_chat_participants WHERE thread_id=? AND user_id<>? LIMIT 1`, [threadId, userId]).catch(() => null);
+      if (recipient?.user_id) await createNotification(recipient.user_id, "رسالة خاصة جديدة", "لديك رسالة جديدة داخل الموقع.", `/chat/private/${userId}`, "chat");
+    }
+    const rows = await all(
+      `SELECT m.*, u.full_name AS sender_name, u.avatar_url AS sender_avatar
+       FROM site_chat_messages m
+       LEFT JOIN site_users u ON u.id = m.sender_user_id
+       WHERE m.id = ?`,
+      [result.lastID]
+    );
+    const serialized = (await serializeChatMessages(rows, { currentUserId: userId, threadId }))[0];
+    emitChatThreadUpdate(threadId, "message", { messageId: result.lastID });
+    return res.json({ ok: true, message: serialized });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ ok: false, message: "حدث خطأ أثناء إرسال الرسالة" });
+  }
+});
+
+app.post("/api/chat/messages/:messageId/edit", async (req, res) => {
+  try {
+    const userId = Number(req.session.siteUser.id);
+    const messageId = Number(req.params.messageId || 0);
+    const body = await filterChatBody(req.body.body || "");
+    if (!messageId) return res.status(400).json({ ok: false, message: "رسالة غير صحيحة" });
+
+    const message = await get(
+      `SELECT m.*, t.type AS thread_type, t.is_locked, t.is_active
+       FROM site_chat_messages m
+       JOIN site_chat_threads t ON t.id=m.thread_id
+       WHERE m.id=? AND COALESCE(m.is_deleted,0)=0`,
+      [messageId]
+    );
+    if (!message) return res.status(404).json({ ok: false, message: "الرسالة غير موجودة" });
+    if (Number(message.sender_user_id) !== userId) return res.status(403).json({ ok: false, message: "يمكنك تعديل رسائلك فقط" });
+    const thread = await userCanAccessThread(userId, message.thread_id);
+    if (!thread) return res.status(403).json({ ok: false, message: "لا تملك صلاحية تعديل هذه الرسالة" });
+    if (Number(message.is_locked) === 1) return res.status(403).json({ ok: false, message: "لا يمكن التعديل لأن المحادثة مغلقة مؤقتًا" });
+    if (!body && !message.attachment_url) return res.status(400).json({ ok: false, message: "لا يمكن حفظ رسالة فارغة" });
+
+    await run(
+      `UPDATE site_chat_messages
+       SET body=?, edited_at=CURRENT_TIMESTAMP, edited_by_user_id=?, updated_at=CURRENT_TIMESTAMP
+       WHERE id=?`,
+      [body, userId, messageId]
+    );
+    await run(`UPDATE site_chat_threads SET updated_at=CURRENT_TIMESTAMP WHERE id=?`, [message.thread_id]).catch(() => {});
+    await logSiteUserActivity(req, "تعديل رسالة", { threadId: message.thread_id, messageId });
+    const rows = await all(
+      `SELECT m.*, u.full_name AS sender_name, u.avatar_url AS sender_avatar
+       FROM site_chat_messages m
+       LEFT JOIN site_users u ON u.id = m.sender_user_id
+       WHERE m.id = ? AND COALESCE(m.is_deleted,0)=0`,
+      [messageId]
+    );
+    const serialized = (await serializeChatMessages(rows, { currentUserId: userId, threadId: message.thread_id }))[0];
+    emitChatThreadUpdate(message.thread_id, "edit", { messageId });
+    return res.json({ ok: true, message: serialized });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ ok: false, message: "حدث خطأ أثناء تعديل الرسالة" });
+  }
+});
+
+
+app.post("/api/chat/messages/:messageId/report", async (req, res) => {
+  try {
+    const userId = Number(req.session.siteUser.id);
+    const messageId = Number(req.params.messageId || 0);
+    const reason = cleanText(req.body.reason || "", 500) || "بلاغ من المستخدم";
+    const message = await get(
+      `SELECT m.*, t.id AS thread_id
+       FROM site_chat_messages m
+       JOIN site_chat_threads t ON t.id=m.thread_id
+       WHERE m.id=? AND COALESCE(m.is_deleted,0)=0`,
+      [messageId]
+    );
+    if (!message) return res.status(404).json({ ok: false, message: "الرسالة غير موجودة" });
+    const thread = await userCanAccessThread(userId, message.thread_id);
+    if (!thread) return res.status(403).json({ ok: false, message: "لا تملك صلاحية الإبلاغ عن هذه الرسالة" });
+    if (Number(message.sender_user_id) === userId) return res.status(400).json({ ok: false, message: "لا يمكنك الإبلاغ عن رسالتك" });
+    await run(
+      `INSERT INTO site_chat_message_reports (message_id, reporter_user_id, reason, status, created_at)
+       VALUES (?, ?, ?, 'pending', CURRENT_TIMESTAMP)`,
+      [messageId, userId, reason]
+    );
+    await logSiteUserActivity(req, "بلاغ عن رسالة", { messageId, threadId: message.thread_id });
+    return res.json({ ok: true, message: "تم إرسال البلاغ للإدارة" });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ ok: false, message: "حدث خطأ أثناء إرسال البلاغ" });
+  }
+});
+
+/* =========================
    Public Routes
    ========================= */
 
@@ -4257,37 +6432,51 @@ app.get("/news/:id", async (req, res) => {
   }
 });
 
-app.post("/news/:id/like", likeLimiter, async (req, res) => {
+app.post("/news/:id/like", async (req, res) => {
   try {
     const postId = Number(req.params.id);
     if (!postId) return res.status(400).json({ ok: false, error: "خبر غير صالح" });
 
-    const ip = getClientIp(req);
-    const existing = await get(
-      `SELECT id FROM news_likes
-       WHERE post_id = ?
-         AND COALESCE(ip_address, '') = ?
+    // تأكد أن الخبر موجود ومفعل قبل تسجيل الإعجاب
+    const post = await get(
+      `SELECT id
+       FROM news_posts
+       WHERE id = ?
+         AND COALESCE(is_active, 1) = 1
        LIMIT 1`,
-      [postId, ip]
-    );
-
-    if (!existing) {
-      await run(
-        `INSERT INTO news_likes (post_id, ip_address, created_at)
-         VALUES (?, ?, datetime('now'))`,
-        [postId, ip]
-      );
-    }
-
-    const count = await get(
-      `SELECT COUNT(*) as c FROM news_likes WHERE post_id = ?`,
       [postId]
     );
 
-    res.json({ ok: true, count: count?.c || 0, alreadyLiked: !!existing });
+    if (!post) {
+      return res.status(404).json({ ok: false, error: "الخبر غير موجود" });
+    }
+
+    const ip = getClientIp(req);
+
+    // بدون قيود نهائيًا:
+    // كل ضغطة على زر الإعجاب تضيف إعجابًا جديدًا حتى من نفس المستخدم أو نفس الـ IP.
+    await run(
+      `INSERT INTO news_likes (post_id, ip_address, created_at)
+       VALUES (?, ?, datetime('now'))`,
+      [postId, ip]
+    );
+
+    const count = await get(
+      `SELECT COUNT(*) AS c
+       FROM news_likes
+       WHERE post_id = ?`,
+      [postId]
+    );
+
+    return res.json({
+      ok: true,
+      count: Number(count?.c || 0),
+      added: true,
+      alreadyLiked: false
+    });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ ok: false });
+    console.error("news like error:", e);
+    return res.status(500).json({ ok: false, error: "like_failed" });
   }
 });
 
@@ -4378,6 +6567,110 @@ app.get("/pages/about.html", (req, res) => res.redirect(301, "/about"));
 app.get("/pages/support.html", (req, res) => res.redirect(301, "/support"));
 app.get("/pages/tree-pdf.html", (req, res) => res.redirect(301, "/tree-pdf"));
 app.get("/pages/honor.html", (req, res) => res.redirect(301, "/honor"));
+
+/* =========================
+   Branch Tree Export
+   ========================= */
+
+app.get("/tree-export", async (req, res) => {
+  res.render("tree_export", {
+    active: "tree-export",
+    siteUser: req.session.siteUser,
+    initialName: cleanText(req.query.name || "", 180),
+    initialPersonId: Number(req.query.person_id || 0) || null,
+  });
+});
+
+app.get("/api/tree/export/search", async (req, res) => {
+  try {
+    const q = cleanText(req.query.q || req.query.name || "", 180);
+    if (!q || namePartsForMatch(q).length < 2) {
+      return res.status(400).json({ ok: false, error: "اكتب اسمًا ثنائيًا على الأقل، والأفضل الاسم الثلاثي أو الرباعي." });
+    }
+
+    const result = await findExportPersonCandidates(q);
+    if (!result.candidates.length) {
+      return res.json({ ok: true, status: "not_found", candidates: [], message: "لم يتم العثور على شخص مطابق. جرّب الاسم الثلاثي أو الرباعي." });
+    }
+
+    return res.json({ ok: true, ...result });
+  } catch (e) {
+    console.error("tree export search error:", e);
+    res.status(500).json({ ok: false, error: "حدث خطأ أثناء البحث عن الاسم." });
+  }
+});
+
+app.get("/api/tree/export/branch/:personId", async (req, res) => {
+  try {
+    const personId = Number(req.params.personId || 0);
+    if (!personId) return res.status(400).json({ ok: false, error: "رقم الشخص غير صحيح." });
+
+    const includePhotos = String(req.query.photos ?? "1") !== "0";
+    const maxDepth = safeExportDepth(req.query.generations || 99);
+    const rows = await all(`
+      SELECT id, name, father_id, mother_id, gender, birth_date, photo_url, job
+      FROM persons
+      ORDER BY id ASC
+    `);
+    const byId = new Map(rows.map((r) => [Number(r.id), { ...r, id: Number(r.id) }]));
+    const root = byId.get(personId);
+    if (!root) return res.status(404).json({ ok: false, error: "الشخص غير موجود في الشجرة." });
+
+    const branch = buildBranchExportTree(root, rows, { maxDepth, includePhotos });
+    return res.json({
+      ok: true,
+      root: publicPersonForExport(root),
+      tree: branch.tree,
+      personsCount: branch.count,
+      generationsCount: branch.generations,
+      options: { includePhotos, maxDepth: maxDepth >= 99 ? "all" : maxDepth },
+      title: `فرع ${root.name}`,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("tree export branch error:", e);
+    res.status(500).json({ ok: false, error: "حدث خطأ أثناء تجهيز الفرع." });
+  }
+});
+
+app.post("/api/tree/export/log", async (req, res) => {
+  try {
+    const userId = Number(req.session?.siteUser?.id || 0) || null;
+    const personId = Number(req.body.person_id || 0) || null;
+    const personName = cleanText(req.body.person_name || "", 180);
+    const exportTitle = cleanText(req.body.export_title || "", 220);
+    const personsCount = Math.min(Math.max(Number(req.body.persons_count || 0), 0), 100000);
+    const generationsCount = Math.min(Math.max(Number(req.body.generations_count || 0), 0), 1000);
+
+    await run(
+      `INSERT INTO tree_export_logs (user_id, person_id, person_name, export_title, export_options, persons_count, generations_count, ip_address, user_agent, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [userId, personId, personName, exportTitle, JSON.stringify(req.body.options || {}), personsCount, generationsCount, getClientIp(req), String(req.headers["user-agent"] || "").slice(0, 300)]
+    ).catch(() => {});
+
+    await logSiteUserActivity(req, "تصدير فرع من الشجرة", { person_id: personId, person_name: personName, persons_count: personsCount });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("tree export log error:", e);
+    res.status(500).json({ ok: false });
+  }
+});
+
+app.get("/admin/tree-exports", isAuthed, requireAnyPermission(["users", "backups", "all"]), async (req, res) => {
+  try {
+    const logs = await all(`
+      SELECT l.*, u.full_name AS user_name, u.email AS user_email
+      FROM tree_export_logs l
+      LEFT JOIN site_users u ON u.id = l.user_id
+      ORDER BY l.id DESC
+      LIMIT 300
+    `).catch(() => []);
+    res.render("admin_tree_exports", { admin: req.session.admin, logs, userCan: (perm) => userCan(req.session.admin, perm), permissionGroups: PERMISSION_GROUPS });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء تحميل سجل التصدير");
+  }
+});
 
 /* =========================
    API
@@ -4717,7 +7010,7 @@ app.post("/admin/login", async (req, res) => {
 
 app.post("/admin/logout", async (req, res) => {
   await logAdminAction(req, "تسجيل خروج", "admin", req.session?.admin?.id || "", {});
-  req.session.destroy(() => res.redirect("/"));
+  req.session.destroy(() => res.redirect("/admin/login"));
 });
 
 /* =========================
@@ -4738,6 +7031,8 @@ app.get("/admin/dashboard", isAuthed, async (req, res) => {
       admin: req.session.admin,
       dashboard,
       parseLogDetails,
+      userCan: (perm) => userCan(req.session.admin, perm),
+      permissionGroups: PERMISSION_GROUPS,
     });
   } catch (e) {
     console.error(e);
@@ -5701,7 +7996,7 @@ app.get("/admin/timeline/:id/edit", isAuthed, requirePermission("pages"), (req, 
   db.get("SELECT * FROM timeline_events WHERE id = ?", [id], (err, row) => {
     if (err) return res.send("Database error: " + err.message);
     if (!row) return res.send("محطة غير موجودة");
-    res.render("edit_timeline", { event: row }); 
+    res.render("admin_timeline_edit", { admin: req.session.admin, event: row, userCan: (perm) => userCan(req.session.admin, perm), permissionGroups: PERMISSION_GROUPS }); 
   });
 });
 
@@ -5722,7 +8017,7 @@ app.post("/admin/timeline/:id/delete", isAuthed, requirePermission("pages"), asy
 app.get("/admin/honor", isAuthed, requirePermission("honor"), async (req, res) => {
   try {
     const items = await all(`SELECT * FROM honor_items ORDER BY ord ASC, id ASC`);
-    res.render("honor_admin", { admin: req.session.admin, items });
+    res.render("honor_admin", { admin: req.session.admin, items, userCan: (perm) => userCan(req.session.admin, perm), permissionGroups: PERMISSION_GROUPS });
   } catch (e) {
     console.error(e);
     res.status(500).send("خطأ في تحميل قائمة الشرف");
@@ -5730,7 +8025,8 @@ app.get("/admin/honor", isAuthed, requirePermission("honor"), async (req, res) =
 });
 
 app.get("/admin/honor/new", isAuthed, requirePermission("honor"), async (req, res) => {
-  res.render("honor_form", { admin: req.session.admin, mode: "new", item: null });
+  const persons = await getAdminPersonOptions();
+  res.render("honor_form", { admin: req.session.admin, mode: "new", item: null, persons, userCan: (perm) => userCan(req.session.admin, perm), permissionGroups: PERMISSION_GROUPS });
 });
 
 app.post("/admin/honor/new", isAuthed, requirePermission("honor"), async (req, res) => {
@@ -5767,7 +8063,8 @@ app.get("/admin/honor/:id/edit", isAuthed, requirePermission("honor"), async (re
     const item = await get(`SELECT * FROM honor_items WHERE id=?`, [req.params.id]);
     if (!item) return res.redirect("/admin/honor");
 
-    res.render("honor_form", { admin: req.session.admin, mode: "edit", item });
+    const persons = await getAdminPersonOptions();
+    res.render("honor_form", { admin: req.session.admin, mode: "edit", item, persons, userCan: (perm) => userCan(req.session.admin, perm), permissionGroups: PERMISSION_GROUPS });
   } catch (e) {
     console.error(e);
     res.status(500).send("خطأ في فتح تعديل قائمة الشرف");
@@ -6135,6 +8432,265 @@ app.post("/admin/person-requests/:id/reject", isAuthed, requirePermission("perso
   }
 });
 
+app.get("/admin/chats", isAuthed, requirePermission("chats"), async (req, res) => {
+  try {
+    const publicThread = await ensurePublicChatThread();
+    const stats = {
+      totalMessages: (await get(`SELECT COUNT(*) AS total FROM site_chat_messages WHERE COALESCE(is_deleted,0)=0`))?.total || 0,
+      publicMessages: (await get(`SELECT COUNT(*) AS total FROM site_chat_messages WHERE thread_id=? AND COALESCE(is_deleted,0)=0`, [publicThread.id]))?.total || 0,
+      privateThreads: (await get(`SELECT COUNT(*) AS total FROM site_chat_threads WHERE type='private' AND COALESCE(is_active,1)=1`))?.total || 0,
+      deletedMessages: (await get(`SELECT COUNT(*) AS total FROM site_chat_deleted_archive`))?.total || 0,
+      reportsCount: (await get(`SELECT COUNT(*) AS total FROM site_chat_message_reports WHERE status='pending'`))?.total || 0,
+      blockedUsers: (await get(`SELECT COUNT(*) AS total FROM site_chat_blocks WHERE COALESCE(is_active,1)=1`))?.total || 0,
+    };
+    const latestMessages = await all(
+      `SELECT m.*, t.type AS thread_type, t.title AS thread_title, u.full_name AS sender_name, u.email AS sender_email
+       FROM site_chat_messages m
+       JOIN site_chat_threads t ON t.id = m.thread_id
+       LEFT JOIN site_users u ON u.id = m.sender_user_id
+       WHERE COALESCE(m.is_deleted,0)=0
+       ORDER BY m.id DESC
+       LIMIT 120`
+    ).catch(() => []);
+    const reports = await all(`SELECT r.*, m.body, m.message_type, m.attachment_url, m.sender_user_id AS sender_user_id, reporter.full_name AS reporter_name, sender.full_name AS sender_name
+       FROM site_chat_message_reports r
+       LEFT JOIN site_chat_messages m ON m.id=r.message_id
+       LEFT JOIN site_users reporter ON reporter.id=r.reporter_user_id
+       LEFT JOIN site_users sender ON sender.id=m.sender_user_id
+       WHERE r.status='pending'
+       ORDER BY r.id DESC LIMIT 80`).catch(() => []);
+    const blockedUsers = await all(`SELECT b.*, u.full_name, u.email, u.avatar_url
+       FROM site_chat_blocks b
+       JOIN site_users u ON u.id=b.user_id
+       WHERE COALESCE(b.is_active,1)=1
+       ORDER BY b.updated_at DESC LIMIT 80`).catch(() => []);
+    const archivedMessages = await all(`SELECT a.*, u.full_name AS sender_name
+       FROM site_chat_deleted_archive a
+       LEFT JOIN site_users u ON u.id=a.sender_user_id
+       ORDER BY a.id DESC LIMIT 80`).catch(() => []);
+    const allUsers = await all(`SELECT id, full_name, father_name, email FROM site_users WHERE COALESCE(is_active,1)=1 ORDER BY full_name ASC LIMIT 500`).catch(() => []);
+    const chatSettings = { bannedWords: (await get(`SELECT value FROM site_settings WHERE key='chat_banned_words'`).catch(() => ({value:''}))).value || "" };
+    const threads = await all(
+      `SELECT t.id, t.type, t.is_locked, t.is_active, t.updated_at,
+              COUNT(m.id) AS messages_count,
+              GROUP_CONCAT(u.full_name, ' × ') AS participants
+       FROM site_chat_threads t
+       LEFT JOIN site_chat_participants p ON p.thread_id=t.id
+       LEFT JOIN site_users u ON u.id=p.user_id
+       LEFT JOIN site_chat_messages m ON m.thread_id=t.id AND COALESCE(m.is_deleted,0)=0
+       WHERE t.type='private'
+       GROUP BY t.id
+       ORDER BY t.updated_at DESC
+       LIMIT 80`
+    ).catch(() => []);
+    res.render("admin_chats", { admin: req.session.admin, publicThread, stats, latestMessages, threads, reports, blockedUsers, archivedMessages, allUsers, chatSettings, userCan: (perm) => userCan(req.session.admin, perm), permissionGroups: PERMISSION_GROUPS });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء تحميل إدارة المحادثات");
+  }
+});
+
+app.post("/admin/chats/public/toggle", isAuthed, requirePermission("chats"), async (req, res) => {
+  try {
+    const publicThread = await ensurePublicChatThread();
+    const next = Number(publicThread.is_locked) === 1 ? 0 : 1;
+    await run(`UPDATE site_chat_threads SET is_locked=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [next, publicThread.id]);
+    res.redirect("/admin/chats");
+  } catch (e) {
+    console.error(e);
+    res.redirect("/admin/chats");
+  }
+});
+
+app.post("/admin/chats/messages/:id/delete", isAuthed, requirePermission("chats"), async (req, res) => {
+  try {
+    const message = await archiveChatMessageBeforeDelete(req.params.id, req.session.admin?.id);
+    await run(`DELETE FROM site_chat_messages WHERE id=?`, [req.params.id]);
+    if (message?.thread_id) emitChatThreadUpdate(message.thread_id, "delete", { messageId: Number(req.params.id) });
+    await logAdminAction(req, "حذف رسالة نهائيًا مع أرشفة إدارية", "chat_message", req.params.id, {});
+    res.redirect(req.headers.referer || "/admin/chats");
+  } catch (e) {
+    console.error(e);
+    res.redirect("/admin/chats");
+  }
+});
+
+app.post("/admin/chats/threads/:id/toggle", isAuthed, requirePermission("chats"), async (req, res) => {
+  try {
+    const thread = await get(`SELECT * FROM site_chat_threads WHERE id=?`, [req.params.id]);
+    if (thread && thread.type !== "public") {
+      const next = Number(thread.is_active) === 1 ? 0 : 1;
+      await run(`UPDATE site_chat_threads SET is_active=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [next, thread.id]);
+    }
+    res.redirect(req.headers.referer || "/admin/chats");
+  } catch (e) {
+    console.error(e);
+    res.redirect("/admin/chats");
+  }
+});
+
+
+app.post("/admin/chats/settings", isAuthed, requirePermission("chats"), async (req, res) => {
+  try {
+    const bannedWords = cleanText(req.body.banned_words || "", 3000);
+    const exists = await get(`SELECT key FROM site_settings WHERE key='chat_banned_words'`).catch(() => null);
+    if (exists) await run(`UPDATE site_settings SET value=?, updated_at=CURRENT_TIMESTAMP WHERE key='chat_banned_words'`, [bannedWords]);
+    else await run(`INSERT INTO site_settings (key, value, updated_at) VALUES ('chat_banned_words', ?, CURRENT_TIMESTAMP)`, [bannedWords]);
+    await logAdminAction(req, "تحديث فلترة كلمات الشات", "chat_settings", "chat_banned_words", {});
+    res.redirect("/admin/chats");
+  } catch (e) { console.error(e); res.redirect("/admin/chats"); }
+});
+
+app.post("/admin/chats/users/:id/block", isAuthed, requireAnyPermission(["chats", "users"]), async (req, res) => {
+  try {
+    const userId = Number(req.params.id || 0);
+    const reason = cleanText(req.body.reason || "", 500);
+    if (userId) {
+      await run(`INSERT INTO site_chat_blocks (user_id, blocked_by_admin_id, reason, is_active, created_at, updated_at)
+                 VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                 ON CONFLICT(user_id) DO UPDATE SET reason=excluded.reason, blocked_by_admin_id=excluded.blocked_by_admin_id, is_active=1, updated_at=CURRENT_TIMESTAMP`, [userId, req.session.admin?.id || null, reason]);
+      await logAdminAction(req, "حظر مستخدم من الشات", "site_user", userId, { reason });
+    }
+    res.redirect(req.headers.referer || "/admin/chats");
+  } catch (e) { console.error(e); res.redirect("/admin/chats"); }
+});
+
+app.post("/admin/chats/users/:id/unblock", isAuthed, requireAnyPermission(["chats", "users"]), async (req, res) => {
+  try {
+    await run(`UPDATE site_chat_blocks SET is_active=0, updated_at=CURRENT_TIMESTAMP WHERE user_id=?`, [req.params.id]);
+    await logAdminAction(req, "رفع حظر مستخدم من الشات", "site_user", req.params.id, {});
+    res.redirect(req.headers.referer || "/admin/chats");
+  } catch (e) { console.error(e); res.redirect("/admin/chats"); }
+});
+
+app.post("/admin/chats/reports/:id/review", isAuthed, requirePermission("chats"), async (req, res) => {
+  try {
+    await run(`UPDATE site_chat_message_reports SET status='reviewed', reviewed_by_admin_id=?, reviewed_at=CURRENT_TIMESTAMP WHERE id=?`, [req.session.admin?.id || null, req.params.id]);
+    await logAdminAction(req, "مراجعة بلاغ رسالة", "chat_report", req.params.id, {});
+    res.redirect(req.headers.referer || "/admin/chats");
+  } catch (e) { console.error(e); res.redirect("/admin/chats"); }
+});
+
+app.get("/admin/users", isAuthed, requirePermission("users"), async (req, res) => {
+  try {
+    const q = cleanText(req.query.q || "", 160);
+    const params = [];
+    let where = "";
+    if (q) {
+      where = `WHERE full_name LIKE ? OR father_name LIKE ? OR mother_name LIKE ? OR email LIKE ? OR phone LIKE ? OR country LIKE ? OR city LIKE ? OR current_residence LIKE ? OR origin_place LIKE ?`;
+      const like = `%${q}%`;
+      params.push(like, like, like, like, like, like, like, like, like);
+    }
+
+    const users = await all(
+      `SELECT u.*,
+              (SELECT COUNT(*) FROM site_user_activity_logs l WHERE l.user_id = u.id) AS activity_count,
+              (SELECT MAX(created_at) FROM site_user_activity_logs l WHERE l.user_id = u.id) AS last_activity_at,
+              EXISTS(SELECT 1 FROM site_chat_blocks b WHERE b.user_id = u.id AND COALESCE(b.is_active,1)=1) AS chat_blocked
+       FROM site_users u
+       ${where}
+       ORDER BY COALESCE(u.last_seen_at, u.last_login_at, u.created_at) DESC, u.id DESC
+       LIMIT 200`,
+      params
+    );
+
+    const stats = {
+      total: (await get(`SELECT COUNT(*) AS total FROM site_users`))?.total || 0,
+      active: (await get(`SELECT COUNT(*) AS total FROM site_users WHERE COALESCE(is_active,1)=1`))?.total || 0,
+      inactive: (await get(`SELECT COUNT(*) AS total FROM site_users WHERE COALESCE(is_active,1)=0`))?.total || 0,
+      google: (await get(`SELECT COUNT(*) AS total FROM site_users WHERE provider='google'`))?.total || 0,
+      email: (await get(`SELECT COUNT(*) AS total FROM site_users WHERE COALESCE(provider,'email')='email'`))?.total || 0,
+      today: (await get(`SELECT COUNT(*) AS total FROM site_users WHERE date(created_at)=date('now')`))?.total || 0,
+    };
+
+    const latestActivity = await all(
+      `SELECT l.*, u.full_name, u.email
+       FROM site_user_activity_logs l
+       LEFT JOIN site_users u ON u.id = l.user_id
+       ORDER BY l.id DESC
+       LIMIT 80`
+    );
+
+    res.render("admin_users", { admin: req.session.admin, users, stats, latestActivity, q, deleted: req.query.deleted === "1", userCan: (perm) => userCan(req.session.admin, perm), permissionGroups: PERMISSION_GROUPS });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء تحميل مستخدمي الموقع");
+  }
+});
+
+app.get("/admin/users/:id", isAuthed, requirePermission("users"), async (req, res) => {
+  try {
+    const user = await get(`SELECT * FROM site_users WHERE id = ?`, [req.params.id]);
+    if (!user) return res.status(404).send("المستخدم غير موجود");
+    const chatBlock = await get(`SELECT * FROM site_chat_blocks WHERE user_id=? AND COALESCE(is_active,1)=1 LIMIT 1`, [user.id]).catch(() => null);
+    const activity = await all(`SELECT * FROM site_user_activity_logs WHERE user_id = ? ORDER BY id DESC LIMIT 250`, [user.id]);
+    const stats = await getSiteUserProfileStats(user.id);
+    const treePerson = await findTreePersonForSiteUser(user);
+    const honorItem = await findHonorForUser(user, treePerson);
+    const profileViews = await all(
+      `SELECT v.*, viewer.full_name AS viewer_name, viewer.email AS viewer_email
+       FROM site_profile_views v
+       LEFT JOIN site_users viewer ON viewer.id = v.viewer_user_id
+       WHERE v.profile_user_id = ?
+       ORDER BY v.id DESC
+       LIMIT 80`,
+      [user.id]
+    ).catch(() => []);
+    res.render("admin_user_detail", { admin: req.session.admin, user, chatBlock, activity, stats, treePerson, honorItem, profileViews, userCan: (perm) => userCan(req.session.admin, perm), permissionGroups: PERMISSION_GROUPS });
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء تحميل بيانات المستخدم");
+  }
+});
+
+app.post("/admin/users/:id/toggle", isAuthed, requirePermission("users"), async (req, res) => {
+  try {
+    const user = await get(`SELECT * FROM site_users WHERE id = ?`, [req.params.id]);
+    if (!user) return res.status(404).send("المستخدم غير موجود");
+    const chatBlock = await get(`SELECT * FROM site_chat_blocks WHERE user_id=? AND COALESCE(is_active,1)=1 LIMIT 1`, [user.id]).catch(() => null);
+    const nextActive = Number(user.is_active) === 1 ? 0 : 1;
+    await run(`UPDATE site_users SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [nextActive, user.id]);
+    await logAdminAction(req, nextActive ? "تفعيل مستخدم موقع" : "إيقاف مستخدم موقع", "site_user", user.id, { email: user.email });
+    res.redirect(req.headers.referer || "/admin/users");
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء تعديل حالة المستخدم");
+  }
+});
+
+
+app.post("/admin/users/:id/delete", isAuthed, requirePermission("users"), async (req, res) => {
+  try {
+    const userId = Number(req.params.id || 0);
+    if (!userId) return res.status(400).send("حساب غير صحيح");
+    const user = await get(`SELECT * FROM site_users WHERE id = ?`, [userId]);
+    if (!user) return res.status(404).send("المستخدم غير موجود");
+
+    await removeUploadedFileByUrl(user.avatar_url).catch(() => {});
+    await removeUploadedFileByUrl(user.cover_url).catch(() => {});
+
+    await run(`DELETE FROM site_notifications WHERE user_id=?`, [userId]).catch(() => {});
+    await run(`DELETE FROM site_profile_views WHERE profile_user_id=? OR viewer_user_id=?`, [userId, userId]).catch(() => {});
+    await run(`DELETE FROM site_user_activity_logs WHERE user_id=?`, [userId]).catch(() => {});
+    await run(`DELETE FROM site_user_tree_link_requests WHERE user_id=?`, [userId]).catch(() => {});
+    await run(`DELETE FROM site_reports WHERE reporter_user_id=?`, [userId]).catch(() => {});
+    await run(`DELETE FROM family_events WHERE submitted_by_user_id=? AND COALESCE(status,'pending') <> 'approved'`, [userId]).catch(() => {});
+    await run(`DELETE FROM family_gallery_items WHERE submitted_by_user_id=? AND COALESCE(status,'pending') <> 'approved'`, [userId]).catch(() => {});
+    await run(`DELETE FROM tree_edit_suggestions WHERE submitted_by_user_id=?`, [userId]).catch(() => {});
+    await run(`DELETE FROM site_chat_blocks WHERE user_id=?`, [userId]).catch(() => {});
+    await run(`DELETE FROM site_chat_message_reports WHERE reporter_user_id=?`, [userId]).catch(() => {});
+    await run(`DELETE FROM site_chat_participants WHERE user_id=?`, [userId]).catch(() => {});
+    await run(`UPDATE site_chat_messages SET sender_user_id=NULL, updated_at=CURRENT_TIMESTAMP WHERE sender_user_id=?`, [userId]).catch(() => {});
+    await run(`DELETE FROM site_users WHERE id=?`, [userId]);
+
+    await logAdminAction(req, "حذف حساب مستخدم موقع", "site_user", userId, { email: user.email || "", name: user.full_name || "" });
+    res.redirect("/admin/users?deleted=1");
+  } catch (e) {
+    console.error(e);
+    res.status(500).send("حدث خطأ أثناء حذف الحساب");
+  }
+});
+
 app.get("/admin/no-access", isAuthed, (req, res) => {
   res.status(403).render("admin_no_access", {
     admin: req.session.admin,
@@ -6211,6 +8767,222 @@ app.get("/admin/support-messages/export.csv", isAuthed, requirePermission("suppo
   }
 });
 
+
+/* =========================
+   Family Platform Advanced Features
+   ========================= */
+
+app.get("/account-pending", async (req, res) => {
+  const user = req.session?.siteUser?.id ? await getSiteUserById(req.session.siteUser.id).catch(() => null) : null;
+  if (!user) return res.redirect("/login");
+  if ((user.approval_status || "approved") === "approved") return res.redirect("/");
+  res.status(403).render("user_pending", { siteUser: publicSiteUserSession(user), user, status: user.approval_status || "pending", reason: user.rejected_reason || "" });
+});
+
+app.get("/notifications", async (req, res) => {
+  const userId = Number(req.session.siteUser.id);
+  const notifications = await all(`SELECT * FROM site_notifications WHERE user_id=? ORDER BY id DESC LIMIT 100`, [userId]).catch(() => []);
+  res.render("notifications", { active:"notifications", siteUser:req.session.siteUser, notifications });
+});
+
+app.post("/notifications/read-all", async (req, res) => {
+  const userId = Number(req.session.siteUser.id);
+  await run(`UPDATE site_notifications SET is_read=1, read_at=CURRENT_TIMESTAMP WHERE user_id=? AND COALESCE(is_read,0)=0`, [userId]).catch(() => {});
+  res.redirect("/notifications");
+});
+
+app.get("/api/notifications/unread", async (req, res) => {
+  try {
+    const userId = Number(req.session?.siteUser?.id || 0);
+    if (!userId) return res.status(401).json({ ok:false, unread:0 });
+    res.json({ ok:true, unread: await unreadNotificationsCount(userId) });
+  } catch(e) { res.json({ ok:false, unread:0 }); }
+});
+
+app.post("/account/link-request", async (req, res) => {
+  try {
+    const userId = Number(req.session.siteUser.id);
+    const lineage = cleanText(req.body.lineage_text || "", 220);
+    const resolved = await resolvePersonByThreePartLineage(lineage);
+    if (!resolved.ok) return res.redirect("/account?error=" + encodeURIComponent(resolved.message || "لم يتم العثور على الشخص داخل الشجرة"));
+    const exists = await get(`SELECT id FROM site_user_tree_link_requests WHERE user_id=? AND status='pending' LIMIT 1`, [userId]).catch(() => null);
+    if (exists) return res.redirect("/account?error=" + encodeURIComponent("لديك طلب ربط قيد المراجعة بالفعل."));
+    await run(`INSERT INTO site_user_tree_link_requests (user_id, requested_person_id, lineage_text, status, created_at, updated_at) VALUES (?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, [userId, resolved.id, lineage]);
+    await logSiteUserActivity(req, "طلب ربط الحساب بالشجرة", { personId: resolved.id, lineage });
+    res.redirect("/account?success=" + encodeURIComponent("تم إرسال طلب ربط الحساب للإدارة."));
+  } catch(e) { console.error(e); res.redirect("/account?error=" + encodeURIComponent("تعذر إرسال طلب الربط")); }
+});
+
+app.get("/events", async (req, res) => {
+  const events = await all(`SELECT e.*, u.full_name AS submitter_name FROM family_events e LEFT JOIN site_users u ON u.id=e.submitted_by_user_id WHERE e.status='approved' ORDER BY COALESCE(e.event_date,e.created_at) DESC LIMIT 200`).catch(() => []);
+  res.render("family_events", { active:"events", siteUser:req.session.siteUser, events, success:req.query.success || null, error:req.query.error || null });
+});
+
+app.post("/events", upload.single("image_file"), async (req, res) => {
+  try {
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : "";
+    const title = cleanText(req.body.title, 180);
+    if (!title) return res.redirect("/events?error=" + encodeURIComponent("عنوان المناسبة مطلوب."));
+    await run(`INSERT INTO family_events (submitted_by_user_id, title, event_type, event_date, location, description, image_url, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, [req.session.siteUser.id, title, cleanText(req.body.event_type,80), cleanText(req.body.event_date,40), cleanText(req.body.location,180), cleanText(req.body.description,1500), imageUrl]);
+    await logSiteUserActivity(req, "إرسال مناسبة للمراجعة", { title });
+    res.redirect("/events?success=" + encodeURIComponent("تم إرسال المناسبة وستظهر بعد موافقة الإدارة."));
+  } catch(e) { console.error(e); res.redirect("/events?error=" + encodeURIComponent("تعذر إرسال المناسبة.")); }
+});
+
+app.get("/gallery", async (req, res) => {
+  const items = await all(`SELECT g.*, u.full_name AS submitter_name FROM family_gallery_items g LEFT JOIN site_users u ON u.id=g.submitted_by_user_id WHERE g.status='approved' ORDER BY g.id DESC LIMIT 240`).catch(() => []);
+  res.render("family_gallery", { active:"gallery", siteUser:req.session.siteUser, items, success:req.query.success || null, error:req.query.error || null });
+});
+
+app.post("/gallery", upload.single("image_file"), async (req, res) => {
+  try {
+    if (!req.file) return res.redirect("/gallery?error=" + encodeURIComponent("اختر صورة للرفع."));
+    await run(`INSERT INTO family_gallery_items (submitted_by_user_id, title, category, image_url, description, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, [req.session.siteUser.id, cleanText(req.body.title,180), cleanText(req.body.category,80), `/uploads/${req.file.filename}`, cleanText(req.body.description,1000)]);
+    await logSiteUserActivity(req, "إرسال صورة للمعرض", {});
+    res.redirect("/gallery?success=" + encodeURIComponent("تم رفع الصورة وستظهر بعد موافقة الإدارة."));
+  } catch(e) { console.error(e); res.redirect("/gallery?error=" + encodeURIComponent("تعذر رفع الصورة.")); }
+});
+
+app.post("/family-members/:id/report", async (req, res) => {
+  try {
+    const targetId = Number(req.params.id || 0);
+    if (!targetId || targetId === Number(req.session.siteUser.id)) return res.redirect("/family-members");
+    await run(`INSERT INTO site_reports (reporter_user_id, target_type, target_id, reason, details, status, created_at) VALUES (?, 'user', ?, ?, ?, 'pending', CURRENT_TIMESTAMP)`, [req.session.siteUser.id, targetId, cleanText(req.body.reason,180) || "بلاغ عن حساب", cleanText(req.body.details,1000)]);
+    await logSiteUserActivity(req, "بلاغ عن حساب", { targetId });
+    res.redirect(`/family-members/${targetId}?reported=1`);
+  } catch(e) { console.error(e); res.redirect("/family-members"); }
+});
+
+app.post("/suggest-edit", async (req, res) => {
+  try {
+    const personId = Number(req.body.person_id || 0);
+    if (!personId) return res.redirect("/?error=suggestion");
+    await run(`INSERT INTO tree_edit_suggestions (submitted_by_user_id, person_id, field_name, current_value, suggested_value, reason, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)`, [req.session.siteUser.id, personId, cleanText(req.body.field_name,80), cleanText(req.body.current_value,500), cleanText(req.body.suggested_value,500), cleanText(req.body.reason,1000)]);
+    res.redirect("/?suggested=1");
+  } catch(e) { console.error(e); res.redirect("/"); }
+});
+
+app.get("/family-books", async (req, res) => {
+  const roots = await all(`SELECT p.*, (SELECT COUNT(*) FROM persons c WHERE c.father_id=p.id OR c.mother_id=p.id) AS children_count FROM persons p WHERE p.father_id IS NULL OR p.father_id='' ORDER BY p.id ASC LIMIT 80`).catch(() => []);
+  res.render("family_books", { active:"books", siteUser:req.session.siteUser, roots });
+});
+
+app.get("/family-books/:id", async (req, res) => {
+  const root = await get(`SELECT * FROM persons WHERE id=?`, [req.params.id]).catch(() => null);
+  if (!root) return res.status(404).send("الفرع غير موجود");
+  const members = await all(`SELECT * FROM persons WHERE id=? OR father_id=? OR mother_id=? ORDER BY birth_date, id`, [root.id, root.id, root.id]).catch(() => []);
+  res.render("family_book_detail", { active:"books", siteUser:req.session.siteUser, root, members });
+});
+
+app.get("/admin/approvals", isAuthed, requireAnyPermission(["approvals", "users", "events", "gallery", "reports"]), async (req, res) => {
+  try {
+    const pendingUsers = await all(`SELECT * FROM site_users WHERE approval_status='pending' ORDER BY id DESC LIMIT 100`).catch(() => []);
+    const linkRequests = await all(`SELECT r.*, u.full_name, u.email, p.name AS person_name FROM site_user_tree_link_requests r LEFT JOIN site_users u ON u.id=r.user_id LEFT JOIN persons p ON p.id=r.requested_person_id WHERE r.status='pending' ORDER BY r.id DESC LIMIT 100`).catch(() => []);
+    const reports = await all(`SELECT r.*, u.full_name AS reporter_name FROM site_reports r LEFT JOIN site_users u ON u.id=r.reporter_user_id WHERE r.status='pending' ORDER BY r.id DESC LIMIT 100`).catch(() => []);
+    const events = await all(`SELECT e.*, u.full_name AS submitter_name FROM family_events e LEFT JOIN site_users u ON u.id=e.submitted_by_user_id WHERE e.status='pending' ORDER BY e.id DESC LIMIT 100`).catch(() => []);
+    const gallery = await all(`SELECT g.*, u.full_name AS submitter_name FROM family_gallery_items g LEFT JOIN site_users u ON u.id=g.submitted_by_user_id WHERE g.status='pending' ORDER BY g.id DESC LIMIT 100`).catch(() => []);
+    const suggestions = await all(`SELECT s.*, u.full_name AS submitter_name, p.name AS person_name FROM tree_edit_suggestions s LEFT JOIN site_users u ON u.id=s.submitted_by_user_id LEFT JOIN persons p ON p.id=s.person_id WHERE s.status='pending' ORDER BY s.id DESC LIMIT 100`).catch(() => []);
+    const invites = await all(`SELECT * FROM site_invite_codes ORDER BY id DESC LIMIT 60`).catch(() => []);
+    res.render("admin_approvals", { admin:req.session.admin, pendingUsers, linkRequests, reports, events, gallery, suggestions, invites, userCan:(perm)=>userCan(req.session.admin, perm), permissionGroups:PERMISSION_GROUPS });
+  } catch(e) { console.error(e); res.status(500).send("حدث خطأ أثناء تحميل مركز الموافقات"); }
+});
+
+app.post("/admin/users/:id/approval", isAuthed, requireAnyPermission(["approvals", "users"]), async (req, res) => {
+  try {
+    const userId = Number(req.params.id || 0);
+    const action = String(req.body.action || "");
+    const status = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "block" ? "blocked" : "pending";
+    await run(`UPDATE site_users SET approval_status=?, approved_by_admin_id=?, approved_at=CASE WHEN ?='approved' THEN CURRENT_TIMESTAMP ELSE approved_at END, rejected_reason=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [status, req.session.admin?.id || null, status, cleanText(req.body.reason,500), userId]);
+    await createNotification(userId, status === "approved" ? "تم قبول حسابك" : "تم تحديث حالة حسابك", status === "approved" ? "يمكنك الآن استخدام الموقع." : (cleanText(req.body.reason,500) || "راجعت الإدارة حسابك."), status === "approved" ? "/" : "/account-pending", "account_approval");
+    await logAdminAction(req, "تحديث حالة حساب مستخدم", "site_user", userId, { status });
+    res.redirect(req.headers.referer || "/admin/approvals");
+  } catch(e) { console.error(e); res.redirect("/admin/approvals"); }
+});
+
+app.post("/admin/link-requests/:id/review", isAuthed, requireAnyPermission(["approvals", "users"]), async (req, res) => {
+  try {
+    const id = Number(req.params.id || 0);
+    const action = String(req.body.action || "");
+    const r = await get(`SELECT * FROM site_user_tree_link_requests WHERE id=?`, [id]);
+    if (r) {
+      const status = action === "approve" ? "approved" : "rejected";
+      await run(`UPDATE site_user_tree_link_requests SET status=?, admin_note=?, reviewed_by_admin_id=?, reviewed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [status, cleanText(req.body.admin_note,500), req.session.admin?.id || null, id]);
+      if (status === "approved") {
+        await run(`UPDATE site_users SET matched_person_id=?, verification_status='verified', updated_at=CURRENT_TIMESTAMP WHERE id=?`, [r.requested_person_id, r.user_id]);
+        await createNotification(r.user_id, "تم توثيق حسابك داخل الشجرة", "وافقت الإدارة على ربط حسابك بفرد داخل الشجرة.", "/account", "tree_link");
+      } else {
+        await createNotification(r.user_id, "تم رفض طلب ربط الحساب", cleanText(req.body.admin_note,500) || "راجع الإدارة إذا كنت ترى أن القرار غير صحيح.", "/account", "tree_link");
+      }
+    }
+    res.redirect(req.headers.referer || "/admin/approvals");
+  } catch(e) { console.error(e); res.redirect("/admin/approvals"); }
+});
+
+app.post("/admin/content/:type/:id/review", isAuthed, requireAnyPermission(["approvals", "events", "gallery", "reports"]), async (req, res) => {
+  try {
+    const type = String(req.params.type || "");
+    const id = Number(req.params.id || 0);
+    const action = String(req.body.action || "");
+    const status = action === "approve" ? "approved" : action === "reject" ? "rejected" : "reviewed";
+    const tableMap = { event:"family_events", gallery:"family_gallery_items", report:"site_reports", suggestion:"tree_edit_suggestions" };
+    const table = tableMap[type];
+    if (table && id) {
+      if (type === "report") await run(`UPDATE site_reports SET status=?, reviewed_by_admin_id=?, reviewed_at=CURRENT_TIMESTAMP WHERE id=?`, [status === "approved" ? "reviewed" : status, req.session.admin?.id || null, id]);
+      else await run(`UPDATE ${table} SET status=?, reviewed_by_admin_id=?, reviewed_at=CURRENT_TIMESTAMP WHERE id=?`, [status, req.session.admin?.id || null, id]);
+      await logAdminAction(req, "مراجعة محتوى مرسل", type, id, { status });
+    }
+    res.redirect(req.headers.referer || "/admin/approvals");
+  } catch(e) { console.error(e); res.redirect("/admin/approvals"); }
+});
+
+app.post("/admin/invites", isAuthed, requireAnyPermission(["approvals", "users"]), async (req, res) => {
+  try {
+    const code = (cleanText(req.body.code,80) || ("FAMILY-" + crypto.randomBytes(3).toString("hex"))).toUpperCase();
+    await run(`INSERT INTO site_invite_codes (code, note, max_uses, expires_at, is_active, created_by_admin_id, created_at) VALUES (?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)`, [code, cleanText(req.body.note,300), Number(req.body.max_uses || 1), cleanText(req.body.expires_at,40), req.session.admin?.id || null]);
+    res.redirect("/admin/approvals#invites");
+  } catch(e) { console.error(e); res.redirect("/admin/approvals#invites"); }
+});
+
+app.get("/admin/events", isAuthed, requireAnyPermission(["events", "approvals"]), (req, res) => res.redirect("/admin/approvals#events"));
+app.get("/admin/gallery", isAuthed, requireAnyPermission(["gallery", "approvals"]), (req, res) => res.redirect("/admin/approvals#gallery"));
+
+app.get("/admin/backups", isAuthed, requirePermission("backups"), async (req, res) => {
+  res.render("admin_backups", { admin:req.session.admin, userCan:(perm)=>userCan(req.session.admin, perm), permissionGroups:PERMISSION_GROUPS, error:req.query.error || null });
+});
+
+app.get("/admin/backups/download", isAuthed, requirePermission("backups"), async (req, res) => {
+  try {
+    const archiver = require("archiver");
+    const filename = `family-tree-backup-${new Date().toISOString().slice(0,10)}.zip`;
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    const archive = archiver("zip", { zlib: { level: 9 } });
+    archive.on("error", err => { throw err; });
+    archive.pipe(res);
+    if (fs.existsSync(path.join(__dirname, "family.db"))) archive.file(path.join(__dirname, "family.db"), { name: "family.db" });
+    if (fs.existsSync(path.join(__dirname, "sessions.db"))) archive.file(path.join(__dirname, "sessions.db"), { name: "sessions.db" });
+    if (fs.existsSync(path.join(__dirname, "public", "uploads"))) archive.directory(path.join(__dirname, "public", "uploads"), "public/uploads");
+    archive.append(JSON.stringify({ created_at:new Date().toISOString(), app:"family-tree" }, null, 2), { name:"backup-info.json" });
+    await logAdminAction(req, "تنزيل نسخة احتياطية", "backup", filename, {});
+    archive.finalize();
+  } catch(e) {
+    console.error(e);
+    res.redirect("/admin/backups?error=" + encodeURIComponent("ثبّت archiver أولًا عبر npm install أو شغّل npm install بعد التحديث."));
+  }
+});
+
+
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError || /يسمح|Only PDF|File too large|حجم الملف/i.test(String(err?.message || ""))) {
+    const message = err.code === "LIMIT_FILE_SIZE" ? "حجم الملف أكبر من الحد المسموح." : (err.message || "نوع الملف غير مسموح.");
+    if (req.path.startsWith("/api/")) return res.status(400).json({ ok:false, message });
+    const back = req.headers.referer || "/";
+    const safeMessage = String(message).replace(/[<>&]/g, "");
+    return res.status(400).send(`<div dir="rtl" style="font-family:Arial;padding:40px;text-align:center"><h2>تعذر رفع الملف</h2><p>${safeMessage}</p><a href="${back}">العودة</a></div>`);
+  }
+  return next(err);
+});
+
 /* =========================
    404
    ========================= */
@@ -6219,4 +8991,15 @@ app.use((req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Running on", PORT));
+if (SocketIOServer) {
+  io = new SocketIOServer(server, { path: "/socket.io" });
+  io.on("connection", (socket) => {
+    socket.on("join-chat-thread", (threadId) => {
+      const id = Number(threadId || 0);
+      if (id) socket.join(`chat-thread:${id}`);
+    });
+  });
+} else {
+  console.warn("Socket.IO is not installed; chat will keep using safe polling fallback. Run: npm install socket.io");
+}
+server.listen(PORT, () => console.log("Running on", PORT));

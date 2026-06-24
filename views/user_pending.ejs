@@ -1,0 +1,20 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>حسابك قيد المراجعة</title><script src="/theme.js"></script><script src="https://cdn.tailwindcss.com?plugins=forms"></script><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700;900&family=Aref+Ruqaa:wght@700&display=swap" rel="stylesheet"><script>tailwind.config={darkMode:'class',theme:{extend:{colors:{primary:'#005A2B',accent:'#E5B869'},fontFamily:{sans:['Tajawal','sans-serif'],display:["'Aref Ruqaa'",'serif']}}}}</script></head>
+<body class="min-h-screen bg-gray-50 dark:bg-[#050505] text-gray-900 dark:text-white font-sans flex items-center justify-center p-5">
+  <div class="max-w-xl w-full bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-[2rem] p-8 text-center shadow-2xl">
+    <img src="/assets/logo-light.svg" class="w-24 h-24 mx-auto mb-5 dark:hidden"><img src="/assets/logo-dark.svg" class="w-24 h-24 mx-auto mb-5 hidden dark:block">
+    <h1 class="font-display text-4xl text-primary dark:text-accent mb-3">حسابك قيد مراجعة الإدارة</h1>
+    <% if (status === 'rejected') { %>
+      <p class="text-red-600 font-black mb-3">تم رفض الحساب مؤقتًا.</p>
+      <% if (reason) { %><p class="text-gray-600 dark:text-gray-300 leading-8"><%= reason %></p><% } %>
+    <% } else if (status === 'blocked') { %>
+      <p class="text-red-600 font-black mb-3">تم حظر الحساب من الوصول للموقع.</p>
+      <% if (reason) { %><p class="text-gray-600 dark:text-gray-300 leading-8"><%= reason %></p><% } %>
+    <% } else { %>
+      <p class="text-gray-600 dark:text-gray-300 leading-8">تم إنشاء حسابك بنجاح، لكنه لن يستطيع تصفح بيانات العائلة إلا بعد موافقة الإدارة. هذا الإجراء يحافظ على خصوصية الموقع.</p>
+    <% } %>
+    <div class="mt-7 grid gap-3">
+      <a href="/logout" class="h-12 rounded-2xl bg-primary text-white dark:bg-accent dark:text-black flex items-center justify-center font-black">تسجيل الخروج</a>
+      <a href="/admin/login" class="h-12 rounded-2xl border border-gray-200 dark:border-white/10 flex items-center justify-center font-black">دخول الإدارة</a>
+    </div>
+  </div>
+</body></html>

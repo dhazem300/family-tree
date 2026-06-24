@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>لوحة الإدارة - إدارة المحادثات</title>
+
+  <script src="/theme.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries,line-clamp"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#005A2B",
+            primaryDark: "#00361A",
+            accent: "#E5B869",
+            "bg-light": "#F5F3F7",
+            "bg-dark": "#050505",
+            "card-light": "rgba(255, 255, 255, 0.8)",
+            "card-dark": "rgba(15, 12, 25, 0.8)",
+            "border-light": "rgba(0, 90, 43, 0.1)",
+            "border-dark": "rgba(229, 184, 105, 0.1)",
+          },
+          fontFamily: {
+            display: ["'Aref Ruqaa'", "serif"],
+            sans: ["Tajawal", "sans-serif"],
+          },
+        }
+      }
+    };
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .glass-panel { @apply backdrop-blur-2xl shadow-xl; }
+    }
+  </style>
+
+  <style>
+    :root { color-scheme: light; }
+    html.dark { color-scheme: dark; }
+    html.theme-switching,
+    html.theme-switching *,
+    html.theme-switching *::before,
+    html.theme-switching *::after {
+      transition: none !important;
+      animation-duration: 0s !important;
+      animation-delay: 0s !important;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #005A2B; border-radius: 10px; }
+    html.dark ::-webkit-scrollbar-thumb { background: #E5B869; }
+
+    #nexusCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+    @media (max-width: 1023px) { #nexusCanvas { pointer-events: none !important; } }
+
+    html.dark .dark-toggle-icon-moon { display: none; }
+    html:not(.dark) .dark-toggle-icon-sun { display: none; }
+
+    .admin-menu-toggle {
+      position: fixed !important;
+      width: 1px !important;
+      height: 1px !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      clip: rect(0 0 0 0) !important;
+    }
+    #mobileNavBtn {
+      cursor: pointer !important;
+      -webkit-tap-highlight-color: transparent !important;
+      touch-action: manipulation !important;
+      position: relative !important;
+      z-index: 10002 !important;
+      pointer-events: auto !important;
+    }
+    #mobileNavOverlay {
+      display: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+      z-index: 10000 !important;
+    }
+    #mobileNavDrawer {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: auto !important;
+      transform: translateX(-115%) !important;
+      pointer-events: none !important;
+      z-index: 10001 !important;
+      transition: transform .32s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      height: 100vh !important;
+      max-height: 100vh !important;
+    }
+    #adminMenuToggle:checked ~ #mobileNavDrawer {
+      transform: translateX(0) !important;
+      pointer-events: auto !important;
+    }
+    #adminMenuToggle:checked ~ #mobileNavOverlay {
+      display: block !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+    @media (min-width: 1024px) {
+      #adminMenuToggle,
+      #mobileNavDrawer,
+      #mobileNavOverlay { display: none !important; }
+    }
+
+    .bg-primary,
+    a.bg-primary,
+    button.bg-primary {
+      background-color: #005A2B !important;
+      background-image: none !important;
+    }
+    .dark .dark\:bg-accent,
+    html.dark .dark\:bg-accent {
+      background-color: #E5B869 !important;
+      background-image: none !important;
+    }
+    [class*="bg-gradient"] { background-image: none !important; }
+
+    .admin-panel {
+      overflow: hidden;
+      border-radius: 2rem;
+      border: 1px solid rgba(0,90,43,0.10);
+      background: rgba(255,255,255,0.80);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow: 0 18px 44px rgba(0,0,0,0.04);
+    }
+    html.dark .admin-panel {
+      border-color: rgba(229,184,105,0.10);
+      background: rgba(15, 12, 25, 0.80);
+      box-shadow: 0 18px 44px rgba(0,0,0,0.45);
+    }
+    .admin-card {
+      transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1), border-color .25s ease, box-shadow .25s ease;
+    }
+    .admin-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 18px 36px rgba(0, 90, 43, 0.08);
+      border-color: rgba(0, 90, 43, 0.18) !important;
+    }
+    html.dark .admin-card:hover {
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.65);
+      border-color: rgba(229, 184, 105, 0.22) !important;
+    }
+    .soft-input {
+      background-color: rgba(255,255,255,0.74) !important;
+      border-color: rgba(0,90,43,0.12) !important;
+      color: #111827 !important;
+      font-weight: 700;
+    }
+    html.dark .soft-input {
+      background-color: rgba(0,0,0,0.28) !important;
+      border-color: rgba(255,255,255,0.10) !important;
+      color: #fff !important;
+    }
+    .soft-input:focus {
+      border-color: #005A2B !important;
+      box-shadow: 0 0 0 4px rgba(0,90,43,0.10) !important;
+    }
+    html.dark .soft-input:focus {
+      border-color: #E5B869 !important;
+      box-shadow: 0 0 0 4px rgba(229,184,105,0.12) !important;
+    }
+  </style>
+
+  <script>
+    (function () {
+      const saved = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", saved);
+      document.documentElement.classList.toggle("dark", saved === "dark");
+    })();
+  </script>
+</head>
+
+<body class="bg-bg-light dark:bg-bg-dark text-gray-800 dark:text-gray-200 font-sans h-screen flex overflow-hidden selection:bg-accent selection:text-primaryDark">
+
+  <%
+    const isSuperAdmin = Number(admin?.is_super_admin || 0) === 1;
+    const canUsers = typeof userCan === "function" && userCan("users");
+    const canChats = typeof userCan === "function" && userCan("chats");
+    const canRoles = typeof userCan === "function" && userCan("roles");
+    const canBackups = typeof userCan === "function" && (userCan("backups") || isSuperAdmin);
+    const canPersonRequests = typeof userCan === "function" && userCan("person_requests");
+    const canTreeExports = typeof userCan === "function" && (userCan("persons") || userCan("backups") || isSuperAdmin);
+
+    const chatStats = (typeof stats !== "undefined" && stats) ? stats : {};
+    const publicChatThread = (typeof publicThread !== "undefined" && publicThread) ? publicThread : { is_locked: 0 };
+    const chatSettingsSafe = (typeof chatSettings !== "undefined" && chatSettings) ? chatSettings : {};
+    const allUsersSafe = (typeof allUsers !== "undefined" && Array.isArray(allUsers)) ? allUsers : [];
+    const reportsSafe = (typeof reports !== "undefined" && Array.isArray(reports)) ? reports : [];
+    const blockedUsersSafe = (typeof blockedUsers !== "undefined" && Array.isArray(blockedUsers)) ? blockedUsers : [];
+    const latestMessagesSafe = (typeof latestMessages !== "undefined" && Array.isArray(latestMessages)) ? latestMessages : [];
+    const threadsSafe = (typeof threads !== "undefined" && Array.isArray(threads)) ? threads : [];
+    const archivedMessagesSafe = (typeof archivedMessages !== "undefined" && Array.isArray(archivedMessages)) ? archivedMessages : [];
+  %>
+
+  <input id="adminMenuToggle" type="checkbox" class="admin-menu-toggle" aria-hidden="true" />
+
+  <canvas id="nexusCanvas"></canvas>
+  <div class="fixed inset-0 bg-gradient-to-b from-white/40 to-white/80 dark:from-black/40 dark:to-[#050505]/90 pointer-events-none z-[1]"></div>
+
+  <aside class="relative z-20 hidden lg:flex flex-col w-[280px] h-[calc(100vh-2rem)] my-4 mx-4 bg-card-light dark:bg-card-dark glass-panel rounded-3xl border border-border-light dark:border-border-dark overflow-hidden shrink-0">
+    <div class="flex items-center gap-3 p-6 border-b border-border-light dark:border-border-dark shrink-0">
+      <div class="w-12 h-12 flex items-center justify-center rounded-2xl bg-primary dark:bg-accent text-white dark:text-black shadow-lg">
+        <span class="material-symbols-outlined text-[28px]">shield_person</span>
+      </div>
+      <div>
+        <h1 class="font-display font-bold text-xl leading-none text-primary dark:text-white">عائلة خاشقجي</h1>
+        <p class="text-[10px] font-bold text-gray-500 dark:text-accent uppercase tracking-widest mt-1.5">نظام الإدارة المركزية</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6">
+      <div class="space-y-2">
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">نظرة عامة</p>
+        <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">dashboard</span> لوحة الإحصائيات
+        </a>
+      </div>
+
+      <div class="space-y-2">
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">إدارة العائلة والبيانات</p>
+        <a href="/admin" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">group</span> إدارة الأفراد
+        </a>
+        <% if (canPersonRequests) { %>
+        <a href="/admin/person-requests" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">fact_check</span> طلبات الأفراد
+        </a>
+        <% } %>
+        <a href="/admin/pages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">history_edu</span> إدارة الصفحات
+        </a>
+        <a href="/admin/honor" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">workspace_premium</span> السير الذاتية
+        </a>
+        <a href="/admin/news" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">newspaper</span> الأخبار والمناسبات
+        </a>
+      </div>
+
+      <div class="space-y-2">
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">المستخدمون والتواصل</p>
+        <% if (canUsers) { %>
+        <a href="/admin/users" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">groups</span> مستخدمي الموقع
+        </a>
+        <% } %>
+        <% if (canChats) { %>
+        <a href="/admin/chats" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent font-bold text-sm border border-primary/20 dark:border-accent/20 transition-all relative overflow-hidden shadow-sm">
+          <div class="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-6 rounded-l-full bg-primary dark:bg-accent shadow-[0_0_10px_rgba(229,184,105,0.8)]"></div>
+          <span class="material-symbols-outlined text-[22px]">forum</span> إدارة المحادثات
+        </a>
+        <% } %>
+        <% if (canTreeExports) { %>
+        <a href="/admin/tree-exports" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">file_export</span> سجل تصدير الشجرة
+        </a>
+        <% } %>
+        <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">mail</span> رسائل الدعم
+        </a>
+      </div>
+
+      <div class="space-y-2">
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والصلاحيات</p>
+        <% if (canRoles) { %>
+        <a href="/admin/roles" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">manage_accounts</span> وظائف الأفراد
+        </a>
+        <% } %>
+        <% if (isSuperAdmin) { %>
+        <a href="/admin/activity" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">manage_history</span> سجل النشاط
+        </a>
+        <% } %>
+        <a href="/admin/approvals" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">verified_user</span> مركز الموافقة
+        </a>
+        <% if (isSuperAdmin) { %>
+        <a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">construction</span> وضع الصيانة
+        </a>
+        <% } %>
+        <% if (canBackups) { %>
+        <a href="/admin/backups" class="flex items-center gap-3 px-4 py-3.5 rounded-2xl text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent font-bold text-sm transition-colors border border-transparent">
+          <span class="material-symbols-outlined text-[22px]">backup</span> النسخ الاحتياطي
+        </a>
+        <% } %>
+      </div>
+    </nav>
+
+    <div class="p-4 border-t border-border-light dark:border-border-dark shrink-0 m-2 rounded-2xl bg-white/50 dark:bg-black/30">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-cover bg-center border border-gray-200 dark:border-white/10 shadow-sm" style="background-image:url('/assets/default-avatar.svg'); background-color: #ddd;"></div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-bold text-gray-900 dark:text-white truncate"><%= admin?.username || "مدير النظام" %></p>
+          <p class="text-[10px] text-primary dark:text-accent uppercase tracking-widest mt-0.5 font-bold">Admin</p>
+        </div>
+        <form method="post" action="/admin/logout" class="m-0">
+          <button type="submit" class="w-9 h-9 flex items-center justify-center rounded-xl bg-red-50 dark:bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm" title="تسجيل خروج">
+            <span class="material-symbols-outlined text-[18px]">logout</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </aside>
+
+  <main class="flex-1 flex flex-col min-w-0 h-full relative z-10">
+    <header class="flex items-center justify-between p-4 lg:p-8 shrink-0 gap-4">
+      <div class="flex items-center gap-3 min-w-0">
+        <label id="mobileNavBtn" for="adminMenuToggle" class="lg:hidden flex items-center justify-center w-12 h-12 rounded-2xl bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm cursor-pointer" aria-controls="mobileNavDrawer" aria-label="فتح القائمة">
+          <span class="material-symbols-outlined text-[24px]">menu</span>
+        </label>
+
+        <div class="min-w-0">
+          <h2 class="text-2xl md:text-3xl font-display font-bold text-primary dark:text-white tracking-tight leading-none mb-1.5">إدارة المحادثات</h2>
+          <div class="flex items-center gap-1.5 text-gray-500 text-[11px] font-bold uppercase tracking-widest">
+            <span>لوحة الإدارة</span>
+            <span class="material-symbols-outlined text-[14px]">chevron_left</span>
+            <span class="text-accent">الشات والبلاغات والحظر</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 shrink-0">
+        <button id="themeBtn" class="flex items-center justify-center w-12 h-12 rounded-2xl bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-gray-600 dark:text-accent shadow-sm hover:-translate-y-1 transition-transform" type="button" title="تبديل المظهر">
+          <span class="material-symbols-outlined text-[22px] dark-toggle-icon-moon">dark_mode</span>
+          <span class="material-symbols-outlined hidden dark:block text-[24px] dark-toggle-icon-sun">light_mode</span>
+        </button>
+
+        <a href="/admin/dashboard" class="hidden sm:flex items-center gap-2 px-5 h-12 rounded-2xl font-bold text-sm bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark text-primary dark:text-accent shadow-sm hover:-translate-y-1 transition-transform">
+          <span class="material-symbols-outlined text-[22px]">dashboard</span>
+          <span class="hidden md:inline">لوحة الإحصائيات</span>
+        </a>
+
+        <a href="/chat" class="flex items-center gap-2 px-5 h-12 rounded-2xl font-bold text-sm bg-primary dark:bg-accent text-white dark:text-black shadow-[0_5px_20px_rgba(0,90,43,0.25)] dark:shadow-[0_5px_20px_rgba(229,184,105,0.20)] hover:-translate-y-1 transition-transform">
+          <span class="material-symbols-outlined text-[22px]">forum</span>
+          <span class="hidden sm:inline">فتح الشات</span>
+        </a>
+      </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto custom-scrollbar px-4 lg:px-8 pb-12">
+      <div class="max-w-[100rem] mx-auto space-y-6">
+
+        <section class="grid sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4">
+          <% const cards = [
+            ['كل الرسائل الحالية', chatStats.totalMessages || 0, 'chat'],
+            ['رسائل الشات العام', chatStats.publicMessages || 0, 'forum'],
+            ['محادثات خاصة', chatStats.privateThreads || 0, 'mark_unread_chat_alt'],
+            ['بلاغات قيد المراجعة', chatStats.reportsCount || 0, 'report'],
+            ['محظورون من الشات', chatStats.blockedUsers || 0, 'block'],
+            ['أرشيف الحذف الإداري', chatStats.deletedMessages || 0, 'inventory_2']
+          ]; %>
+          <% cards.forEach(function(c){ %>
+            <div class="admin-card rounded-[2rem] bg-card-light dark:bg-card-dark glass-panel border border-border-light dark:border-border-dark p-5 shadow-sm">
+              <div class="w-12 h-12 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent flex items-center justify-center mb-4">
+                <span class="material-symbols-outlined text-[26px]"><%= c[2] %></span>
+              </div>
+              <p class="text-[11px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-widest"><%= c[0] %></p>
+              <p class="text-3xl font-black text-primary dark:text-white leading-none mt-2"><%= c[1] %></p>
+            </div>
+          <% }) %>
+        </section>
+
+        <section class="admin-panel p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5 relative overflow-hidden">
+          <div class="absolute -left-16 -top-16 w-48 h-48 rounded-full bg-accent/10 blur-2xl pointer-events-none"></div>
+          <div class="relative z-10 flex items-start gap-4">
+            <div class="w-14 h-14 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent flex items-center justify-center shrink-0">
+              <span class="material-symbols-outlined text-[30px]"><%= Number(publicChatThread.is_locked)===1 ? 'lock' : 'lock_open' %></span>
+            </div>
+            <div>
+              <h3 class="text-xl md:text-2xl font-display font-bold text-primary dark:text-accent">الشات العام</h3>
+              <p class="mt-2 text-sm md:text-base leading-7 text-gray-600 dark:text-gray-300 font-bold">
+                الحالة الحالية: <span class="text-primary dark:text-accent"><%= Number(publicChatThread.is_locked)===1 ? 'مغلق' : 'مفتوح' %></span>
+              </p>
+            </div>
+          </div>
+          <form method="post" action="/admin/chats/public/toggle" onsubmit="return confirm('تأكيد تغيير حالة الشات العام؟')" class="relative z-10">
+            <button class="h-12 px-6 rounded-2xl font-black shadow-sm <%= Number(publicChatThread.is_locked)===1 ? 'bg-green-600 text-white' : 'bg-red-600 text-white' %>">
+              <%= Number(publicChatThread.is_locked)===1 ? 'فتح الشات العام' : 'إغلاق الشات العام' %>
+            </button>
+          </form>
+        </section>
+
+        <section class="grid xl:grid-cols-2 gap-6">
+          <div class="admin-panel p-6">
+            <div class="flex items-center gap-3 mb-5">
+              <div class="w-12 h-12 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent flex items-center justify-center">
+                <span class="material-symbols-outlined text-[26px]">filter_alt</span>
+              </div>
+              <div>
+                <h2 class="text-xl font-black text-primary dark:text-accent">فلترة الكلمات المسيئة</h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-bold mt-1">اكتب كل كلمة في سطر مستقل.</p>
+              </div>
+            </div>
+            <form method="post" action="/admin/chats/settings" class="space-y-3">
+              <textarea name="banned_words" rows="6" class="soft-input w-full rounded-2xl" placeholder="اكتب كل كلمة في سطر"><%= chatSettingsSafe.bannedWords || '' %></textarea>
+              <p class="text-xs text-gray-500 dark:text-gray-400 font-bold">أي كلمة موجودة هنا سيتم استبدالها تلقائيًا بـ *** داخل الشات.</p>
+              <button class="h-11 px-5 rounded-2xl bg-primary text-white dark:bg-accent dark:text-black font-black">حفظ الفلترة</button>
+            </form>
+          </div>
+
+          <div class="admin-panel p-6">
+            <div class="flex items-center gap-3 mb-5">
+              <div class="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-300 flex items-center justify-center">
+                <span class="material-symbols-outlined text-[26px]">person_cancel</span>
+              </div>
+              <div>
+                <h2 class="text-xl font-black text-primary dark:text-accent">حظر مستخدم من الشات فقط</h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-bold mt-1">الحظر هنا لا يمنع تسجيل الدخول للموقع.</p>
+              </div>
+            </div>
+            <form method="post" id="blockForm" action="/admin/chats/users/0/block" class="space-y-3" onsubmit="const u=this.querySelector('[name=user_id]').value; if(!u){alert('اختر المستخدم'); return false;} this.action='/admin/chats/users/'+u+'/block'; return confirm('تأكيد حظر هذا المستخدم من الشات فقط؟')">
+              <select name="user_id" class="soft-input w-full h-12 rounded-2xl">
+                <option value="">اختر المستخدم</option>
+                <% allUsersSafe.forEach(function(u){ %>
+                  <option value="<%= u.id %>"><%= u.full_name || u.email || ('مستخدم #' + u.id) %> <%= u.father_name ? (' - ' + u.father_name) : '' %></option>
+                <% }) %>
+              </select>
+              <input name="reason" class="soft-input w-full h-12 rounded-2xl" placeholder="سبب الحظر - اختياري">
+              <button class="h-11 px-5 rounded-2xl bg-red-600 text-white font-black">حظر من الشات</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="grid xl:grid-cols-2 gap-6">
+          <div class="admin-panel">
+            <div class="p-5 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-3">
+              <div>
+                <h2 class="text-xl font-black text-primary dark:text-accent">بلاغات الرسائل</h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-bold mt-1">أحدث البلاغات الواردة من المستخدمين.</p>
+              </div>
+              <span class="px-3 py-1 rounded-full bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 text-xs font-black"><%= reportsSafe.length %></span>
+            </div>
+            <div class="divide-y divide-gray-100 dark:divide-white/10 max-h-[520px] overflow-y-auto">
+              <% if (!reportsSafe.length) { %>
+                <div class="p-8 text-center text-gray-500 font-bold">لا توجد بلاغات قيد المراجعة.</div>
+              <% } %>
+              <% reportsSafe.forEach(function(r){ %>
+                <div class="p-5">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <div class="font-black text-primary dark:text-accent">بلاغ من: <%= r.reporter_name || 'عضو' %></div>
+                      <p class="text-sm text-gray-500 font-bold">على رسالة من: <%= r.sender_name || 'عضو' %> · <%= r.created_at || '' %></p>
+                    </div>
+                    <span class="px-3 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300 text-xs font-black">بلاغ</span>
+                  </div>
+                  <p class="mt-3 rounded-2xl bg-gray-50/90 dark:bg-black/30 p-3 text-sm font-bold"><%= r.reason || 'بدون سبب' %></p>
+                  <p class="mt-2 text-sm line-clamp-2 text-gray-600 dark:text-gray-300"><%= r.body || r.attachment_url || 'مرفق/رسالة' %></p>
+                  <div class="mt-4 flex gap-2 flex-wrap">
+                    <form method="post" action="/admin/chats/reports/<%= r.id %>/review"><button class="h-10 px-4 rounded-2xl bg-green-600 text-white text-xs font-black">تمت المراجعة</button></form>
+                    <% if (r.message_id) { %><form method="post" action="/admin/chats/messages/<%= r.message_id %>/delete" onsubmit="return confirm('حذف الرسالة المبلغ عنها نهائيًا مع حفظ نسخة أرشيفية؟')"><button class="h-10 px-4 rounded-2xl bg-red-600 text-white text-xs font-black">حذف الرسالة</button></form><% } %>
+                    <% if (r.sender_user_id) { %><form method="post" action="/admin/chats/users/<%= r.sender_user_id %>/block" onsubmit="return confirm('حظر مرسل الرسالة من الشات فقط؟')"><input type="hidden" name="reason" value="حظر بسبب بلاغ رسالة"><button class="h-10 px-4 rounded-2xl bg-orange-600 text-white text-xs font-black">حظر المرسل</button></form><% } %>
+                  </div>
+                </div>
+              <% }) %>
+            </div>
+          </div>
+
+          <div class="admin-panel">
+            <div class="p-5 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-3">
+              <div>
+                <h2 class="text-xl font-black text-primary dark:text-accent">المحظورون من الشات</h2>
+                <p class="text-xs text-gray-500 dark:text-gray-400 font-bold mt-1">إدارة حظر الشات فقط.</p>
+              </div>
+              <span class="px-3 py-1 rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-300 text-xs font-black"><%= blockedUsersSafe.length %></span>
+            </div>
+            <div class="divide-y divide-gray-100 dark:divide-white/10 max-h-[520px] overflow-y-auto">
+              <% if (!blockedUsersSafe.length) { %>
+                <div class="p-8 text-center text-gray-500 font-bold">لا يوجد مستخدمون محظورون من الشات.</div>
+              <% } %>
+              <% blockedUsersSafe.forEach(function(b){ %>
+                <div class="p-5 flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <img loading="lazy" decoding="async" src="<%= b.avatar_url || '/assets/default-avatar.svg' %>" onerror="this.src='/assets/default-avatar.svg'" class="w-12 h-12 rounded-2xl object-cover border border-border-light dark:border-border-dark">
+                    <div class="min-w-0">
+                      <div class="font-black truncate"><%= b.full_name || b.email %></div>
+                      <p class="text-xs text-gray-500 truncate"><%= b.reason || 'بدون سبب' %></p>
+                    </div>
+                  </div>
+                  <form method="post" action="/admin/chats/users/<%= b.user_id %>/unblock" onsubmit="return confirm('رفع حظر الشات عن هذا المستخدم؟')">
+                    <button class="h-10 px-4 rounded-2xl bg-green-600 text-white text-xs font-black whitespace-nowrap">رفع الحظر</button>
+                  </form>
+                </div>
+              <% }) %>
+            </div>
+          </div>
+        </section>
+
+        <section class="grid xl:grid-cols-[1fr_.72fr] gap-6">
+          <div class="admin-panel">
+            <div class="p-5 border-b border-border-light dark:border-border-dark">
+              <h2 class="text-xl font-black text-primary dark:text-accent">آخر الرسائل</h2>
+              <p class="text-xs text-gray-500 dark:text-gray-400 font-bold mt-1">حذف نهائي أو حظر مرسل الرسالة من نفس المكان.</p>
+            </div>
+            <div class="overflow-x-auto custom-scrollbar">
+              <table class="w-full min-w-[920px] text-sm text-right">
+                <thead class="bg-gray-50/80 dark:bg-white/5 text-gray-500">
+                  <tr>
+                    <th class="p-4 text-right font-black text-[11px] uppercase tracking-widest">المرسل</th>
+                    <th class="p-4 text-right font-black text-[11px] uppercase tracking-widest">النوع</th>
+                    <th class="p-4 text-right font-black text-[11px] uppercase tracking-widest">الرسالة</th>
+                    <th class="p-4 text-right font-black text-[11px] uppercase tracking-widest">الوقت</th>
+                    <th class="p-4 text-right font-black text-[11px] uppercase tracking-widest">إجراء</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-white/10">
+                  <% if (!latestMessagesSafe.length) { %><tr><td colspan="5" class="p-8 text-center text-gray-500 font-bold">لا توجد رسائل.</td></tr><% } %>
+                  <% latestMessagesSafe.forEach(function(m){ %>
+                    <tr class="align-top hover:bg-white/70 dark:hover:bg-white/5 transition-colors">
+                      <td class="p-4">
+                        <div class="font-black"><%= m.sender_name || 'عضو' %></div>
+                        <div class="text-xs text-gray-500" dir="ltr"><%= m.sender_email || '' %></div>
+                      </td>
+                      <td class="p-4"><span class="px-3 py-1 rounded-full bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent font-black text-xs"><%= m.thread_type === 'public' ? 'عام' : 'خاص' %> / <%= m.message_type || 'text' %></span></td>
+                      <td class="p-4 max-w-md"><p class="font-bold line-clamp-3 text-gray-700 dark:text-gray-300"><%= m.body || (m.attachment_name || 'مرفق') %></p><% if (m.attachment_url) { %><a target="_blank" class="text-primary dark:text-accent font-black text-xs" href="<%= m.attachment_url %>">فتح المرفق</a><% } %></td>
+                      <td class="p-4 text-xs text-gray-500"><%= m.created_at || '—' %></td>
+                      <td class="p-4">
+                        <div class="flex flex-col gap-2 min-w-[120px]">
+                          <form method="post" action="/admin/chats/messages/<%= m.id %>/delete" onsubmit="return confirm('سيتم حذف هذه الرسالة نهائيًا ولن يظهر للمستخدمين أي تنبيه. تأكيد؟')"><button class="w-full h-10 px-4 rounded-2xl bg-red-600 text-white font-black text-xs">حذف نهائي</button></form>
+                          <% if (m.sender_user_id) { %><form method="post" action="/admin/chats/users/<%= m.sender_user_id %>/block" onsubmit="return confirm('حظر مرسل هذه الرسالة من الشات فقط؟')"><input type="hidden" name="reason" value="حظر من آخر الرسائل"><button class="w-full h-10 px-4 rounded-2xl bg-orange-600 text-white font-black text-xs">حظر المرسل</button></form><% } %>
+                        </div>
+                      </td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="admin-panel">
+            <div class="p-5 border-b border-border-light dark:border-border-dark">
+              <h2 class="text-xl font-black text-primary dark:text-accent">المحادثات الخاصة</h2>
+              <p class="text-xs text-gray-500 dark:text-gray-400 font-bold mt-1">تعطيل أو تفعيل محادثة خاصة.</p>
+            </div>
+            <div class="divide-y divide-gray-100 dark:divide-white/10 max-h-[760px] overflow-y-auto">
+              <% if (!threadsSafe.length) { %><div class="p-8 text-center text-gray-500 font-bold">لا توجد محادثات خاصة.</div><% } %>
+              <% threadsSafe.forEach(function(t){ %>
+                <div class="p-5">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 class="font-black text-primary dark:text-accent"><%= t.participants || 'محادثة خاصة' %></h3>
+                      <p class="text-xs text-gray-500">رسائل: <%= t.messages_count || 0 %> · آخر تحديث: <%= t.updated_at || '—' %></p>
+                    </div>
+                    <span class="px-3 py-1 rounded-full text-xs font-black <%= Number(t.is_active)===1 ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-300' : 'bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300' %>"><%= Number(t.is_active)===1 ? 'نشطة' : 'موقوفة' %></span>
+                  </div>
+                  <form method="post" action="/admin/chats/threads/<%= t.id %>/toggle" class="mt-4" onsubmit="return confirm('تأكيد تغيير حالة هذه المحادثة؟')"><button class="h-10 px-4 rounded-2xl font-black text-xs <%= Number(t.is_active)===1 ? 'bg-red-600 text-white' : 'bg-green-600 text-white' %>"><%= Number(t.is_active)===1 ? 'إيقاف المحادثة' : 'تفعيل المحادثة' %></button></form>
+                </div>
+              <% }) %>
+            </div>
+          </div>
+        </section>
+
+        <section class="admin-panel overflow-hidden">
+          <div class="p-5 border-b border-border-light dark:border-border-dark">
+            <h2 class="text-xl font-black text-primary dark:text-accent">أرشيف الحذف الإداري المخفي</h2>
+            <p class="text-sm text-gray-500 dark:text-gray-400 font-bold mt-1">هذه النسخة لا تظهر للمستخدمين، لكنها تحفظ للإدارة بعد الحذف النهائي.</p>
+          </div>
+          <div class="overflow-x-auto max-h-[520px] custom-scrollbar">
+            <table class="w-full min-w-[760px] text-sm text-right">
+              <thead class="bg-gray-50/80 dark:bg-white/5 text-gray-500">
+                <tr>
+                  <th class="p-4 text-right font-black text-[11px] uppercase tracking-widest">المرسل</th>
+                  <th class="p-4 text-right font-black text-[11px] uppercase tracking-widest">الرسالة</th>
+                  <th class="p-4 text-right font-black text-[11px] uppercase tracking-widest">تاريخ الإرسال</th>
+                  <th class="p-4 text-right font-black text-[11px] uppercase tracking-widest">تاريخ الحذف</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 dark:divide-white/10">
+                <% if (!archivedMessagesSafe.length) { %><tr><td colspan="4" class="p-8 text-center text-gray-500 font-bold">لا توجد رسائل مؤرشفة بعد.</td></tr><% } %>
+                <% archivedMessagesSafe.forEach(function(a){ %>
+                  <tr class="hover:bg-white/70 dark:hover:bg-white/5 transition-colors">
+                    <td class="p-4 font-black"><%= a.sender_name || ('#' + a.sender_user_id) %></td>
+                    <td class="p-4 max-w-xl"><p class="line-clamp-2"><%= a.body || a.attachment_name || a.attachment_url || 'مرفق' %></p><% if (a.attachment_url) { %><a href="<%= a.attachment_url %>" target="_blank" class="text-primary dark:text-accent font-black text-xs">فتح المرفق</a><% } %></td>
+                    <td class="p-4 text-xs text-gray-500"><%= a.created_at || '—' %></td>
+                    <td class="p-4 text-xs text-gray-500"><%= a.deleted_at || '—' %></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </main>
+
+  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-card-light dark:bg-card-dark glass-panel border-r border-border-light dark:border-border-dark z-[90] flex flex-col">
+    <div class="h-1.5 w-full bg-primary"></div>
+    <div class="flex items-center justify-between p-6 border-b border-border-light dark:border-border-dark shrink-0">
+      <div>
+        <h1 class="font-display font-bold text-xl leading-none text-primary dark:text-white">عائلة خاشقجي</h1>
+        <p class="text-[10px] font-bold text-gray-500 dark:text-accent uppercase tracking-widest mt-1.5">نظام الإدارة</p>
+      </div>
+      <label id="mobileNavClose" for="adminMenuToggle" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-500 hover:text-primary dark:hover:text-accent transition-colors cursor-pointer" aria-label="إغلاق القائمة">
+        <span class="material-symbols-outlined text-[24px]">close</span>
+      </label>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 text-sm font-bold text-gray-700 dark:text-gray-300">
+      <div class="space-y-2">
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">نظرة عامة</p>
+        <a href="/admin/dashboard" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">dashboard</span> لوحة الإحصائيات</a>
+      </div>
+
+      <div class="space-y-2">
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">إدارة العائلة والبيانات</p>
+        <a href="/admin" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">group</span> إدارة الأفراد</a>
+        <% if (canPersonRequests) { %><a href="/admin/person-requests" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">fact_check</span> طلبات الأفراد</a><% } %>
+        <a href="/admin/pages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">history_edu</span> إدارة الصفحات</a>
+        <a href="/admin/honor" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">workspace_premium</span> السير الذاتية</a>
+        <a href="/admin/news" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">newspaper</span> الأخبار والمناسبات</a>
+      </div>
+
+      <div class="space-y-2">
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">المستخدمون والتواصل</p>
+        <% if (canUsers) { %><a href="/admin/users" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">groups</span> مستخدمي الموقع</a><% } %>
+        <% if (canChats) { %><a href="/admin/chats" class="flex items-center gap-3 px-4 py-4 rounded-2xl bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent border border-primary/20 dark:border-accent/20 transition-colors"><span class="material-symbols-outlined">forum</span> إدارة المحادثات</a><% } %>
+        <% if (canTreeExports) { %><a href="/admin/tree-exports" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">file_export</span> سجل تصدير الشجرة</a><% } %>
+        <a href="/admin/support-messages" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">mail</span> رسائل الدعم</a>
+      </div>
+
+      <div class="space-y-2">
+        <p class="px-3 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-3">النظام والصلاحيات</p>
+        <% if (canRoles) { %><a href="/admin/roles" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_accounts</span> وظائف الأفراد</a><% } %>
+        <% if (isSuperAdmin) { %><a href="/admin/activity" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">manage_history</span> سجل النشاط</a><% } %>
+        <a href="/admin/approvals" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">verified_user</span> مركز الموافقة</a>
+        <% if (isSuperAdmin) { %><a href="/admin/maintenance" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">construction</span> وضع الصيانة</a><% } %>
+        <% if (canBackups) { %><a href="/admin/backups" class="flex items-center gap-3 px-4 py-4 rounded-2xl border border-transparent hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"><span class="material-symbols-outlined text-gray-400">backup</span> النسخ الاحتياطي</a><% } %>
+      </div>
+
+      <div class="my-4 border-t border-border-light dark:border-border-dark"></div>
+      <form method="post" action="/admin/logout" class="m-0">
+        <button type="submit" class="w-full flex items-center justify-center gap-2 px-4 py-4 rounded-2xl border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 bg-red-50/50 dark:bg-red-500/10 hover:bg-red-50 transition-colors">
+          <span class="material-symbols-outlined">logout</span> تسجيل خروج
+        </button>
+      </form>
+    </nav>
+  </aside>
+
+  <label id="mobileNavOverlay" for="adminMenuToggle" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></label>
+
+  <script>
+    (function () {
+      const btn = document.getElementById("themeBtn");
+      function setTheme(next) {
+        document.documentElement.classList.add("theme-switching");
+        document.documentElement.setAttribute("data-theme", next);
+        document.documentElement.classList.toggle("dark", next === "dark");
+        localStorage.setItem("theme", next);
+        if(window.initNexus) window.initNexus();
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          document.documentElement.classList.remove("theme-switching");
+        }));
+      }
+      btn?.addEventListener("click", () => {
+        const cur = document.documentElement.getAttribute("data-theme") || "dark";
+        setTheme(cur === "dark" ? "light" : "dark");
+      });
+    })();
+
+    (function() {
+      const canvas = document.getElementById('nexusCanvas');
+      if(!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let width, height, particles = [];
+      const numParticles = window.innerWidth > 1024 ? 42 : 18;
+      let mouseX = -1000, mouseY = -1000;
+      let dotColor, lineColor, connectionColor;
+
+      window.initNexus = function() {
+        const isDark = document.documentElement.classList.contains('dark');
+        dotColor = isDark ? 'rgba(229, 184, 105, 0.55)' : 'rgba(0, 90, 43, 0.32)';
+        lineColor = isDark ? 'rgba(229, 184, 105, 0.16)' : 'rgba(0, 90, 43, 0.09)';
+        connectionColor = isDark ? '229, 184, 105' : '0, 90, 43';
+      };
+
+      function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+      }
+
+      function initParticles() {
+        particles = [];
+        for (let i = 0; i < numParticles; i++) {
+          particles.push({
+            x: Math.random() * window.innerWidth,
+            y: Math.random() * window.innerHeight,
+            vx: (Math.random() - 0.5) * 0.5,
+            vy: (Math.random() - 0.5) * 0.5,
+            radius: Math.random() * 2.8 + 1.2
+          });
+        }
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, width, height);
+        for (let i = 0; i < particles.length; i++) {
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          if (p.x < 0 || p.x > width) p.vx *= -1;
+          if (p.y < 0 || p.y > height) p.vy *= -1;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fillStyle = dotColor;
+          ctx.fill();
+
+          const dxMouse = mouseX - p.x;
+          const dyMouse = mouseY - p.y;
+          const distMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+          if (distMouse < 130) {
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(mouseX, mouseY);
+            const opacity = 0.6 * (1 - distMouse / 130);
+            ctx.strokeStyle = `rgba(${connectionColor}, ${opacity})`;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          }
+
+          for (let j = i + 1; j < particles.length; j++) {
+            const p2 = particles[j];
+            const dx = p.x - p2.x;
+            const dy = p.y - p2.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 95) {
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.strokeStyle = lineColor;
+              ctx.lineWidth = 0.5;
+              ctx.stroke();
+            }
+          }
+        }
+        requestAnimationFrame(draw);
+      }
+
+      window.addEventListener('resize', () => { resize(); initParticles(); });
+      window.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; });
+      window.addEventListener('mouseout', () => { mouseX = -1000; mouseY = -1000; });
+
+      window.initNexus();
+      resize();
+      initParticles();
+      draw();
+    })();
+  </script>
+</body>
+</html>

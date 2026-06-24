@@ -44,7 +44,8 @@
       .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       .glass-panel { @apply backdrop-blur-2xl shadow-xl; }
     }
-  </style>
+      html.theme-switching, html.theme-switching *, html.theme-switching *::before, html.theme-switching *::after { transition: none !important; animation: none !important; }
+</style>
 
   <style>
     .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
@@ -86,7 +87,7 @@
 
     #nexusCanvas {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      z-index: 0; pointer-events: auto;
+      z-index: 0; pointer-events: none;
     }
 
     html.dark .dark-toggle-icon-moon { display: none; }
@@ -208,7 +209,7 @@
 
     <div class="p-4 border-t border-border-light dark:border-border-dark shrink-0 m-2 rounded-2xl bg-white/50 dark:bg-black/30">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-full bg-cover bg-center border border-gray-200 dark:border-white/10 shadow-sm" style="background-image:url('/assets/default-avatar.png'); background-color: #ddd;"></div>
+        <div class="w-10 h-10 rounded-full bg-cover bg-center border border-gray-200 dark:border-white/10 shadow-sm" style="background-image:url('/assets/default-avatar.svg'); background-color: #ddd;"></div>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-bold text-gray-900 dark:text-white truncate"><%= admin?.username || "مدير النظام" %></p>
           <p class="text-[10px] text-primary dark:text-accent uppercase tracking-widest mt-0.5 font-bold">Admin</p>
@@ -495,7 +496,7 @@
 
       let width, height;
       let particles = [];
-      const numParticles = window.innerWidth > 1024 ? 130 : 70;
+      const numParticles = window.innerWidth > 1024 ? 42 : 18;
       let mouseX = -1000;
       let mouseY = -1000;
       let dotColor, lineColor, connectionColor;
@@ -545,16 +546,14 @@
           const dyMouse = mouseY - p.y;
           const distMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
 
-          if (distMouse < 230) {
+          if (distMouse < 130) {
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(mouseX, mouseY);
-            const opacity = 0.6 * (1 - distMouse / 230);
+            const opacity = 0.6 * (1 - distMouse / 130);
             ctx.strokeStyle = `rgba(${connectionColor}, ${opacity})`;
             ctx.lineWidth = 1;
             ctx.stroke();
-            p.x += dxMouse * 0.014;
-            p.y += dyMouse * 0.014;
           }
 
           for (let j = i + 1; j < numParticles; j++) {
@@ -562,7 +561,7 @@
             const dx = p.x - p2.x;
             const dy = p.y - p2.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < 165) {
+            if (dist < 95) {
               ctx.beginPath();
               ctx.moveTo(p.x, p.y);
               ctx.lineTo(p2.x, p2.y);

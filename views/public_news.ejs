@@ -20,25 +20,34 @@
       theme: {
         extend: {
           colors: {
-            primary: "#005A2B",
-            primaryDark: "#003D1D",
-            accent: "#E5B869",
+            primary: "#005A2B",     /* اللون الأخضر الملكي الفاخر */
+            primaryDark: "#003D1D", /* أخضر داكن للتحويم */
+            accent: "#E5B869",      /* ذهب سائل */
+            "accent-gold": "#E5B869",
             "background-light": "#F8F8F6",
             "background-dark": "#050505",
+            "bg-charcoal": "#050505",
             "card-light": "#FFFFFF",
             "card-dark": "#0A0A0A",
-            "bg-charcoal": "#050505",
             "bg-card": "#0A0A0A",
             "text-cream": "#FAFAFA",
+            "text-dark": "#111827",
+            "text-muted": "#71717A",
             "muted-slate": "#71717A",
             gold: "#E5B869",
+            "accent-gold-dark": "#D4A353",
           },
           fontFamily: {
             display: ["'Aref Ruqaa'", "serif"],
             sans: ["Tajawal", "sans-serif"],
           },
           backgroundImage: {
-            "islamic-pattern": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+            "islamic-pattern": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+            "islamic-pattern-dark": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
+          },
+          boxShadow: {
+            'luxury': '0 20px 40px -10px rgba(0,0,0,0.05), 0 0 20px rgba(229,184,105,0.03)',
+            'luxury-dark': '0 20px 40px -10px rgba(0,0,0,0.4), 0 0 20px rgba(229,184,105,0.05)',
           }
         }
       }
@@ -49,173 +58,39 @@
     @layer utilities {
       .scrollbar-hide::-webkit-scrollbar { display: none; }
       .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .glass-panel {
+        @apply bg-white/85 dark:bg-[#080808]/85 backdrop-blur-xl border border-accent-gold/20 shadow-luxury dark:shadow-luxury-dark;
+      }
     }
   </style>
 
   <style>
-    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #E5B869; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: rgba(229, 184, 105, 0.4); border-radius: 4px; transition: background 0.3s; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(229, 184, 105, 0.8); }
 
-    .news-card {
-      position: relative;
-      overflow: hidden;
-      border-radius: 22px;
-      background: rgba(255,255,255,.86);
-      border: 1px solid rgba(229,184,105,.24);
-      box-shadow: 0 18px 45px rgba(0,0,0,.08);
-      transition: transform .45s ease, box-shadow .45s ease, border-color .45s ease;
-      isolation: isolate;
+    /* حقل البحث الزجاجي */
+    .search-glass {
+      background: rgba(255,255,255,0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(229,184,105,0.3);
+      transition: all 0.3s ease;
     }
-    .dark .news-card {
-      background: linear-gradient(180deg, rgba(18,18,18,.95), rgba(7,7,7,.98));
-      border-color: rgba(255,255,255,.1);
-      box-shadow: 0 18px 45px rgba(0,0,0,.38);
+    html.dark .search-glass {
+      background: rgba(10,10,10,0.6);
+      border-color: rgba(229,184,105,0.2);
     }
-    .news-card:hover {
-      transform: translateY(-8px);
-      border-color: rgba(229,184,105,.55);
-      box-shadow: 0 26px 70px rgba(0,0,0,.14);
+    .search-glass:focus-within {
+      background: rgba(255,255,255,0.95);
+      border-color: #E5B869;
+      box-shadow: 0 10px 25px -5px rgba(229,184,105,0.15);
     }
-    .dark .news-card:hover { box-shadow: 0 26px 70px rgba(0,0,0,.62); }
-
-    .news-image-wrap {
-      position: relative;
-      display: block;
-      height: 245px;
-      overflow: hidden;
-      background: #eee;
-      border-bottom: 1px solid rgba(229,184,105,.18);
+    html.dark .search-glass:focus-within {
+      background: rgba(10,10,10,0.95);
+      box-shadow: 0 10px 25px -5px rgba(229,184,105,0.2);
     }
-    .dark .news-image-wrap { background: #050505; border-bottom-color: rgba(255,255,255,.08); }
-    .news-image-wrap::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        linear-gradient(to top, rgba(0,0,0,.48), transparent 55%),
-        radial-gradient(circle at top right, rgba(229,184,105,.20), transparent 45%);
-      z-index: 3;
-      pointer-events: none;
-    }
-    .news-image-blur {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      filter: blur(22px);
-      transform: scale(1.18);
-      opacity: .28;
-      z-index: 1;
-    }
-    .news-image-main {
-      position: relative;
-      z-index: 2;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transform: scale(1);
-      transition: transform .75s cubic-bezier(0.19, 1, 0.22, 1), filter .75s ease;
-    }
-    .news-card:hover .news-image-main {
-      transform: scale(1.06);
-      filter: saturate(1.05) contrast(1.03);
-    }
-
-    .news-date-badge {
-      position: absolute;
-      right: 18px;
-      bottom: 18px;
-      z-index: 6;
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      max-width: calc(100% - 36px);
-      padding: 8px 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(229,184,105,.55);
-      background: rgba(0,0,0,.55);
-      color: #fff;
-      backdrop-filter: blur(10px);
-      font-size: 11px;
-      font-weight: 800;
-    }
-
-    .news-content {
-      position: relative;
-      padding: 22px;
-      min-height: 245px;
-      display: flex;
-      flex-direction: column;
-      background:
-        linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,255,255,.96)),
-        radial-gradient(circle at top left, rgba(229,184,105,.14), transparent 38%);
-    }
-    .dark .news-content {
-      background:
-        linear-gradient(180deg, rgba(13,13,13,.94), rgba(5,5,5,.99)),
-        radial-gradient(circle at top left, rgba(229,184,105,.10), transparent 40%);
-    }
-
-    .news-category-pill {
-      width: fit-content;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(0,90,43,.08);
-      color: #005A2B;
-      border: 1px solid rgba(0,90,43,.12);
-      font-size: 11px;
-      font-weight: 900;
-      margin-bottom: 12px;
-    }
-    .dark .news-category-pill {
-      color: #E5B869;
-      background: rgba(229,184,105,.08);
-      border-color: rgba(229,184,105,.16);
-    }
-
-    .news-title-link {
-      color: #111827;
-      transition: color .25s ease;
-    }
-    .dark .news-title-link { color: #fff; }
-    .news-title-link:hover { color: #E5B869; }
-
-    .news-separator {
-      width: 54px;
-      height: 2px;
-      margin: 14px 0 14px auto;
-      background: linear-gradient(to left, #E5B869, rgba(229,184,105,0));
-      transition: width .45s ease;
-    }
-    .news-card:hover .news-separator { width: 92px; }
-
-    .news-footer {
-      margin-top: auto;
-      padding-top: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      border-top: 1px solid rgba(0,0,0,.08);
-    }
-    .dark .news-footer { border-top-color: rgba(255,255,255,.09); }
-
-    .read-more-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: #005A2B;
-      font-weight: 900;
-      font-size: 13px;
-      transition: color .25s ease, transform .25s ease;
-    }
-    .dark .read-more-btn { color: #E5B869; }
-    .read-more-btn:hover { color: #E5B869; transform: translateX(-3px); }
 
     #mobileNavOverlay.hidden { display: none; }
     #mobileNavOverlay { display: block; }
@@ -228,17 +103,6 @@
     #mobileNavBtn[data-open="true"] .ico-close { display: inline; }
     #mobileNavBtn[data-open="false"] .ico-open { display: inline; }
     #mobileNavBtn[data-open="false"] .ico-close { display: none; }
-
-    .royal-panel {
-      background:
-        linear-gradient(135deg, rgba(255,255,255,.92), rgba(255,255,255,.72)),
-        radial-gradient(circle at top right, rgba(229,184,105,.14), transparent 45%);
-    }
-    .dark .royal-panel {
-      background:
-        linear-gradient(135deg, rgba(10,10,10,.92), rgba(5,5,5,.76)),
-        radial-gradient(circle at top right, rgba(229,184,105,.16), transparent 45%);
-    }
   </style>
 
   <script>
@@ -256,195 +120,217 @@
   </script>
 </head>
 
-<body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col overflow-x-hidden selection:bg-accent selection:text-background-dark transition-colors duration-300">
+<body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col overflow-x-hidden selection:bg-accent/30 selection:text-gray-900 dark:selection:text-white transition-colors duration-400">
 
-  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></div>
-  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-bg-charcoal border-r border-gray-200 dark:border-white/10 shadow-2xl z-[90] flex flex-col">
+  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></div>
+  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-bg-charcoal border-r border-gray-100 dark:border-white/5 shadow-2xl z-[90] flex flex-col">
     <div class="h-1.5 w-full bg-gradient-to-r from-gray-300 via-accent to-gray-300 dark:from-gray-800 dark:via-accent dark:to-gray-800"></div>
     <div class="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/5">
-      <img class="h-10 w-auto hidden dark:block" src="/assets/logo-dark.svg" alt="شعار" />
-      <img class="h-10 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار" />
-      <button id="mobileNavClose" class="text-gray-500 hover:text-accent transition-colors" type="button" aria-label="إغلاق القائمة">
-        <span class="material-symbols-outlined text-[28px]">close</span>
+      <img class="h-10 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+      <img class="h-10 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+      <button id="mobileNavClose" class="text-gray-400 hover:text-accent transition-colors" type="button" aria-label="إغلاق القائمة">
+        <span class="material-symbols-outlined text-[26px]">close</span>
       </button>
     </div>
-    <nav class="p-6 flex flex-col gap-4 font-bold text-lg flex-grow text-gray-700 dark:text-gray-300" aria-label="قائمة الجوال">
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/">الشجرة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/about">نبذة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/honor">قائمة السير الذاتية</a>
-      <a class="px-4 py-3 rounded-lg text-accent bg-accent/5 border-r-2 border-accent" href="/news">أخبار العائلة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/kinship">صلة القرابة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/tree-pdf">مشجرة العائلة</a>
-      <a class="px-4 py-3 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors" href="/support">الدعم</a>
+    <nav class="p-6 flex flex-col gap-2 text-base font-semibold flex-grow text-gray-600 dark:text-gray-400" aria-label="قائمة الجوال">
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/">الشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/about">نبذة عن العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/honor">السير الذاتية</a>
+      <a class="px-4 py-3 rounded-xl text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent" href="/news">أخبار العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/tree-pdf">المشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/kinship">صلة القرابة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/submit-person">إضافة بياناتك</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-members">أعضاء العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/chat">الشات العام</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/account">حسابي</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/support">الدعم</a>
     </nav>
-    <div class="p-6 border-t border-gray-100 dark:border-white/5">
-      <a href="/admin/login" class="flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-lg hover:opacity-90 transition-colors font-bold" title="تسجيل الدخول">
-        <span class="material-symbols-outlined">login</span>
-      </a>
+    <div class="p-6 border-t border-gray-100 dark:border-white/5 bg-white/50 dark:bg-black/20">
+      <div class="grid grid-cols-1 gap-3">
+        <a href="/admin/login" class="flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-xl hover:opacity-90 transition-all shadow-sm font-bold text-sm" title="لوحة الإدارة">
+          <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+          <span>لوحة الإدارة</span>
+        </a>
+      </div>
     </div>
   </aside>
 
-  <header class="sticky top-0 z-50 w-full bg-white/95 dark:bg-[#050505]/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10">
-    <div class="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center h-20 md:h-24">
-      <div class="flex items-center gap-4">
-        <a href="/" class="block shrink-0">
-          <img class="h-14 md:h-20 w-auto hidden dark:block" src="/assets/logo-dark.svg" alt="شعار العائلة" />
-          <img class="h-14 md:h-20 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+  <header class="sticky top-0 z-50 w-full glass-panel border-b-0 transition-colors duration-400">
+    <div class="max-w-[90rem] mx-auto px-5 sm:px-8 py-3 flex justify-between items-center h-20 md:h-24">
+      
+      <div class="flex items-center gap-3 xl:gap-4 shrink-0">
+        <a href="/" class="block shrink-0 transition-transform hover:scale-105 duration-300">
+          <img class="h-10 md:h-12 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+          <img class="h-10 md:h-12 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
         </a>
-        <div class="h-10 w-px bg-gray-300 dark:bg-white/20"></div>
-        <div class="flex items-center justify-center">
-           <h1 class="text-2xl md:text-3xl font-display text-primary dark:text-accent font-bold leading-none tracking-wide pt-1">أخبار العائلة</h1>
+        
+        <div class="h-7 w-px bg-gray-200 dark:bg-white/10 hidden sm:block"></div>
+        
+        <div class="hidden sm:flex flex-col justify-center min-w-0">
+           <h1 class="text-lg md:text-xl font-display text-primary dark:text-accent font-bold leading-tight pt-1">شجرة العائلة</h1>
+           <span class="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5 truncate">حفظ الأنساب</span>
         </div>
       </div>
 
-      <nav class="hidden lg:flex gap-6 xl:gap-8 items-center font-sans font-bold text-sm tracking-wide uppercase text-gray-600 dark:text-gray-400">
-        <a class="hover:text-accent transition-colors" href="/">الشجرة</a>
-        <a class="hover:text-accent transition-colors" href="/about">نبذة</a>
-        <a class="hover:text-accent transition-colors" href="/honor">قائمة السير الذاتية</a>
-        <a class="text-primary dark:text-white border-b-2 border-accent pb-1" href="/news">أخبار العائلة</a>
-        <a class="hover:text-accent transition-colors" href="/kinship">صلة القرابة</a>
-        <a class="hover:text-accent transition-colors" href="/tree-pdf">مشجرة العائلة</a>
-        <a class="hover:text-accent transition-colors" href="/support">الدعم</a>
+      <nav class="hidden lg:flex flex-1 justify-center gap-3 xl:gap-5 items-center font-sans font-semibold text-[12px] xl:text-[13px] tracking-wide text-gray-500 dark:text-gray-400 overflow-x-auto scrollbar-hide px-4 flex-nowrap" aria-label="التنقل الرئيسي">
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/">الشجرة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/about">نبذة عن العائلة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/honor">السير الذاتية</a>
+        
+        <a class="whitespace-nowrap text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1 transition-colors duration-200" href="/news">أخبار العائلة</a>
+        
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/tree-pdf">المشجرة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/kinship">صلة القرابة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/submit-person">إضافة بياناتك</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/family-members">أعضاء العائلة</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/chat">الشات العام</a>
+        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/account">حسابي</a>
       </nav>
 
-      <div class="flex items-center gap-3 shrink-0">
-        <button id="themeBtn" class="flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:text-accent dark:hover:text-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-all" type="button" title="تبديل المظهر">
-          <span class="material-symbols-outlined dark:hidden">dark_mode</span>
-          <span class="material-symbols-outlined hidden dark:inline">light_mode</span>
+      <div class="flex items-center justify-end gap-2 shrink-0">
+        <button id="themeBtn" aria-label="تبديل المظهر" class="flex items-center justify-center w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-accent dark:hover:text-accent hover:bg-accent/5 transition-all duration-300" type="button" title="تبديل المظهر">
+          <span class="material-symbols-outlined text-[22px] dark:hidden">dark_mode</span>
+          <span class="material-symbols-outlined text-[22px] hidden dark:inline">light_mode</span>
         </button>
 
-        <a href="/admin/login" class="hidden sm:flex p-2.5 rounded-full bg-primary text-white dark:bg-white dark:text-black hover:opacity-90 transition-all shadow-md flex items-center justify-center" title="تسجيل الدخول">
-          <span class="material-symbols-outlined text-[22px]">login</span>
+        <a href="/admin/login" class="hidden sm:flex w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-accent hover:bg-primary/5 dark:hover:bg-accent/5 transition-all duration-300 items-center justify-center" title="لوحة الإدارة">
+          <span class="material-symbols-outlined text-[22px]">admin_panel_settings</span>
         </a>
 
-        <button id="mobileNavBtn" data-open="false" class="lg:hidden flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-primary dark:text-accent hover:bg-gray-200 dark:hover:bg-white/10 transition-colors" type="button" aria-label="فتح القائمة" aria-expanded="false">
+        <button id="mobileNavBtn" data-open="false" class="lg:hidden flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-primary dark:text-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-all duration-200" type="button" aria-label="فتح القائمة">
           <span class="material-symbols-outlined text-[24px] ico-open">menu</span>
           <span class="material-symbols-outlined text-[24px] ico-close hidden">close</span>
         </button>
       </div>
+
     </div>
   </header>
 
   <main class="flex-grow relative">
 
-    <section class="pt-20 pb-12 px-6 max-w-[90rem] mx-auto text-center relative overflow-hidden">
-      <div class="absolute inset-0 bg-islamic-pattern opacity-100 dark:opacity-30 pointer-events-none"></div>
-      <img src="/assets/logo-dark.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[620px] opacity-[0.03] pointer-events-none hidden dark:block" alt="">
-      <img src="/assets/logo-light.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[620px] opacity-[0.03] pointer-events-none block dark:hidden" alt="">
+    <section class="pt-16 pb-12 px-6 max-w-[90rem] mx-auto text-center relative overflow-hidden">
+      <div class="absolute inset-0 bg-islamic-pattern opacity-40 dark:opacity-10 pointer-events-none"></div>
 
-      <div class="w-px h-12 bg-accent mx-auto mb-6 relative z-10"></div>
+      <img src="/assets/logo-dark.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.02] pointer-events-none hidden dark:block" alt="">
+      <img src="/assets/logo-light.svg" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] md:w-[600px] opacity-[0.02] pointer-events-none block dark:hidden" alt="">
+
+      <div class="w-px h-10 bg-gradient-to-b from-transparent via-accent to-transparent mx-auto mb-5 relative z-10"></div>
       
-      <h1 class="text-5xl md:text-7xl font-display leading-tight mb-4 relative z-10 font-bold drop-shadow-sm dark:drop-shadow-none">
+      <p class="text-[10px] md:text-xs font-sans font-bold tracking-[0.2em] uppercase text-gray-400 dark:text-gray-500 mb-2 relative z-10">نافذة رسمية</p>
+
+      <h1 class="text-4xl md:text-6xl font-display leading-tight mb-4 relative z-10 font-bold">
         <span class="text-primary dark:text-white transition-colors duration-300">أخبار</span> <span class="text-accent">العائلة</span>
       </h1>
       
-      <p class="text-base md:text-lg font-sans text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed relative z-10">
-        نافذة رسمية لمتابعة أخبار العائلة والمناسبات والإعلانات المهمة، بتصميم يحفظ الوقار ويعرض المحتوى بروح تراثية راقية.
+      <p class="text-[14px] md:text-base font-sans text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed relative z-10 font-medium">
+        متابعة أخبار العائلة والمناسبات والإعلانات المهمة، بتصميم يحفظ الوقار ويعرض المحتوى بروح تراثية راقية.
       </p>
     </section>
 
-    <section class="px-6 md:px-8 pb-10 relative z-10">
+    <section class="px-4 sm:px-6 lg:px-8 pb-10 relative z-10">
       <div class="max-w-[90rem] mx-auto">
-        <div id="subscribeSuccess" class="hidden mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-700 px-4 py-3 font-bold dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-300">
+        <div id="subscribeSuccess" class="hidden mb-6 rounded-[12px] border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-5 py-4 font-sans font-bold text-[14px] flex items-center gap-2">
+          <span class="material-symbols-outlined text-[20px]">check_circle</span>
           تم الاشتراك بنجاح في أخبار العائلة.
         </div>
-        <div id="subscribeInvalid" class="hidden mb-4 rounded-2xl border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 font-bold dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-300">
+        <div id="subscribeInvalid" class="hidden mb-6 rounded-[12px] border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 px-5 py-4 font-sans font-bold text-[14px] flex items-center gap-2">
+          <span class="material-symbols-outlined text-[20px]">warning</span>
           البريد الإلكتروني غير صحيح. برجاء المحاولة مرة أخرى.
         </div>
-        <div id="subscribeError" class="hidden mb-4 rounded-2xl border border-red-200 bg-red-50 text-red-700 px-4 py-3 font-bold dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-300">
+        <div id="subscribeError" class="hidden mb-6 rounded-[12px] border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 px-5 py-4 font-sans font-bold text-[14px] flex items-center gap-2">
+          <span class="material-symbols-outlined text-[20px]">error</span>
           حدث خطأ أثناء الاشتراك. برجاء المحاولة لاحقًا.
         </div>
 
-        <div class="royal-panel relative overflow-hidden rounded-[2rem] border border-gray-200 dark:border-white/10 shadow-sm">
-          <div class="absolute inset-0 bg-islamic-pattern opacity-80 dark:opacity-25 pointer-events-none"></div>
-          <div class="relative p-6 md:p-8 lg:p-10 grid grid-cols-1 lg:grid-cols-[1fr_1.55fr] gap-6 lg:items-center">
-            <div>
-              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 dark:bg-accent/10 text-primary dark:text-accent text-xs font-black mb-4">
-                <span class="material-symbols-outlined text-[16px]">notifications_active</span>
+        <div class="glass-panel rounded-[16px] relative overflow-hidden shadow-sm">
+          <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-accent to-transparent"></div>
+          <div class="relative p-6 md:p-10 grid grid-cols-1 lg:grid-cols-[1fr_1.5fr] gap-8 items-center">
+            
+            <div class="text-right">
+              <h2 class="text-2xl md:text-3xl font-display font-bold text-primary dark:text-white mb-2 flex items-center gap-2">
+                <span class="material-symbols-outlined text-[28px] text-accent">mail</span>
                 النشرة البريدية
-              </div>
-              <h2 class="text-3xl md:text-4xl font-display font-bold text-primary dark:text-white mb-3">
-                اشترك ليصلك كل جديد
               </h2>
-              <p class="text-sm md:text-base text-gray-600 dark:text-gray-400 leading-relaxed">
+              <p class="text-[14px] text-gray-500 dark:text-gray-400 font-medium leading-relaxed">
                 أدخل بريدك الإلكتروني ليصلك إشعار عند نشر أخبار أو مناسبات جديدة للعائلة.
               </p>
             </div>
 
-            <form method="post" action="/news/subscribe" class="grid grid-cols-1 sm:grid-cols-[1fr_1.35fr_auto] gap-3">
-              <input name="subscriber_name" type="text" autocomplete="name" placeholder="الاسم - اختياري" class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-black/35 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-accent/30"/>
-              <input name="email" type="email" required autocomplete="email" placeholder="البريد الإلكتروني" class="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-black/35 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-accent/30"/>
-              <button type="submit" class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary text-white dark:bg-white dark:text-primary font-black hover:opacity-90 transition-colors">
-                <span class="material-symbols-outlined text-[18px]">send</span>
+            <form method="post" action="/news/subscribe" class="flex flex-col sm:flex-row gap-3">
+              <input name="subscriber_name" type="text" autocomplete="name" placeholder="الاسم (اختياري)" class="w-full sm:w-1/3 px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 bg-white/50 dark:bg-black/20 text-[14px] font-medium text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent transition-shadow"/>
+              
+              <input name="email" type="email" required autocomplete="email" placeholder="البريد الإلكتروني" class="w-full sm:w-1/2 px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 bg-white/50 dark:bg-black/20 text-[14px] font-medium text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent transition-shadow"/>
+              
+              <button type="submit" class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary hover:bg-primaryDark text-white dark:bg-white dark:text-[#050505] dark:hover:bg-accent font-sans font-bold text-[14px] transition-all shadow-sm">
+                <span class="material-symbols-outlined text-[18px] rtl:-scale-x-100">send</span>
                 اشتراك
               </button>
             </form>
+
           </div>
         </div>
       </div>
     </section>
 
-    <section class="px-6 md:px-8 pb-6 relative z-10">
-      <div class="max-w-xl mx-auto relative group/search">
-        <input id="searchInput" class="block w-full bg-transparent border-0 border-b-2 border-gray-300 dark:border-gray-700 focus:ring-0 focus:border-accent text-center text-lg py-3 placeholder-gray-400 dark:placeholder-gray-500 font-sans font-bold transition-colors" placeholder="ابحث في الأخبار..." type="text" autocomplete="off" />
-        <span class="absolute inset-y-0 right-0 flex items-center text-accent pointer-events-none">
-          <span class="material-symbols-outlined text-[22px]">search</span>
-        </span>
+    <section class="px-4 sm:px-6 lg:px-8 pb-8 relative z-10">
+      <div class="max-w-lg mx-auto relative group/search">
+        <div class="search-glass rounded-full flex items-center px-4 py-2">
+           <span class="material-symbols-outlined text-gray-400 ml-2">search</span>
+           <input id="searchInput" class="block w-full bg-transparent border-0 focus:ring-0 text-[15px] font-sans font-medium text-gray-800 dark:text-white placeholder-gray-400 py-2.5" placeholder="ابحث في الأخبار..." type="text" autocomplete="off" />
+        </div>
       </div>
     </section>
 
-    <section class="py-10 px-6 md:px-8 max-w-[100rem] mx-auto relative z-10">
+    <section class="py-6 px-4 sm:px-6 lg:px-8 max-w-[96rem] mx-auto relative z-10">
       <% if (!posts || posts.length === 0) { %>
-        <div class="text-center py-20 border border-dashed border-gray-300 dark:border-gray-700 max-w-2xl mx-auto p-12 rounded-2xl bg-white/50 dark:bg-black/50">
-          <span class="material-symbols-outlined text-4xl text-accent mb-4">newspaper</span>
-          <h2 class="text-2xl font-sans font-bold text-primary dark:text-white mb-2">لا توجد أخبار حالياً</h2>
-          <p class="font-sans text-gray-500">عند إضافة أخبار جديدة ستظهر هنا مباشرة.</p>
+        <div class="text-center py-20 border border-dashed border-gray-300 dark:border-white/10 max-w-2xl mx-auto p-12 rounded-[16px] bg-white/50 dark:bg-black/20 backdrop-blur-sm shadow-sm">
+          <div class="w-16 h-16 mx-auto rounded-full bg-primary/5 dark:bg-white/5 border border-primary/10 dark:border-white/10 text-primary dark:text-accent flex items-center justify-center mb-5">
+            <span class="material-symbols-outlined text-[32px]">newspaper</span>
+          </div>
+          <h2 class="text-2xl font-display font-bold text-primary dark:text-white mb-2">لا توجد أخبار حالياً</h2>
+          <p class="font-sans text-[15px] font-medium text-gray-500">عند إضافة أخبار جديدة ستظهر هنا مباشرة.</p>
         </div>
       <% } else { %>
-        <div id="newsGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-7 md:gap-8">
+        <div id="newsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           <% posts.forEach(p => {
             const img = p.image_url || p.person_photo_url || "/images/default.png";
           %>
-            <article class="news-card group">
-              <a href="/news/<%= p.id %>" class="news-image-wrap" aria-label="<%= p.title || 'خبر' %>">
-                <img src="<%= img %>" alt="" class="news-image-blur" loading="lazy" decoding="async" onerror="this.style.display='none'" />
-                <img src="<%= img %>" alt="<%= p.title || 'خبر' %>" class="news-image-main" loading="lazy" decoding="async" onerror="this.src='/images/default.png'" />
-                <span class="news-date-badge">
-                  <span class="material-symbols-outlined text-[15px]">calendar_month</span>
-                  <span class="truncate"><%= p.event_date || p.published_at || 'خبر جديد' %></span>
-                </span>
+            <article class="news-card-item bg-white dark:bg-[#0A0A0A] border border-gray-100 dark:border-white/5 rounded-[16px] shadow-sm hover:shadow-luxury dark:hover:shadow-luxury-dark transition-all duration-400 group flex flex-col overflow-hidden">
+              <a href="/news/<%= p.id %>" class="relative block h-56 overflow-hidden bg-gray-100 dark:bg-[#111]">
+                <img src="<%= img %>" alt="<%= p.title || 'خبر' %>" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" decoding="async" onerror="this.src='/images/default.png'" />
+                <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent opacity-80 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+                
+                <div class="absolute bottom-4 right-4 px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-white font-sans font-bold text-[11px] tracking-wide flex items-center gap-1.5 z-10">
+                  <span class="material-symbols-outlined text-[14px]">calendar_month</span> <%= p.event_date || p.published_at || 'خبر جديد' %>
+                </div>
               </a>
 
-              <div class="news-content">
-                <span class="news-category-pill">
-                  <span class="material-symbols-outlined text-[15px]">article</span>
-                  خبر عائلي
+              <div class="p-6 md:p-8 flex flex-col flex-grow relative z-20">
+                <span class="text-[11px] font-sans font-bold uppercase tracking-[0.2em] text-accent mb-3 flex items-center gap-1.5 w-fit">
+                  <span class="material-symbols-outlined text-[14px]">article</span> خبر عائلي
                 </span>
 
-                <h2 class="text-2xl md:text-[1.7rem] font-display font-bold leading-tight line-clamp-2">
-                  <a href="/news/<%= p.id %>" class="news-title-link"><%= p.title %></a>
+                <h2 class="text-xl md:text-2xl font-display font-bold text-primary dark:text-white leading-tight mb-4 line-clamp-2">
+                  <a href="/news/<%= p.id %>" class="hover:text-accent transition-colors"><%= p.title %></a>
                 </h2>
 
-                <div class="news-separator"></div>
+                <div class="w-12 h-[2px] bg-accent mb-4 transition-all duration-500 group-hover:w-20"></div>
 
-                <p class="text-sm md:text-[15px] font-sans text-gray-600 dark:text-gray-400 line-clamp-3 leading-relaxed mb-4">
+                <p class="font-sans text-[14px] text-gray-500 dark:text-gray-400 line-clamp-3 leading-relaxed mb-6 font-medium">
                   <%= p.summary || p.content || '' %>
                 </p>
 
-                <% if (p.person_id) { %>
-                  <div class="mb-4 text-xs text-primary dark:text-accent font-bold flex items-center gap-1">
-                    <span class="material-symbols-outlined text-[16px]">person</span>
-                    مرتبط بـ: <%= p.person_name || ('#' + p.person_id) %>
-                  </div>
-                <% } %>
-
-                <div class="news-footer">
-                  <span class="text-[11px] text-gray-500 dark:text-gray-500 font-bold truncate">
-                    <%= p.event_date || p.published_at || '' %>
-                  </span>
-                  <a href="/news/<%= p.id %>" class="read-more-btn">
-                    اقرأ المزيد
-                    <span class="material-symbols-outlined text-[16px] rtl:rotate-180">arrow_forward</span>
+                <div class="mt-auto pt-5 border-t border-gray-100 dark:border-white/5 flex items-center justify-between">
+                  <% if (p.person_id) { %>
+                    <span class="text-[11px] text-gray-400 dark:text-gray-500 font-bold flex items-center gap-1 truncate max-w-[55%]" title="<%= p.person_name || ('#' + p.person_id) %>">
+                      <span class="material-symbols-outlined text-[14px]">person</span> <%= p.person_name || ('#' + p.person_id) %>
+                    </span>
+                  <% } else { %>
+                    <span></span>
+                  <% } %>
+                  
+                  <a href="/news/<%= p.id %>" class="text-[12px] font-sans font-bold text-primary dark:text-accent flex items-center gap-1 hover:opacity-70 transition-opacity">
+                    التفاصيل <span class="material-symbols-outlined text-[16px] rtl:rotate-180">arrow_forward</span>
                   </a>
                 </div>
               </div>
@@ -453,19 +339,18 @@
         </div>
 
         <div id="noResults" class="hidden py-16 text-center max-w-lg mx-auto">
-          <div class="w-px h-12 bg-gray-300 dark:bg-gray-700 mx-auto mb-6"></div>
-          <h2 class="text-xl font-sans font-bold text-gray-500">لا توجد نتائج</h2>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">جرّب كلمة بحث أخرى.</p>
+          <div class="w-px h-10 bg-gradient-to-b from-transparent via-gray-400 dark:via-gray-600 to-transparent mx-auto mb-5"></div>
+          <h2 class="text-[17px] font-sans font-bold text-gray-500">لم يتم العثور على نتائج مطابقة لبحثك</h2>
         </div>
       <% } %>
     </section>
 
   </main>
 
-  <footer class="bg-background-light dark:bg-bg-charcoal border-t border-gray-200 dark:border-white/10 mt-auto py-8 relative z-10">
+  <footer class="bg-background-light dark:bg-[#050505] border-t border-gray-200 dark:border-white/5 mt-auto py-8 relative z-10">
     <div class="max-w-[90rem] mx-auto px-6 text-center flex flex-col items-center gap-3">
-      <p class="text-[11px] font-sans font-bold text-gray-500 uppercase tracking-[0.1em]">
-        © ٢٠٢٦ وقف عائلة خاشقجي. جميع الحقوق محفوظة.
+      <p class="text-[11px] font-sans font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest">
+        © ٢٠٢٦ وقف عائلة خاشقجي. جميع الحقوق محفوظة. حفظ الأنساب والاحتفاء بالتراث.
       </p>
     </div>
   </footer>
@@ -504,7 +389,7 @@
 
     (function(){
       const input = document.getElementById("searchInput");
-      const cards = Array.from(document.querySelectorAll(".news-card"));
+      const cards = Array.from(document.querySelectorAll(".news-card-item"));
       const noResults = document.getElementById("noResults");
 
       function norm(str){
@@ -533,7 +418,7 @@
         });
 
         if (noResults) {
-          noResults.classList.toggle("hidden", shown === 0);
+          noResults.classList.toggle("hidden", shown !== 0);
         }
       });
     })();
@@ -551,13 +436,17 @@
 
       function openNav(){
         overlay?.classList.remove("hidden");
+        overlay?.style.setProperty('display', 'block', 'important');
         navDrawer?.classList.add("isOpen");
         setOpenState(true);
+        document.body.classList.add('overflow-hidden');
       }
       function closeNav(){
         navDrawer?.classList.remove("isOpen");
         overlay?.classList.add("hidden");
+        overlay?.style.setProperty('display', 'none', 'important');
         setOpenState(false);
+        document.body.classList.remove('overflow-hidden');
       }
 
       btn?.addEventListener("click", () => {

@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>حسابي - شجرة العائلة</title>
+
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/styles.css"/>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@300;400;500;700;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries,line-clamp"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#005A2B",     /* اللون الأخضر الملكي الفاخر */
+            primaryDark: "#003D1D", /* أخضر داكن للتحويم */
+            accent: "#E5B869",      /* ذهب سائل */
+            "accent-gold": "#E5B869",
+            "background-light": "#F8F8F6",
+            "background-dark": "#050505",
+            "bg-charcoal": "#050505",
+            "card-light": "#FFFFFF",
+            "card-dark": "#0A0A0A",
+            "bg-card": "#0A0A0A",
+            "text-cream": "#FAFAFA",
+            "text-dark": "#111827",
+            "text-muted": "#71717A",
+            "muted-slate": "#71717A",
+            gold: "#E5B869",
+            "accent-gold-dark": "#D4A353",
+          },
+          fontFamily: {
+            display: ["'Aref Ruqaa'", "serif"],
+            sans: ["Tajawal", "sans-serif"],
+          },
+          backgroundImage: {
+            "islamic-pattern": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+            "islamic-pattern-dark": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
+          },
+          boxShadow: {
+            'luxury': '0 20px 40px -10px rgba(0,0,0,0.05), 0 0 20px rgba(229,184,105,0.03)',
+            'luxury-dark': '0 20px 40px -10px rgba(0,0,0,0.4), 0 0 20px rgba(229,184,105,0.05)',
+          }
+        }
+      }
+    };
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .glass-panel {
+        @apply bg-white/85 dark:bg-[#080808]/85 backdrop-blur-xl border border-accent-gold/20 shadow-luxury dark:shadow-luxury-dark;
+      }
+      .field {
+        @apply w-full rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-[#111] focus:bg-white dark:focus:bg-[#1A1A1A] px-5 py-3.5 font-sans font-medium text-[15px] text-gray-800 dark:text-white focus:border-accent focus:ring-1 focus:ring-accent outline-none transition-all duration-300 placeholder-gray-400 dark:placeholder-gray-500 shadow-inner;
+      }
+    }
+  </style>
+
+  <style>
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(229, 184, 105, 0.4); border-radius: 4px; transition: background 0.3s; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(229, 184, 105, 0.8); }
+
+    html.dark .dark-toggle-icon-moon { display: none; }
+    html:not(.dark) .dark-toggle-icon-sun { display: none; }
+
+    #mobileNavOverlay.hidden { display: none; }
+    #mobileNavOverlay { display: block; }
+    #mobileNavDrawer { transform: translateX(-110%); transition: transform .3s cubic-bezier(.2,.9,.2,1); }
+    #mobileNavDrawer.isOpen { transform: translateX(0); }
+    #mobileNavBtn[data-open="true"] .ico-open { display: none; }
+    #mobileNavBtn[data-open="true"] .ico-close { display: inline; }
+    #mobileNavBtn[data-open="false"] .ico-open { display: inline; }
+    #mobileNavBtn[data-open="false"] .ico-close { display: none; }
+
+    /* ميزة السحب للصور (Draggable Image Panning) */
+    .draggable-bg { cursor: grab; background-repeat: no-repeat; background-size: cover; user-select: none; -webkit-user-select: none; touch-action: none; }
+    .draggable-bg:active { cursor: grabbing; }
+    .drag-hint { pointer-events: none; opacity: 0; transition: opacity 0.3s ease; }
+    .draggable-bg:hover .drag-hint { opacity: 1; }
+
+    /* حالة عدم وجود غلاف (Placeholder) */
+    .cover-empty { background-color: #0c2a1a; background-image: linear-gradient(135deg, #003D1D 0%, #005A2B 60%, #0c3a22 100%); }
+    html:not(.dark) .cover-empty { background-image: linear-gradient(135deg, #00532a 0%, #0a6b39 55%, #0c3a22 100%); }
+  </style>
+
+  <script>
+    (function () {
+      const saved = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", saved);
+      document.documentElement.classList.toggle("dark", saved === "dark");
+    })();
+  </script>
+</head>
+
+<body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col overflow-x-hidden selection:bg-accent/30 selection:text-gray-900 dark:selection:text-white transition-colors duration-400">
+
+  <!-- القائمة الجانبية للهاتف -->
+  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80] hidden lg:hidden transition-opacity duration-300 opacity-0" aria-hidden="true"></div>
+  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-bg-charcoal border-r border-gray-100 dark:border-white/5 shadow-2xl z-[90] flex flex-col lg:hidden">
+    <div class="h-1.5 w-full bg-gradient-to-r from-gray-300 via-accent to-gray-300 dark:from-gray-800 dark:via-accent dark:to-gray-800"></div>
+    <div class="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/5">
+      <img class="h-10 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+      <img class="h-10 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+      <button id="mobileNavClose" class="text-gray-400 hover:text-accent transition-colors" type="button" aria-label="إغلاق القائمة">
+        <span class="material-symbols-outlined text-[26px]">close</span>
+      </button>
+    </div>
+    <nav class="p-6 flex flex-col gap-2 text-base font-semibold flex-grow text-gray-600 dark:text-gray-400 overflow-y-auto" aria-label="قائمة الجوال">
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/">الشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/about">نبذة عن العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/honor">السير الذاتية</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/news">أخبار العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/tree-pdf">المشجرة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/kinship">صلة القرابة</a>
+
+      <div class="my-3 h-px bg-gray-100 dark:bg-white/5"></div>
+
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/submit-person">إضافة بياناتك</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-members">أعضاء العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-books">كتب العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-gallery">معرض العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-events">مناسبات العائلة</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/chat">الشات العام</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/notifications">الإشعارات</a>
+      <a class="px-4 py-3 rounded-xl text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent" href="/account">حسابي</a>
+      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/support">الدعم</a>
+    </nav>
+    <div class="p-6 border-t border-gray-100 dark:border-white/5 bg-white/50 dark:bg-black/20">
+      <div class="grid grid-cols-1 gap-3">
+        <a href="/admin/login" class="flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-xl hover:opacity-90 transition-all shadow-sm font-bold text-sm" title="لوحة الإدارة">
+          <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
+          <span>لوحة الإدارة</span>
+        </a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- الترويسة العلوية -->
+  <header class="sticky top-0 z-50 w-full glass-panel border-b-0 transition-colors duration-400">
+    <div class="max-w-[90rem] mx-auto px-5 sm:px-8 py-3 flex justify-between items-center h-20 md:h-24">
+      <div class="flex items-center gap-3 xl:gap-4 shrink-0">
+        <a href="/" class="block shrink-0 transition-transform hover:scale-105 duration-300">
+          <img class="h-10 md:h-12 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
+          <img class="h-10 md:h-12 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
+        </a>
+        <div class="h-7 w-px bg-gray-200 dark:bg-white/10 hidden sm:block"></div>
+        <div class="hidden sm:flex flex-col justify-center min-w-0">
+           <h1 class="text-lg md:text-xl font-display text-primary dark:text-accent font-bold leading-tight pt-1 truncate max-w-[150px]">شجرة العائلة</h1>
+           <span class="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5 truncate">حفظ الأنساب</span>
+        </div>
+      </div>
+
+      <nav class="hidden lg:flex flex-1 justify-center gap-2 lg:gap-3 xl:gap-5 items-center font-sans font-semibold text-[11px] xl:text-[13px] tracking-wide text-gray-500 dark:text-gray-400 overflow-x-auto scrollbar-hide px-2 xl:px-4 flex-nowrap" aria-label="التنقل الرئيسي">
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/">الشجرة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/about">نبذة عن العائلة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/honor">السير الذاتية</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/news">أخبار العائلة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/tree-pdf">المشجرة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/kinship">صلة القرابة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/submit-person">إضافة بياناتك</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/family-members">أعضاء العائلة</a>
+        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/chat">الشات العام</a>
+        <a class="whitespace-nowrap shrink-0 text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1 transition-colors duration-200" href="/account">حسابي</a>
+      </nav>
+
+      <div class="flex items-center justify-end gap-2 shrink-0">
+        <button id="uiThemeBtn" aria-label="تبديل المظهر" class="flex items-center justify-center w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-accent dark:hover:text-accent hover:bg-accent/5 transition-all duration-300" type="button" title="تبديل المظهر">
+          <span class="material-symbols-outlined text-[22px] dark:hidden">dark_mode</span>
+          <span class="material-symbols-outlined text-[22px] hidden dark:inline">light_mode</span>
+        </button>
+
+        <a href="/admin/login" class="hidden sm:flex w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-accent hover:bg-primary/5 dark:hover:bg-accent/5 transition-all duration-300 items-center justify-center" title="لوحة الإدارة">
+          <span class="material-symbols-outlined text-[22px]">admin_panel_settings</span>
+        </a>
+
+        <button id="mobileNavBtn" data-open="false" class="lg:hidden flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-primary dark:text-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-all duration-200" type="button" aria-label="فتح القائمة">
+          <span class="material-symbols-outlined text-[24px] ico-open">menu</span>
+          <span class="material-symbols-outlined text-[24px] ico-close hidden">close</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-grow relative z-10 py-8 px-4 sm:px-6 lg:px-8 max-w-[90rem] mx-auto w-full">
+
+    <% if(success){ %>
+      <div class="max-w-[90rem] mx-auto mb-6 rounded-xl bg-[#E8F5ED] dark:bg-[#003D1D]/30 border border-primary/20 p-5 text-gray-900 dark:text-white font-sans font-bold flex items-center gap-3 text-[15px] shadow-sm">
+        <span class="material-symbols-outlined text-[24px] text-primary dark:text-emerald-400">check_circle</span>
+        <%= success %>
+      </div>
+    <% } %>
+    <% if(error){ %>
+      <div class="max-w-[90rem] mx-auto mb-6 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 p-5 text-red-800 dark:text-red-200 font-sans font-bold flex items-center gap-3 text-[15px] shadow-sm">
+        <span class="material-symbols-outlined text-[24px] text-red-600 dark:text-red-400">error</span>
+        <%= error %>
+      </div>
+    <% } %>
+
+    <!-- التفاف النموذج حول كل محتوى الصفحة ليتم إرسال جميع التعديلات دفعة واحدة -->
+    <form id="accountForm" method="post" action="/account" enctype="multipart/form-data" class="space-y-6 lg:space-y-8">
+
+      <!-- حقول مخفية لحفظ إحداثيات ومسح الصور -->
+      <input type="hidden" name="delete_avatar" id="deleteAvatarFlag" value="0">
+      <input type="hidden" name="delete_cover" id="deleteCoverFlag" value="0">
+      <input type="hidden" name="cover_pos_x" id="coverPosX" value="<%= user.cover_pos_x ?? '50' %>">
+      <input type="hidden" name="cover_pos_y" id="coverPosY" value="<%= user.cover_pos_y ?? '50' %>">
+      <input type="hidden" name="avatar_pos_x" id="avatarPosX" value="<%= user.avatar_pos_x ?? '50' %>">
+      <input type="hidden" name="avatar_pos_y" id="avatarPosY" value="<%= user.avatar_pos_y ?? '50' %>">
+
+      <!-- ============================================================= -->
+      <!-- 1. كارت الملف الشخصي بأسلوب LinkedIn / Facebook               -->
+      <!-- ============================================================= -->
+      <section class="glass-panel rounded-[24px] overflow-hidden shadow-sm border border-gray-100 dark:border-white/5 relative mb-8 bg-white dark:bg-[#0A0A0A]">
+
+        <!-- صورة الغلاف (مع ميزة السحب للتحريك) -->
+        <div id="coverPreviewContainer"
+             class="draggable-bg <%= user.cover_url ? '' : 'cover-empty' %> h-44 sm:h-56 md:h-72 relative shrink-0 group/cover transition-all"
+             style="background-image:url('<%= user.cover_url || '' %>'); background-position: <%= user.cover_pos_x ?? '50' %>% <%= user.cover_pos_y ?? '50' %>%;">
+
+           <div class="absolute inset-0 bg-islamic-pattern opacity-40 pointer-events-none mix-blend-overlay"></div>
+           <div class="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/10 opacity-70 pointer-events-none"></div>
+
+           <!-- نص بديل عند عدم وجود غلاف -->
+           <div id="coverEmptyHint" class="absolute inset-0 flex flex-col items-center justify-center text-white/70 pointer-events-none <%= user.cover_url ? 'hidden' : '' %>">
+              <span class="material-symbols-outlined text-[34px] opacity-80">wallpaper</span>
+              <span class="text-[12px] font-sans font-bold mt-1 opacity-80">أضِف صورة غلاف لحسابك</span>
+           </div>
+
+           <!-- تلميحة السحب للغلاف -->
+           <div class="drag-hint absolute inset-0 flex items-center justify-center text-white z-10 <%= !user.cover_url ? 'hidden' : '' %>" id="coverDragHint">
+              <span class="bg-black/60 px-5 py-2.5 rounded-full text-[13px] font-sans font-bold flex items-center gap-2 backdrop-blur-sm">
+                <span class="material-symbols-outlined text-[20px]">pan_tool</span> اسحب لضبط موضع الغلاف
+              </span>
+           </div>
+
+           <!-- أزرار التحكم بالغلاف -->
+           <div class="absolute top-4 left-4 flex gap-2 z-30 opacity-100 transition-opacity duration-300">
+             <label class="no-pan bg-white/90 dark:bg-black/70 text-gray-800 dark:text-white px-4 py-2 rounded-xl backdrop-blur-md cursor-pointer hover:bg-white dark:hover:bg-black transition-colors flex items-center gap-2 text-[13px] font-sans font-bold shadow-md ring-1 ring-black/5 dark:ring-white/10" title="اختيار غلاف جديد">
+                <span class="material-symbols-outlined text-[18px]">photo_camera</span>
+                <span class="hidden sm:inline">تغيير الغلاف</span>
+                <input id="coverInput" name="cover_file" type="file" accept="image/*" class="hidden">
+             </label>
+             <button type="button" id="deleteCoverBtn" class="<%= user.cover_url ? '' : 'hidden' %> bg-white/90 dark:bg-black/70 text-red-600 dark:text-red-400 w-10 h-10 rounded-xl backdrop-blur-md cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/40 transition-colors flex items-center justify-center shadow-md ring-1 ring-black/5 dark:ring-white/10" title="حذف الغلاف">
+                <span class="material-symbols-outlined text-[18px]">delete</span>
+             </button>
+             <button type="button" id="cancelCoverBtn" class="hidden bg-white/90 dark:bg-black/70 text-gray-700 dark:text-gray-200 w-10 h-10 rounded-xl backdrop-blur-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors flex items-center justify-center shadow-md ring-1 ring-black/5 dark:ring-white/10" title="تراجع">
+                <span class="material-symbols-outlined text-[18px]">undo</span>
+             </button>
+           </div>
+        </div>
+
+        <!-- منطقة بيانات العضو والصورة الشخصية -->
+        <div class="px-5 sm:px-8 md:px-10 pb-7">
+
+          <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-5">
+
+            <!-- يمين: الصورة الشخصية + الاسم -->
+            <div class="flex flex-col md:flex-row md:items-end items-center gap-5 min-w-0">
+
+              <!-- الصورة الشخصية الدائرية (LinkedIn/FB) -->
+              <div class="relative -mt-16 md:-mt-20 shrink-0 group/avatar z-30">
+                <div id="avatarPreviewContainer"
+                     class="draggable-bg w-32 h-32 md:w-40 md:h-40 rounded-full border-[5px] border-white dark:border-[#0A0A0A] bg-gray-100 dark:bg-[#111] shadow-xl ring-1 ring-black/5 dark:ring-white/10 relative overflow-hidden transition-colors"
+                     style="background-image:url('<%= avatar %>'); background-position: <%= user.avatar_pos_x ?? '50' %>% <%= user.avatar_pos_y ?? '50' %>%;">
+
+                  <!-- تلميحة السحب للصورة الشخصية -->
+                  <div class="drag-hint absolute inset-0 flex items-center justify-center text-white z-10 <%= avatar.includes('default') ? 'hidden' : '' %>" id="avatarDragHint">
+                    <span class="bg-black/60 p-2 rounded-full backdrop-blur-sm"><span class="material-symbols-outlined text-[20px]">pan_tool</span></span>
+                  </div>
+
+                  <!-- غطاء تعديل الصورة (نقرة = اختيار صورة / سحب = تحريك) -->
+                  <label class="absolute inset-0 bg-black/0 group-hover/avatar:bg-black/55 focus-within:bg-black/55 transition-all duration-300 flex flex-col items-center justify-center text-white cursor-pointer z-20 opacity-0 group-hover/avatar:opacity-100 focus-within:opacity-100" title="تحديث الصورة الشخصية">
+                    <span class="material-symbols-outlined text-[30px]">photo_camera</span>
+                    <span class="text-[11px] font-sans font-bold mt-0.5">تحديث الصورة</span>
+                    <input id="avatarInput" name="avatar_file" type="file" accept="image/*" class="hidden">
+                  </label>
+                </div>
+
+                <!-- زر كاميرا دائري ثابت (يظهر دائماً مثل فيسبوك) -->
+                <label class="no-pan absolute bottom-1 left-1 w-9 h-9 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 text-primary dark:text-accent rounded-full flex items-center justify-center shadow-md cursor-pointer hover:bg-gray-50 dark:hover:bg-black transition-colors z-30" title="تغيير الصورة الشخصية">
+                  <span class="material-symbols-outlined text-[18px]">photo_camera</span>
+                  <input id="avatarInputAlt" name="avatar_file_alt" type="file" accept="image/*" class="hidden">
+                </label>
+
+                <!-- أزرار الحذف والتراجع للصورة الشخصية -->
+                <div class="absolute -bottom-3 right-1/2 translate-x-1/2 flex gap-2 z-40">
+                  <button type="button" id="deleteAvatarBtn" class="w-9 h-9 bg-white dark:bg-[#222] border border-gray-200 dark:border-white/10 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center shadow-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors <%= avatar && !avatar.includes('default') ? '' : 'hidden' %>" title="حذف الصورة">
+                    <span class="material-symbols-outlined text-[16px]">delete</span>
+                  </button>
+                  <button type="button" id="cancelAvatarBtn" class="hidden w-9 h-9 bg-white dark:bg-[#222] border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 rounded-full flex items-center justify-center shadow-md hover:bg-gray-50 transition-colors" title="تراجع">
+                    <span class="material-symbols-outlined text-[16px]">undo</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- الاسم والنسب والمسمى -->
+              <div class="flex flex-col justify-end min-w-0 text-center md:text-right pt-1 md:pt-0">
+                <h1 class="text-2xl md:text-[1.7rem] font-sans font-black text-primary dark:text-accent leading-tight flex items-center gap-2 justify-center md:justify-start flex-wrap">
+                  <span class="truncate"><%= user.full_name || 'بدون اسم' %> بن <%= user.father_name || '—' %></span>
+                  <% if(user.verification_status==='verified'){ %>
+                    <span class="material-symbols-outlined text-[22px] text-primary dark:text-emerald-400" title="موثق بالشجرة" style="font-variation-settings:'FILL' 1;">verified</span>
+                  <% } %>
+                </h1>
+
+                <p class="text-[14px] md:text-[15px] font-sans font-bold text-gray-600 dark:text-gray-300 mt-1.5 leading-relaxed">
+                  <%= user.work || user.qualification || 'عضو في العائلة' %>
+                </p>
+
+                <div class="mt-2 flex items-center gap-3 text-[13px] font-sans font-semibold text-gray-500 dark:text-gray-400 justify-center md:justify-start flex-wrap">
+                  <% if(user.current_residence || user.origin_place){ %>
+                    <span class="flex items-center gap-1">
+                      <span class="material-symbols-outlined text-[16px] text-accent">location_on</span>
+                      <%= user.current_residence || user.origin_place %>
+                    </span>
+                  <% } %>
+                  <span class="flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[16px] text-accent">visibility</span>
+                    <%= stats.profileViews || 0 %> مشاهدة للملف
+                  </span>
+                </div>
+
+                <!-- شارات الحالة -->
+                <div class="mt-3 flex gap-2 justify-center md:justify-start flex-wrap">
+                  <span class="flex items-center gap-1.5 px-3 py-1 rounded-full text-[12px] font-sans font-bold <%= user.verification_status==='verified' ? 'bg-[#E8F5ED] dark:bg-[#003D1D]/40 text-primary dark:text-emerald-400 border border-primary/20 dark:border-primary/40' : 'bg-gray-100 dark:bg-[#141414] text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-white/10' %>">
+                    <span class="material-symbols-outlined text-[15px]"><%= user.verification_status==='verified' ? 'verified' : 'link_off' %></span>
+                    <%= user.verification_status==='verified' ? 'موثق بالشجرة' : 'غير موثق' %>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- يسار: أزرار الإجراءات (مثل LinkedIn) -->
+            <div class="flex items-center gap-3 justify-center md:justify-end shrink-0">
+              <a href="/notifications" class="px-4 py-2.5 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 font-sans font-bold text-[13px] transition-all flex items-center justify-center gap-2" title="الإشعارات">
+                <span class="material-symbols-outlined text-[18px]">notifications</span>
+                <span class="hidden sm:inline">الإشعارات</span>
+              </a>
+              <button type="submit" class="px-6 py-2.5 rounded-full bg-primary hover:bg-primaryDark text-white dark:bg-white dark:text-[#050505] dark:hover:bg-accent font-sans font-bold text-[13px] transition-all shadow-sm flex items-center justify-center gap-2 hover:shadow-md">
+                <span class="material-symbols-outlined text-[18px]">save</span> حفظ التعديلات
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================= -->
+      <!-- 2. شبكة المحتوى                                               -->
+      <!-- ============================================================= -->
+      <div class="grid lg:grid-cols-[1fr_360px] gap-6 lg:gap-8 items-start">
+
+        <!-- العمود الأيمن: نموذج تعديل البيانات -->
+        <div class="space-y-6 lg:space-y-8">
+
+          <!-- المعلومات الشخصية -->
+          <div class="glass-panel rounded-[24px] p-6 md:p-8 shadow-sm">
+            <div class="border-b border-gray-100 dark:border-white/5 pb-4 mb-6">
+              <h2 class="font-sans font-bold text-xl text-primary dark:text-accent mb-2 flex items-center gap-2">
+                <span class="material-symbols-outlined text-[24px]">manage_accounts</span> المعلومات الشخصية
+              </h2>
+              <p class="text-[13px] text-gray-500 dark:text-gray-400 font-medium flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px] text-amber-500">info</span> الإجباري: الاسم، اسم الأب، البريد، رقم الجوال. باقي البيانات اختيارية.</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-6">
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">الاسم <span class="text-red-500">*</span></span>
+                <input name="full_name" required value="<%= user.full_name || '' %>" class="field">
+              </label>
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">اسم الأب <span class="text-red-500">*</span></span>
+                <input name="father_name" required value="<%= user.father_name || '' %>" class="field">
+              </label>
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">اسم الأم</span>
+                <input name="mother_name" value="<%= user.mother_name || '' %>" class="field">
+              </label>
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">عدد الأبناء</span>
+                <input name="children_count" type="number" min="0" value="<%= user.children_count ?? '' %>" class="field text-left" dir="ltr">
+              </label>
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">تاريخ الميلاد</span>
+                <input name="birth_date" type="date" value="<%= user.birth_date || '' %>" class="field text-left" dir="ltr">
+              </label>
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">البلد والنشأة</span>
+                <input name="origin_place" value="<%= user.origin_place || '' %>" class="field">
+              </label>
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">الإقامة الحالية</span>
+                <input name="current_residence" value="<%= user.current_residence || '' %>" class="field">
+              </label>
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">العمل</span>
+                <input name="work" value="<%= user.work || '' %>" class="field">
+              </label>
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">المؤهل</span>
+                <input name="qualification" value="<%= user.qualification || '' %>" class="field">
+              </label>
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">اسم الزوجة</span>
+                <input name="spouse_name" value="<%= user.spouse_name || '' %>" class="field">
+              </label>
+              <label class="block group md:col-span-2">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">النسب / زوجته من أي عائلة</span>
+                <input name="spouse_family" value="<%= user.spouse_family || '' %>" class="field">
+              </label>
+            </div>
+          </div>
+
+          <!-- التواصل -->
+          <div class="glass-panel rounded-[24px] p-6 md:p-8 shadow-sm">
+            <h2 class="font-sans font-bold text-xl text-primary dark:text-accent mb-6 flex items-center gap-2 border-b border-gray-100 dark:border-white/5 pb-4">
+              <span class="material-symbols-outlined text-[24px]">contact_mail</span> بيانات التواصل
+            </h2>
+            <div class="grid md:grid-cols-2 gap-6">
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px] flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px] text-accent">call</span> رقم الجوال <span class="text-red-500">*</span></span>
+                <input name="phone" required value="<%= user.phone || '' %>" class="field text-left" dir="ltr" placeholder="05xxxxxxxx">
+              </label>
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px] flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px] text-accent">call</span> رقم جوال إضافي</span>
+                <input name="phone_alt" value="<%= user.phone_alt || '' %>" class="field text-left" dir="ltr" placeholder="05xxxxxxxx">
+              </label>
+              <label class="block group md:col-span-2">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px] flex items-center gap-1.5"><span class="material-symbols-outlined text-[16px] text-accent">mail</span> البريد الإلكتروني <span class="text-red-500">*</span></span>
+                <input name="email" type="email" required value="<%= user.email || '' %>" class="field text-left" dir="ltr" placeholder="email@example.com">
+              </label>
+            </div>
+
+            <!-- Social Links -->
+            <h3 class="font-sans font-bold text-[15px] text-gray-800 dark:text-gray-200 mt-8 mb-5 flex items-center gap-2">
+              <span class="material-symbols-outlined text-accent text-[20px]">public</span> الروابط الاجتماعية
+            </h3>
+            <div class="grid md:grid-cols-2 gap-5">
+              <label class="block group relative">
+                <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400 pointer-events-none text-[12px] font-sans font-bold">Facebook</span>
+                <input name="facebook_url" value="<%= user.facebook_url || '' %>" placeholder="رابط الحساب..." class="field text-left pl-20" dir="ltr">
+              </label>
+              <label class="block group relative">
+                <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400 pointer-events-none text-[12px] font-sans font-bold">Instagram</span>
+                <input name="instagram_url" value="<%= user.instagram_url || '' %>" placeholder="رابط الحساب..." class="field text-left pl-24" dir="ltr">
+              </label>
+              <label class="block group relative">
+                <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400 pointer-events-none text-[12px] font-sans font-bold">X (Twitter)</span>
+                <input name="x_url" value="<%= user.x_url || '' %>" placeholder="رابط الحساب..." class="field text-left pl-20" dir="ltr">
+              </label>
+              <label class="block group relative">
+                <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400 pointer-events-none text-[12px] font-sans font-bold">LinkedIn</span>
+                <input name="linkedin_url" value="<%= user.linkedin_url || '' %>" placeholder="رابط الحساب..." class="field text-left pl-20" dir="ltr">
+              </label>
+            </div>
+          </div>
+
+          <!-- إعدادات الخصوصية -->
+          <div class="glass-panel rounded-[24px] p-6 md:p-8 shadow-sm">
+            <h2 class="font-sans font-bold text-xl text-primary dark:text-accent mb-6 flex items-center gap-2 border-b border-gray-100 dark:border-white/5 pb-4">
+              <span class="material-symbols-outlined text-[24px]">shield_person</span> إعدادات الخصوصية
+            </h2>
+
+            <div class="grid md:grid-cols-2 gap-6 mb-8 border-b border-gray-100 dark:border-white/5 pb-8">
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">من يستطيع مراسلتي</span>
+                <select name="chat_privacy" class="field text-gray-700 dark:text-gray-300 appearance-none bg-no-repeat bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%239CA3AF%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[position:left_16px_center] bg-[length:16px_16px] pr-4 pl-10 cursor-pointer">
+                  <option value="all" <%= (user.chat_privacy||'all')==='all'?'selected':'' %>>الكل</option>
+                  <option value="linked_only" <%= user.chat_privacy==='linked_only'?'selected':'' %>>المرتبطون بالشجرة فقط</option>
+                  <option value="nobody" <%= user.chat_privacy==='nobody'?'selected':'' %>>لا أحد</option>
+                </select>
+              </label>
+              <label class="block group">
+                <span class="font-sans font-bold text-gray-700 dark:text-gray-300 mb-2.5 block text-[13px]">ظهور الحساب</span>
+                <select name="profile_visibility" class="field text-gray-700 dark:text-gray-300 appearance-none bg-no-repeat bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%239CA3AF%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-[position:left_16px_center] bg-[length:16px_16px] pr-4 pl-10 cursor-pointer">
+                  <option value="members" <%= (user.profile_visibility||'members')==='members'?'selected':'' %>>كل الأعضاء</option>
+                  <option value="linked_only" <%= user.profile_visibility==='linked_only'?'selected':'' %>>المرتبطون بالشجرة فقط</option>
+                  <option value="private" <%= user.profile_visibility==='private'?'selected':'' %>>خاص (لا يظهر في قائمة الأعضاء)</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="grid sm:grid-cols-2 gap-4">
+              <label class="flex items-center gap-3 p-4 rounded-xl bg-gray-50/80 dark:bg-black/40 border border-gray-200 dark:border-white/5 cursor-pointer hover:border-accent transition-colors shadow-sm">
+                <input type="checkbox" name="show_phone" value="1" <%= Number(user.show_phone ?? 1) ? 'checked' : '' %> class="w-5 h-5 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-black text-primary focus:ring-accent transition-colors cursor-pointer">
+                <span class="font-sans font-bold text-[14px] text-gray-800 dark:text-gray-200 select-none">إظهار رقم الجوال</span>
+              </label>
+              <label class="flex items-center gap-3 p-4 rounded-xl bg-gray-50/80 dark:bg-black/40 border border-gray-200 dark:border-white/5 cursor-pointer hover:border-accent transition-colors shadow-sm">
+                <input type="checkbox" name="show_email" value="1" <%= Number(user.show_email ?? 1) ? 'checked' : '' %> class="w-5 h-5 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-black text-primary focus:ring-accent transition-colors cursor-pointer">
+                <span class="font-sans font-bold text-[14px] text-gray-800 dark:text-gray-200 select-none">إظهار البريد الإلكتروني</span>
+              </label>
+              <label class="flex items-center gap-3 p-4 rounded-xl bg-gray-50/80 dark:bg-black/40 border border-gray-200 dark:border-white/5 cursor-pointer hover:border-accent transition-colors shadow-sm">
+                <input type="checkbox" name="show_birth_date" value="1" <%= Number(user.show_birth_date || 0) ? 'checked' : '' %> class="w-5 h-5 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-black text-primary focus:ring-accent transition-colors cursor-pointer">
+                <span class="font-sans font-bold text-[14px] text-gray-800 dark:text-gray-200 select-none">إظهار تاريخ الميلاد</span>
+              </label>
+              <label class="flex items-center gap-3 p-4 rounded-xl bg-gray-50/80 dark:bg-black/40 border border-gray-200 dark:border-white/5 cursor-pointer hover:border-accent transition-colors shadow-sm">
+                <input type="checkbox" name="show_social_links" value="1" <%= Number(user.show_social_links ?? 1) ? 'checked' : '' %> class="w-5 h-5 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-black text-primary focus:ring-accent transition-colors cursor-pointer">
+                <span class="font-sans font-bold text-[14px] text-gray-800 dark:text-gray-200 select-none">إظهار روابط التواصل</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- العمود الأيسر: الإجراءات السريعة -->
+        <aside class="space-y-6 lg:space-y-8 flex flex-col">
+
+          <!-- روابط سريعة -->
+          <div class="glass-panel rounded-[24px] p-6 shadow-sm">
+            <h3 class="font-sans font-bold text-[16px] text-primary dark:text-accent mb-4 flex items-center gap-2 border-b border-gray-100 dark:border-white/5 pb-3">
+              <span class="material-symbols-outlined text-[20px]">bolt</span> إجراءات الشجرة
+            </h3>
+            <div class="flex flex-col gap-3">
+              <% if(treePerson){ %>
+                <a href="/?focus=<%= treePerson.id %>" class="w-full px-5 py-3.5 rounded-xl bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 hover:border-primary dark:hover:border-accent text-primary dark:text-white font-sans font-bold text-[14px] transition-all flex items-center justify-between group shadow-sm hover:shadow-md">
+                  <span class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-accent">account_tree</span> موقعي في الشجرة</span>
+                  <span class="material-symbols-outlined text-[16px] rtl:rotate-180 opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
+                </a>
+              <% } %>
+              <% if(honorItem){ %>
+                <a href="/honor" class="w-full px-5 py-3.5 rounded-xl bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 hover:border-primary dark:hover:border-accent text-primary dark:text-white font-sans font-bold text-[14px] transition-all flex items-center justify-between group shadow-sm hover:shadow-md">
+                  <span class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-accent">military_tech</span> سيرتي الذاتية</span>
+                  <span class="material-symbols-outlined text-[16px] rtl:rotate-180 opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
+                </a>
+              <% } %>
+            </div>
+          </div>
+
+          <!-- ربط الحساب بالشجرة -->
+          <div class="glass-panel rounded-[24px] p-6 shadow-sm">
+            <h3 class="font-sans font-bold text-[16px] text-primary dark:text-accent mb-4 flex items-center gap-2 border-b border-gray-100 dark:border-white/5 pb-3">
+              <span class="material-symbols-outlined text-[20px]">link</span> ربط الحساب بالشجرة
+            </h3>
+            <% if(user.verification_status==='verified' && user.matched_person_id){ %>
+              <div class="py-4 text-center rounded-xl bg-[#E8F5ED] dark:bg-[#003D1D]/30 border border-primary/20 flex flex-col items-center gap-2 mt-2">
+                <span class="material-symbols-outlined text-primary dark:text-emerald-400 text-[24px]">verified</span>
+                <p class="text-[13px] font-bold text-primary dark:text-emerald-400">حسابك موثق ومرتبط بالشجرة.</p>
+              </div>
+            <% } else { %>
+              <% if(pendingLink){ %>
+                <div class="p-4 mb-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 mt-2">
+                  <p class="text-[12px] text-amber-800 dark:text-amber-200 font-medium leading-relaxed">آخر طلب: <b class="font-bold"><%= pendingLink.status %></b> <br> <span class="opacity-80 mt-1 block"><%= pendingLink.person_name || pendingLink.lineage_text || '' %></span></p>
+                </div>
+              <% } %>
+              <div class="flex flex-col gap-3 mt-2">
+                <input name="lineage_text" placeholder="اكتب الاسم الثلاثي كما في الشجرة" class="field !py-3 !text-[13px]">
+                <button formaction="/account/link-request" type="submit" class="w-full px-5 py-3 rounded-xl bg-primary hover:bg-primaryDark text-white dark:bg-white dark:text-[#050505] dark:hover:bg-accent font-sans font-bold text-[13px] transition-all shadow-sm flex items-center justify-center gap-2">
+                  <span class="material-symbols-outlined text-[16px]">send</span> إرسال طلب ربط
+                </button>
+              </div>
+            <% } %>
+          </div>
+
+          <!-- من شاهد ملفك (بأسلوب LinkedIn "Who viewed your profile") -->
+          <div class="glass-panel rounded-[24px] p-6 shadow-sm flex-grow">
+            <div class="flex items-center justify-between border-b border-gray-100 dark:border-white/5 pb-3 mb-4">
+              <h3 class="font-sans font-bold text-[16px] text-primary dark:text-accent flex items-center gap-2">
+                <span class="material-symbols-outlined text-[20px]">person_search</span> من شاهد ملفك
+              </h3>
+              <span class="text-[12px] font-sans font-bold text-gray-500 dark:text-gray-400 px-2.5 py-1 rounded-full bg-gray-100 dark:bg-white/5"><%= (latestViews && latestViews.length) || 0 %></span>
+            </div>
+            <div class="flex flex-col gap-2.5">
+              <% if(!latestViews.length){ %>
+                <div class="py-8 text-center flex flex-col items-center gap-2 text-gray-400 dark:text-gray-500">
+                  <span class="material-symbols-outlined text-[34px] opacity-60">group_off</span>
+                  <p class="text-[13px] font-bold">لا توجد مشاهدات بعد.</p>
+                  <p class="text-[11px] font-medium opacity-80">سيظهر هنا آخر الأعضاء الذين زاروا ملفك.</p>
+                </div>
+              <% } %>
+              <% latestViews.forEach(function(v){ %>
+                <a href="/family-members/<%= v.viewer_id || '' %>" class="flex items-center gap-3 p-2.5 rounded-2xl bg-gray-50 dark:bg-[#111] hover:bg-white dark:hover:bg-black/40 border border-gray-200 dark:border-white/5 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 group">
+                  <div class="relative shrink-0">
+                    <img src="<%= v.viewer_avatar || '/assets/default-avatar.svg' %>" onerror="this.src='/assets/default-avatar.svg'" class="w-11 h-11 rounded-full object-cover border-2 border-white dark:border-[#0A0A0A] ring-1 ring-gray-200 dark:ring-white/10 shadow-sm" alt="">
+                  </div>
+                  <div class="flex-grow min-w-0">
+                    <div class="font-sans font-bold text-[14px] text-gray-900 dark:text-white truncate group-hover:text-primary dark:group-hover:text-accent transition-colors"><%= v.viewer_name || 'عضو' %></div>
+                    <div class="text-[11px] font-semibold text-gray-500 dark:text-gray-400 truncate mt-0.5 flex items-center gap-1">
+                      <span class="material-symbols-outlined text-[13px]">schedule</span>
+                      <span dir="ltr"><%= v.created_at || '' %></span>
+                    </div>
+                  </div>
+                  <span class="material-symbols-outlined text-[18px] text-gray-300 dark:text-gray-600 rtl:rotate-180 group-hover:text-accent transition-colors shrink-0">arrow_forward</span>
+                </a>
+              <% }) %>
+            </div>
+          </div>
+
+        </aside>
+
+      </div>
+    </form>
+
+  </main>
+
+  <footer class="bg-background-light dark:bg-[#050505] border-t border-gray-200 dark:border-white/5 mt-auto py-8 relative z-10">
+    <div class="max-w-[90rem] mx-auto px-6 text-center flex flex-col items-center gap-3">
+      <p class="text-[11px] font-sans font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest">
+        © ٢٠٢٦ وقف عائلة خاشقجي. جميع الحقوق محفوظة. حفظ الأنساب والاحتفاء بالتراث.
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      const btn = document.getElementById("uiThemeBtn");
+      function applyTheme(next) {
+        document.documentElement.setAttribute("data-theme", next);
+        document.documentElement.classList.toggle("dark", next === "dark");
+        localStorage.setItem("theme", next);
+      }
+      btn?.addEventListener("click", () => {
+        const current = document.documentElement.getAttribute("data-theme") || "dark";
+        applyTheme(current === "dark" ? "light" : "dark");
+      });
+    })();
+
+    (function mobileNavInit(){
+      const btn = document.getElementById("mobileNavBtn");
+      const navDrawer = document.getElementById("mobileNavDrawer");
+      const overlay = document.getElementById("mobileNavOverlay");
+      const closeBtn = document.getElementById("mobileNavClose");
+
+      function setOpenState(isOpen){
+        btn?.setAttribute("data-open", isOpen ? "true" : "false");
+      }
+
+      function openNav(){
+        overlay?.classList.remove("hidden");
+        setTimeout(() => overlay?.classList.remove("opacity-0"), 10);
+        navDrawer?.classList.add("isOpen");
+        setOpenState(true);
+        document.body.classList.add("overflow-hidden");
+      }
+      function closeNav(){
+        navDrawer?.classList.remove("isOpen");
+        overlay?.classList.add("opacity-0");
+        setTimeout(() => overlay?.classList.add("hidden"), 300);
+        setOpenState(false);
+        document.body.classList.remove("overflow-hidden");
+      }
+
+      btn?.addEventListener("click", () => {
+        const isOpen = btn.getAttribute("data-open") === "true";
+        isOpen ? closeNav() : openNav();
+      });
+
+      closeBtn?.addEventListener("click", closeNav);
+      overlay?.addEventListener("click", closeNav);
+      navDrawer?.querySelectorAll("a").forEach(a => a.addEventListener("click", closeNav));
+      window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNav(); });
+
+      setOpenState(false);
+    })();
+
+    // ===================================================================
+    // إدارة الصور: المعاينة، السحب لضبط الموضع، التراجع، والحذف الفوري
+    // ===================================================================
+    (function imageManagementLogic() {
+      const defaultAvatar = '/assets/default-avatar.svg';
+
+      // عناصر الصورة الشخصية
+      const avatarInput            = document.getElementById('avatarInput');
+      const avatarInputAlt         = document.getElementById('avatarInputAlt'); // زر الكاميرا الثابت
+      const avatarPreviewContainer = document.getElementById('avatarPreviewContainer');
+      const deleteAvatarBtn        = document.getElementById('deleteAvatarBtn');
+      const cancelAvatarBtn        = document.getElementById('cancelAvatarBtn');
+      const deleteAvatarFlag       = document.getElementById('deleteAvatarFlag');
+      const avatarDragHint         = document.getElementById('avatarDragHint');
+
+      // عناصر الغلاف
+      const coverInput             = document.getElementById('coverInput');
+      const coverPreviewContainer  = document.getElementById('coverPreviewContainer');
+      const deleteCoverBtn         = document.getElementById('deleteCoverBtn');
+      const cancelCoverBtn         = document.getElementById('cancelCoverBtn');
+      const deleteCoverFlag        = document.getElementById('deleteCoverFlag');
+      const coverDragHint          = document.getElementById('coverDragHint');
+      const coverEmptyHint         = document.getElementById('coverEmptyHint');
+
+      // الحالة الأصلية (للتراجع)
+      const originalAvatarBg = avatarPreviewContainer ? avatarPreviewContainer.style.backgroundImage : `url("${defaultAvatar}")`;
+      const originalCoverBg  = coverPreviewContainer ? coverPreviewContainer.style.backgroundImage : '';
+      const avatarStartedDefault = originalAvatarBg.includes('default');
+      const coverStartedEmpty    = (!originalCoverBg || originalCoverBg === 'none' || originalCoverBg === 'url("")' || originalCoverBg === "url('')");
+
+      function show(el){ el && el.classList.remove('hidden'); }
+      function hide(el){ el && el.classList.add('hidden'); }
+
+      // ---------- منطق السحب لضبط الموضع (Panning) مع التمييز بين النقرة والسحب ----------
+      function makePannable(container, inputXId, inputYId) {
+        if(!container) return;
+        const inX = document.getElementById(inputXId);
+        const inY = document.getElementById(inputYId);
+
+        let isDown = false, moved = false, suppressClick = false;
+        let startX, startY, startBgPosX, startBgPosY;
+        const THRESHOLD = 4; // المسافة بالبكسل التي بعدها تُعتبر الحركة سحباً وليست نقرة
+
+        function getPoint(e){
+          if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+          return { x: e.clientX, y: e.clientY };
+        }
+
+        function onDown(e) {
+          suppressClick = false;                       // إعادة ضبط أي حالة سابقة
+          if (e.target.closest('button, .no-pan')) return; // لا نسحب من أزرار التحكم
+          isDown = true; moved = false;
+          const p = getPoint(e);
+          startX = p.x; startY = p.y;
+          startBgPosX = parseFloat(inX && inX.value) || 50;
+          startBgPosY = parseFloat(inY && inY.value) || 50;
+        }
+
+        function onMove(e) {
+          if (!isDown) return;
+          const p = getPoint(e);
+          const dx = p.x - startX;
+          const dy = p.y - startY;
+          if (!moved && Math.hypot(dx, dy) < THRESHOLD) return; // لسه نقرة مش سحب
+          moved = true;
+
+          let newX = Math.max(0, Math.min(100, startBgPosX - (dx * 0.3)));
+          let newY = Math.max(0, Math.min(100, startBgPosY - (dy * 0.3)));
+
+          container.style.backgroundPosition = `${newX}% ${newY}%`;
+          container.style.cursor = 'grabbing';
+          if (inX) inX.value = newX.toFixed(2);   // تحديث الحقل المخفي الذي يُرسل للخادم
+          if (inY) inY.value = newY.toFixed(2);
+          if (e.cancelable) e.preventDefault();
+        }
+
+        function onUp() {
+          if (isDown && moved) suppressClick = true; // امنع فتح نافذة الصورة بعد السحب مباشرة
+          isDown = false;
+          container.style.cursor = 'grab';
+        }
+
+        // إلغاء النقرة الناتجة عن انتهاء السحب (حتى لا تُفتح نافذة اختيار الصورة)
+        container.addEventListener('click', function(e){
+          if (suppressClick) { e.preventDefault(); e.stopPropagation(); suppressClick = false; }
+        }, true);
+
+        container.addEventListener('mousedown', onDown);
+        container.addEventListener('touchstart', onDown, { passive: true });
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('mouseup', onUp);
+        window.addEventListener('touchend', onUp);
+      }
+
+      makePannable(coverPreviewContainer, 'coverPosX', 'coverPosY');
+      makePannable(avatarPreviewContainer, 'avatarPosX', 'avatarPosY');
+
+      // ====================== الغلاف ======================
+      function handleCoverFile(file){
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          coverPreviewContainer.style.backgroundImage = `url("${e.target.result}")`;
+          coverPreviewContainer.style.backgroundPosition = '50% 50%';
+          if (document.getElementById('coverPosX')) document.getElementById('coverPosX').value = '50';
+          if (document.getElementById('coverPosY')) document.getElementById('coverPosY').value = '50';
+          coverPreviewContainer.classList.remove('cover-empty');
+          hide(coverEmptyHint);
+          show(coverDragHint);
+          show(cancelCoverBtn);
+          hide(deleteCoverBtn);
+          deleteCoverFlag.value = "0";
+        };
+        reader.readAsDataURL(file);
+      }
+
+      coverInput?.addEventListener('change', function(){ handleCoverFile(this.files[0]); });
+
+      // تراجع الغلاف: العودة للحالة الأصلية
+      cancelCoverBtn?.addEventListener('click', function(e) {
+        e.preventDefault();
+        if (coverInput) coverInput.value = '';
+        hide(cancelCoverBtn);
+        deleteCoverFlag.value = "0";
+
+        if (coverStartedEmpty) {
+          coverPreviewContainer.style.backgroundImage = '';
+          coverPreviewContainer.classList.add('cover-empty');
+          show(coverEmptyHint);
+          hide(coverDragHint);
+          hide(deleteCoverBtn);
+        } else {
+          coverPreviewContainer.style.backgroundImage = originalCoverBg;
+          coverPreviewContainer.classList.remove('cover-empty');
+          hide(coverEmptyHint);
+          show(coverDragHint);
+          show(deleteCoverBtn);
+        }
+      });
+
+      // حذف الغلاف
+      deleteCoverBtn?.addEventListener('click', function(e) {
+        e.preventDefault();
+        if (coverInput) coverInput.value = '';
+        coverPreviewContainer.style.backgroundImage = '';
+        coverPreviewContainer.classList.add('cover-empty');
+        show(coverEmptyHint);
+        hide(coverDragHint);
+        hide(deleteCoverBtn);
+        if (!coverStartedEmpty) show(cancelCoverBtn); else hide(cancelCoverBtn);
+        deleteCoverFlag.value = "1";
+      });
+
+      // ====================== الصورة الشخصية ======================
+      function handleAvatarFile(file){
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          avatarPreviewContainer.style.backgroundImage = `url("${e.target.result}")`;
+          avatarPreviewContainer.style.backgroundPosition = '50% 50%';
+          if (document.getElementById('avatarPosX')) document.getElementById('avatarPosX').value = '50';
+          if (document.getElementById('avatarPosY')) document.getElementById('avatarPosY').value = '50';
+          show(avatarDragHint);
+          show(cancelAvatarBtn);
+          hide(deleteAvatarBtn);
+          deleteAvatarFlag.value = "0";
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // كلا زري رفع الصورة الشخصية مربوطان بالسيرفر:
+      // avatarInput يرسل avatar_file، والزر الثابت يرسل avatar_file_alt كاحتياطي آمن.
+      avatarInput?.addEventListener('change', function(){
+        if (avatarInputAlt) avatarInputAlt.value = '';
+        handleAvatarFile(this.files[0]);
+      });
+      avatarInputAlt?.addEventListener('change', function(){
+        if (avatarInput) avatarInput.value = '';
+        handleAvatarFile(this.files[0]);
+      });
+
+      // تراجع الصورة الشخصية
+      cancelAvatarBtn?.addEventListener('click', function(e) {
+        e.preventDefault();
+        if (avatarInput) avatarInput.value = '';
+        if (avatarInputAlt) avatarInputAlt.value = '';
+        avatarPreviewContainer.style.backgroundImage = originalAvatarBg;
+        hide(cancelAvatarBtn);
+        deleteAvatarFlag.value = "0";
+
+        if (avatarStartedDefault) {
+          hide(deleteAvatarBtn);
+          hide(avatarDragHint);
+        } else {
+          show(deleteAvatarBtn);
+          show(avatarDragHint);
+        }
+      });
+
+      // حذف الصورة الشخصية (العودة للصورة الافتراضية)
+      deleteAvatarBtn?.addEventListener('click', function(e) {
+        e.preventDefault();
+        if (avatarInput) avatarInput.value = '';
+        if (avatarInputAlt) avatarInputAlt.value = '';
+        avatarPreviewContainer.style.backgroundImage = `url("${defaultAvatar}")`;
+        avatarPreviewContainer.style.backgroundPosition = '50% 50%';
+        hide(deleteAvatarBtn);
+        hide(avatarDragHint);
+        if (!avatarStartedDefault) show(cancelAvatarBtn); else hide(cancelAvatarBtn);
+        deleteAvatarFlag.value = "1";
+      });
+
+    })();
+  </script>
+
+  <script src="/chat-notifications.js"></script>
+</body>
+</html>
