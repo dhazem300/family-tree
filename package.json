@@ -9,7 +9,7 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "bcrypt": "^5.1.0",
+    "bcryptjs": "^2.4.3",
     "connect-sqlite3": "^0.9.0",
     "dotenv": "^17.4.2",
     "ejs": "^3.1.10",
