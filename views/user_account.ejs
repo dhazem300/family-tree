@@ -248,9 +248,9 @@
 
            <!-- أزرار التحكم بالغلاف -->
            <div class="absolute top-4 left-4 flex gap-2 z-30 opacity-100 transition-opacity duration-300">
-             <label class="no-pan bg-white/90 dark:bg-black/70 text-gray-800 dark:text-white px-4 py-2 rounded-xl backdrop-blur-md cursor-pointer hover:bg-white dark:hover:bg-black transition-colors flex items-center gap-2 text-[13px] font-sans font-bold shadow-md ring-1 ring-black/5 dark:ring-white/10" title="اختيار غلاف جديد">
+             <label class="no-pan bg-white/90 dark:bg-black/70 text-gray-800 dark:text-white px-4 py-2 rounded-xl backdrop-blur-md cursor-pointer hover:bg-white dark:hover:bg-black transition-colors flex items-center gap-2 text-[13px] font-sans font-bold shadow-md ring-1 ring-black/5 dark:ring-white/10" title="اختيار غلاف جديد - الحد الأقصى 20 ميجابايت">
                 <span class="material-symbols-outlined text-[18px]">photo_camera</span>
-                <span class="hidden sm:inline">تغيير الغلاف</span>
+                <span class="hidden sm:inline">تغيير الغلاف</span><span class="hidden md:inline text-[10px] opacity-70">حتى 20MB</span>
                 <input id="coverInput" name="cover_file" type="file" accept="image/*" class="hidden">
              </label>
              <button type="button" id="deleteCoverBtn" class="<%= user.cover_url ? '' : 'hidden' %> bg-white/90 dark:bg-black/70 text-red-600 dark:text-red-400 w-10 h-10 rounded-xl backdrop-blur-md cursor-pointer hover:bg-red-50 dark:hover:bg-red-900/40 transition-colors flex items-center justify-center shadow-md ring-1 ring-black/5 dark:ring-white/10" title="حذف الغلاف">
@@ -282,15 +282,15 @@
                   </div>
 
                   <!-- غطاء تعديل الصورة (نقرة = اختيار صورة / سحب = تحريك) -->
-                  <label class="absolute inset-0 bg-black/0 group-hover/avatar:bg-black/55 focus-within:bg-black/55 transition-all duration-300 flex flex-col items-center justify-center text-white cursor-pointer z-20 opacity-0 group-hover/avatar:opacity-100 focus-within:opacity-100" title="تحديث الصورة الشخصية">
+                  <label class="absolute inset-0 bg-black/0 group-hover/avatar:bg-black/55 focus-within:bg-black/55 transition-all duration-300 flex flex-col items-center justify-center text-white cursor-pointer z-20 opacity-0 group-hover/avatar:opacity-100 focus-within:opacity-100" title="تحديث الصورة الشخصية - الحد الأقصى 10 ميجابايت">
                     <span class="material-symbols-outlined text-[30px]">photo_camera</span>
-                    <span class="text-[11px] font-sans font-bold mt-0.5">تحديث الصورة</span>
+                    <span class="text-[11px] font-sans font-bold mt-0.5">تحديث الصورة</span><span class="text-[9px] font-sans font-bold opacity-80">حتى 10MB</span>
                     <input id="avatarInput" name="avatar_file" type="file" accept="image/*" class="hidden">
                   </label>
                 </div>
 
                 <!-- زر كاميرا دائري ثابت (يظهر دائماً مثل فيسبوك) -->
-                <label class="no-pan absolute bottom-1 left-1 w-9 h-9 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 text-primary dark:text-accent rounded-full flex items-center justify-center shadow-md cursor-pointer hover:bg-gray-50 dark:hover:bg-black transition-colors z-30" title="تغيير الصورة الشخصية">
+                <label class="no-pan absolute bottom-1 left-1 w-9 h-9 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 text-primary dark:text-accent rounded-full flex items-center justify-center shadow-md cursor-pointer hover:bg-gray-50 dark:hover:bg-black transition-colors z-30" title="تغيير الصورة الشخصية - الحد الأقصى 10 ميجابايت">
                   <span class="material-symbols-outlined text-[18px]">photo_camera</span>
                   <input id="avatarInputAlt" name="avatar_file_alt" type="file" accept="image/*" class="hidden">
                 </label>
@@ -759,9 +759,33 @@
       makePannable(coverPreviewContainer, 'coverPosX', 'coverPosY');
       makePannable(avatarPreviewContainer, 'avatarPosX', 'avatarPosY');
 
+      const AVATAR_MAX_BYTES = 10 * 1024 * 1024;
+      const COVER_MAX_BYTES = 20 * 1024 * 1024;
+
+      function formatFileSize(bytes) {
+        return ((Number(bytes || 0) / 1024 / 1024).toFixed(1)).replace('.0', '') + ' ميجابايت';
+      }
+
+      function validateSelectedImage(file, kind) {
+        if (!file) return false;
+        const isImage = String(file.type || '').startsWith('image/');
+        if (!isImage) {
+          alert('يسمح برفع الصور فقط بصيغ JPG / PNG / WEBP / GIF.');
+          return false;
+        }
+        const max = kind === 'cover' ? COVER_MAX_BYTES : AVATAR_MAX_BYTES;
+        const label = kind === 'cover' ? 'صورة الغلاف' : 'الصورة الشخصية';
+        if (Number(file.size || 0) > max) {
+          alert(label + ' كبيرة جدًا. الحد الأقصى هو ' + formatFileSize(max) + '. الحجم الحالي: ' + formatFileSize(file.size));
+          return false;
+        }
+        return true;
+      }
+
       // ====================== الغلاف ======================
       function handleCoverFile(file){
         if (!file) return;
+        if (!validateSelectedImage(file, 'cover')) { if (coverInput) coverInput.value = ''; return; }
         const reader = new FileReader();
         reader.onload = function(e) {
           coverPreviewContainer.style.backgroundImage = `url("${e.target.result}")`;
@@ -818,6 +842,7 @@
       // ====================== الصورة الشخصية ======================
       function handleAvatarFile(file){
         if (!file) return;
+        if (!validateSelectedImage(file, 'avatar')) { if (avatarInput) avatarInput.value = ''; if (avatarInputAlt) avatarInputAlt.value = ''; return; }
         const reader = new FileReader();
         reader.onload = function(e) {
           avatarPreviewContainer.style.backgroundImage = `url("${e.target.result}")`;

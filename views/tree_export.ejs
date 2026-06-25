@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>تصدير فرع من الشجرة - شجرة العائلة</title>
+  <title>إصدار الشجرة - شجرة العائلة</title>
   
   <script src="/theme.js"></script>
   <link rel="stylesheet" href="/styles.css" />
@@ -162,6 +162,219 @@
     
     .node-job { font-size: 11px; color: #6B7280 !important; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; margin-top: 2px; font-family: 'Tajawal', sans-serif; }
     .export-node.root .node-job { color: rgba(255,255,255,0.8) !important; }
+
+
+
+    /* Fast full-tree export layout: renders every person without the very heavy nested connector DOM. */
+    .export-sheet.full-fast-sheet {
+      width: 1600px;
+      max-width: 1600px;
+      min-width: 1100px;
+    }
+    .full-export-shell {
+      border-radius: 24px;
+      border: 1px solid rgba(229,184,105,0.18) !important;
+      background: radial-gradient(circle at top, rgba(229,184,105,0.08), transparent 38%), #FAFAFA !important;
+      padding: 26px;
+    }
+    .full-export-note {
+      font-size: 13px;
+      color: #6B7280 !important;
+      font-weight: 800;
+      line-height: 1.8;
+      margin-bottom: 18px;
+      border: 1px solid rgba(0,90,43,0.12) !important;
+      background: #fff !important;
+      border-radius: 16px;
+      padding: 12px 16px;
+    }
+    .full-generation {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      margin-bottom: 22px;
+      border: 1px solid rgba(229,184,105,0.16) !important;
+      background: rgba(255,255,255,0.72) !important;
+      border-radius: 20px;
+      overflow: hidden;
+    }
+    .full-generation-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: rgba(0,90,43,0.06) !important;
+      border-bottom: 1px solid rgba(229,184,105,0.16) !important;
+      color: #005A2B !important;
+      font-weight: 900;
+    }
+    .full-person-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+      gap: 10px;
+      padding: 14px;
+      direction: rtl;
+    }
+    .full-person-card {
+      border: 1px solid rgba(229,184,105,0.22) !important;
+      background: #fff !important;
+      border-radius: 14px;
+      padding: 9px;
+      min-height: 74px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .full-person-photo {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      overflow: hidden;
+      flex: 0 0 auto;
+      border: 1px solid rgba(0,90,43,0.18) !important;
+      background: rgba(229,184,105,0.08) !important;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #005A2B !important;
+      font-weight: 900;
+      font-size: 18px;
+    }
+    .full-person-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .full-person-name {
+      color: #111827 !important;
+      font-family: 'Aref Ruqaa', serif;
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+    }
+    .full-person-meta {
+      color: #6B7280 !important;
+      font-size: 10px;
+      font-weight: 800;
+      margin-top: 2px;
+      direction: ltr;
+      text-align: right;
+    }
+
+
+
+    /* Full tree diagram mode: real connected chart, but faster than nested UL for huge trees. */
+    .export-sheet.full-diagram-sheet {
+      width: max-content;
+      max-width: none;
+      min-width: 1400px;
+    }
+    .full-tree-diagram-wrap {
+      border-radius: 24px;
+      border: 1px solid rgba(229,184,105,0.18) !important;
+      background: radial-gradient(circle at top, rgba(229,184,105,0.08), transparent 38%), #FAFAFA !important;
+      padding: 20px;
+      overflow: visible;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .full-tree-diagram-info {
+      font-size: 13px;
+      color: #005A2B !important;
+      font-weight: 900;
+      line-height: 1.8;
+      margin-bottom: 18px;
+      border: 1px solid rgba(0,90,43,0.12) !important;
+      background: #fff !important;
+      border-radius: 16px;
+      padding: 12px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      direction:rtl;
+    }
+    .full-tree-diagram {
+      position: relative;
+      direction: ltr;
+      background: linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,255,255,.55)) !important;
+      border: 1px solid rgba(229,184,105,.14) !important;
+      border-radius: 20px;
+      overflow: visible;
+    }
+    .full-tree-connectors {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .full-tree-connectors path {
+      fill: none;
+      stroke: rgba(0,90,43,.35);
+      stroke-width: 1.35;
+      vector-effect: non-scaling-stroke;
+    }
+    .full-tree-node {
+      position: absolute;
+      width: 132px;
+      min-height: 68px;
+      z-index: 2;
+      direction: rtl;
+      text-align: center;
+      border: 1px solid rgba(229,184,105,.30) !important;
+      background: #fff !important;
+      border-radius: 14px;
+      padding: 8px 7px 7px;
+      box-shadow: 0 8px 18px rgba(0,0,0,.06);
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .full-tree-node.is-root {
+      border-color: #E5B869 !important;
+      box-shadow: 0 0 0 5px rgba(229,184,105,.12), 0 10px 22px rgba(0,90,43,.08);
+    }
+    .full-tree-node-photo {
+      width: 34px;
+      height: 34px;
+      margin: 0 auto 5px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(0,90,43,.18) !important;
+      background: rgba(229,184,105,.08) !important;
+      color: #005A2B !important;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:900;
+      font-size:16px;
+    }
+    .full-tree-node-photo img { width:100%; height:100%; object-fit:cover; display:block; }
+    .full-tree-node-name {
+      color: #111827 !important;
+      font-family: 'Aref Ruqaa', serif;
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1.35;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .full-tree-node-meta {
+      color: #6B7280 !important;
+      font-size: 9px;
+      font-weight: 800;
+      margin-top: 2px;
+      direction: rtl;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .full-tree-node.no-photo { padding-top: 12px; min-height: 56px; }
+    .full-tree-node.no-photo .full-tree-node-photo { display:none; }
+    .full-tree-node.no-photo .full-tree-node-name { font-size: 14px; margin-top: 3px; }
+
 
     /* Empty state inside preview */
     .empty-state { 
@@ -366,11 +579,11 @@
       <p class="text-[10px] md:text-xs font-sans font-bold tracking-[0.2em] uppercase text-gray-400 dark:text-gray-500 mb-2 relative z-10">استخراج وتوثيق</p>
 
       <h1 class="text-4xl md:text-5xl font-display leading-tight mb-4 relative z-10 font-bold">
-        <span class="text-primary dark:text-white transition-colors duration-300">تصدير فرع من</span> <span class="text-accent-gold">الشجرة</span>
+        <span class="text-primary dark:text-white transition-colors duration-300">إصدار مخطط</span> <span class="text-accent-gold">الشجرة</span>
       </h1>
       
       <p class="text-[14px] md:text-base font-sans text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed relative z-10 font-medium">
-        ابحث عن اسم بالكامل، ثم اختر خيارات التصدير وقم بإصدار المخطط بصيغة PDF للطباعة بدقة عالية.
+        ابحث عن شخص لإصدار مخططه مع الأب والأجداد والذرية، أو اطبع المخطط الكامل للشجرة بصيغة PDF.
       </p>
     </section>
 
@@ -381,12 +594,12 @@
         <div class="glass-panel rounded-[24px] p-6">
           <h2 class="font-display text-2xl text-primary dark:text-accent-gold mb-2 font-bold">البحث في الشجرة</h2>
           <p class="text-[13px] text-gray-500 dark:text-gray-400 font-medium leading-relaxed mb-5">
-            اكتب الاسم الثلاثي أو الرباعي لصاحب الفرع واضغط على الزر للبحث عنه.
+            اكتب الاسم الثلاثي أو الرباعي لإصدار فرع شخص محدد من آخر جد حتى الشخص وذريته. أما المخطط الكامل فيصدر كل الأسماء الموجودة في الشجرة التفاعلية بلا استثناء.
           </p>
           
           <form id="searchForm" class="space-y-3">
             <div>
-              <label class="block text-[12px] font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-widest">اسم صاحب الفرع</label>
+              <label class="block text-[12px] font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-widest">اسم صاحب المخطط</label>
               <input id="personName" value="<%= initialName || '' %>" class="premium-input" placeholder="مثال: أحمد محمد علي حسن" autocomplete="off">
             </div>
             <button class="w-full h-12 rounded-xl bg-primary hover:bg-primaryDark text-white dark:bg-accent-gold dark:hover:bg-[#d4a353] dark:text-[#050505] font-bold text-[14px] shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex justify-center items-center gap-2" type="submit">
@@ -403,9 +616,9 @@
           
           <div class="space-y-4">
             <div>
-              <label class="block text-[12px] font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-widest">عدد الأجيال المشمولة</label>
+              <label class="block text-[12px] font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-widest">عدد أجيال فرع الاسم المحدد</label>
               <select id="generations" class="premium-input font-bold text-gray-700 dark:text-gray-200 outline-none cursor-pointer">
-                <option class="dark:bg-[#111]" value="all">كل الذرية المتاحة (الشجرة كاملة للفرع)</option>
+                <option class="dark:bg-[#111]" value="all">كل ذرية الاسم المحدد + الأصول كاملة</option>
                 <option class="dark:bg-[#111]" value="1">الأبناء فقط (جيل واحد)</option>
                 <option class="dark:bg-[#111]" value="2">الأبناء والأحفاد (جيلين)</option>
                 <option class="dark:bg-[#111]" value="3">3 أجيال</option>
@@ -413,6 +626,7 @@
                 <option class="dark:bg-[#111]" value="5">5 أجيال</option>
                 <option class="dark:bg-[#111]" value="6">6 أجيال</option>
               </select>
+              <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-2 font-bold leading-relaxed">ملاحظة: هذا الاختيار يطبق على إصدار اسم محدد فقط. زر المخطط الكامل يصدر كل الأسماء وكل الأجيال تلقائيًا.</p>
             </div>
             
             <label class="flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-[#111] cursor-pointer hover:border-accent-gold/50 transition-colors">
@@ -441,10 +655,16 @@
             
             <div class="pt-2 space-y-3">
               <button id="loadBranch" disabled class="w-full h-12 rounded-xl bg-gray-200 text-gray-500 dark:bg-white/5 dark:text-gray-500 font-bold text-[14px] disabled:opacity-50 disabled:cursor-not-allowed transition-all" type="button">
-                تجهيز المعاينة
+                تجهيز مخطط الاسم والأصول والذرية
+              </button>
+              <button id="loadFullTree" class="w-full h-12 rounded-xl bg-white dark:bg-[#111] text-primary dark:text-accent-gold border border-primary/30 dark:border-accent-gold/40 font-bold text-[14px] transition-all hover:bg-gray-50 dark:hover:bg-white/5 flex justify-center items-center gap-2" type="button">
+                <span class="material-symbols-outlined text-[19px]">account_tree</span> معاينة كل الشجرة
+              </button>
+              <button id="exportFullPdf" class="w-full h-12 rounded-xl bg-accent-gold hover:bg-[#d4a353] text-[#050505] font-black text-[14px] shadow-md transition-all hover:-translate-y-0.5 flex justify-center items-center gap-2" type="button">
+                <span class="material-symbols-outlined text-[19px]">print</span> طباعة كل الشجرة PDF
               </button>
               <button id="exportPdf" disabled class="w-full h-14 rounded-xl bg-primary hover:bg-primaryDark text-white dark:bg-accent-gold dark:hover:bg-[#d4a353] dark:text-[#050505] font-bold text-[15px] shadow-lg transform transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 flex justify-center items-center gap-2" type="button">
-                <span class="material-symbols-outlined text-[20px]">picture_as_pdf</span> إصدار PDF
+                <span class="material-symbols-outlined text-[20px]">picture_as_pdf</span> إصدار PDF للمعاينة الحالية
               </button>
             </div>
           </div>
@@ -455,9 +675,9 @@
         
         <div class="glass-panel rounded-t-[24px] rounded-b-none border-b-0 p-5 flex flex-wrap items-center justify-between gap-4 z-10 relative">
           <div>
-            <h2 class="text-xl font-display font-bold text-primary dark:text-accent-gold">معاينة الفرع المحدد</h2>
+            <h2 class="text-xl font-display font-bold text-primary dark:text-accent-gold">معاينة المخطط المحدد</h2>
             <p id="previewStats" class="text-[13px] text-gray-500 dark:text-gray-400 font-medium mt-1">
-              قم بالبحث واختيار شخص لتظهر معاينة الشجرة هنا.
+              اختر شخصًا أو اطبع المخطط الكامل لتظهر المعاينة هنا.
             </p>
           </div>
           <a href="/" class="h-11 px-5 rounded-xl border border-gray-200 dark:border-white/10 flex items-center gap-2 font-bold text-[13px] text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
@@ -469,7 +689,7 @@
           <div id="exportCanvas" class="export-sheet relative">
             <div class="empty-state">
               <span class="material-symbols-outlined text-[48px] text-gray-300 dark:text-gray-400 mb-4 block">account_tree</span>
-              لم يتم اختيار فرع بعد. قم بالبحث لاختيار بداية الشجرة.
+              لم يتم اختيار مخطط بعد. ابحث عن شخص أو اختر طباعة المخطط الكامل.
             </div>
           </div>
         </div>
@@ -557,6 +777,9 @@
     }
     
     function photoHtml(person, root=false){
+      if(person.is_virtual_root){
+        return `<div class="node-portrait placeholder male"><span class="material-symbols-outlined text-[36px]">account_tree</span></div>`;
+      }
       const genderClass = String(person.gender || '').toLowerCase().includes('female') || String(person.gender || '').includes('أنث') ? 'female' : 'male';
       if(person.photo_url){
         const fallback = firstLetter(person.name);
@@ -574,10 +797,161 @@
       </div>${children.length ? `<ul>${children.map(c=>nodeHtml(c,false)).join('')}</ul>` : ''}</li>`;
     }
     
-    function renderBranch(data){
+
+    function fullPhotoHtml(person){
+      const src = person.photo_url || '';
+      const letter = (person.name || 'ش').trim().slice(0,1) || 'ش';
+      if(src){
+        return `<div class="full-tree-node-photo"><img src="${esc(src)}" loading="lazy" decoding="async" onerror="this.parentElement.textContent='${esc(letter)}'; this.remove();"></div>`;
+      }
+      return `<div class="full-tree-node-photo">${esc(letter)}</div>`;
+    }
+
+    function renderFullTreeFast(data){
+      // رغم اسم الدالة القديم، هذا الوضع يرسم مخطط شجرة كامل بخطوط ربط حقيقية، وليس قائمة أسماء.
+      // الاعتماد هنا على absolute-positioned nodes + SVG connectors لتقليل البطء مقارنة بـ UL متداخلة ضخمة.
       branchData = data;
       const created = new Date().toLocaleDateString('ar-EG');
-      $('previewStats').innerHTML = `<span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5 mr-2">${data.personsCount || 0} أفراد</span><span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5 mr-2">${data.generationsCount || 0} أجيال</span><span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5">${data.options?.includePhotos ? 'بإرفاق الصور' : 'بدون صور'}</span>`;
+      const people = Array.isArray(data.persons) ? data.persons.map(p => ({...p, id:Number(p.id||0), primary_parent_id:Number(p.primary_parent_id||0) || null})) : [];
+      const includePhotos = !!data.options?.includePhotos;
+      const byId = new Map(people.filter(p=>p.id).map(p => [p.id, p]));
+      const childrenByParent = new Map();
+      const roots = [];
+
+      people.forEach((p) => {
+        const pid = Number(p.primary_parent_id || 0);
+        if(pid && byId.has(pid) && pid !== p.id){
+          if(!childrenByParent.has(pid)) childrenByParent.set(pid, []);
+          childrenByParent.get(pid).push(p);
+        } else {
+          roots.push(p);
+        }
+      });
+      for(const list of childrenByParent.values()) list.sort((a,b)=>a.id-b.id);
+      roots.sort((a,b)=>a.id-b.id);
+
+      const slotMemo = new Map();
+      function subtreeSlots(person, stack = new Set()){
+        const id = Number(person?.id || 0);
+        if(!id || stack.has(id)) return 1;
+        if(slotMemo.has(id)) return slotMemo.get(id);
+        stack.add(id);
+        const children = childrenByParent.get(id) || [];
+        let slots = children.length ? children.reduce((sum, child) => sum + subtreeSlots(child, stack), 0) : 1;
+        slots = Math.max(1, slots);
+        stack.delete(id);
+        slotMemo.set(id, slots);
+        return slots;
+      }
+
+      const NODE_W = includePhotos ? 132 : 122;
+      const NODE_H = includePhotos ? 78 : 58;
+      const SLOT_W = includePhotos ? 158 : 145;
+      const LEVEL_H = includePhotos ? 122 : 98;
+      const PAD_X = 36;
+      const PAD_Y = 32;
+      const ROOT_GAP = 1;
+      const positions = new Map();
+      let maxDepth = 0;
+      let totalSlots = 0;
+
+      function place(person, startSlot, depth, stack = new Set()){
+        const id = Number(person?.id || 0);
+        if(!id || positions.has(id) || stack.has(id)) return subtreeSlots(person);
+        stack.add(id);
+        const slots = subtreeSlots(person);
+        const x = PAD_X + startSlot * SLOT_W + (slots * SLOT_W - NODE_W) / 2;
+        const y = PAD_Y + depth * LEVEL_H;
+        positions.set(id, {x, y, depth, slots});
+        maxDepth = Math.max(maxDepth, depth);
+        let childStart = startSlot;
+        const children = childrenByParent.get(id) || [];
+        children.forEach((child) => {
+          place(child, childStart, depth + 1, stack);
+          childStart += subtreeSlots(child);
+        });
+        stack.delete(id);
+        return slots;
+      }
+
+      let cursor = 0;
+      roots.forEach((root) => {
+        const slots = place(root, cursor, 0);
+        cursor += slots + ROOT_GAP;
+      });
+      // ضمان أي فرد لم يتم رسمه بسبب دورة أو علاقة غير سليمة يظهر كجذر مستقل بدل الاختفاء.
+      people.forEach((p) => {
+        if(!positions.has(p.id)){
+          const slots = place(p, cursor, 0);
+          cursor += slots + ROOT_GAP;
+        }
+      });
+      totalSlots = Math.max(cursor, 8);
+
+      const diagramW = Math.ceil(PAD_X * 2 + totalSlots * SLOT_W);
+      const diagramH = Math.ceil(PAD_Y * 2 + (maxDepth + 1) * LEVEL_H + NODE_H);
+      const rootIds = new Set(roots.map(r=>r.id));
+
+      const paths = [];
+      people.forEach((p) => {
+        const pos = positions.get(p.id);
+        const pid = Number(p.primary_parent_id || 0);
+        if(!pos || !pid || !positions.has(pid)) return;
+        const parent = positions.get(pid);
+        const x1 = parent.x + NODE_W / 2;
+        const y1 = parent.y + NODE_H;
+        const x2 = pos.x + NODE_W / 2;
+        const y2 = pos.y;
+        const midY = y1 + Math.max(22, (y2 - y1) / 2);
+        paths.push(`<path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} V ${midY.toFixed(1)} H ${x2.toFixed(1)} V ${y2.toFixed(1)}" />`);
+      });
+
+      const nodes = people.map((p) => {
+        const pos = positions.get(p.id);
+        if(!pos) return '';
+        const hasPhoto = includePhotos && p.photo_url;
+        const isRoot = rootIds.has(p.id);
+        const childrenCount = Number(p.children_count || (childrenByParent.get(p.id)||[]).length || 0);
+        const meta = childrenCount ? `${childrenCount} أبناء` : (p.job || p.birth_date || '');
+        return `<div class="full-tree-node ${hasPhoto ? '' : 'no-photo'} ${isRoot ? 'is-root' : ''}" style="left:${pos.x.toFixed(1)}px;top:${pos.y.toFixed(1)}px;width:${NODE_W}px;min-height:${NODE_H}px">
+          ${includePhotos ? fullPhotoHtml(p) : ''}
+          <div class="full-tree-node-name" title="${esc(p.name || '')}">${esc(p.name || 'بدون اسم')}</div>
+          <div class="full-tree-node-meta" title="${esc(meta)}">${esc(meta)}</div>
+        </div>`;
+      }).join('');
+
+      $('previewStats').innerHTML = `<span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5 mr-2">${data.personsCount || people.length || 0} أفراد</span><span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5 mr-2">${data.generationsCount || (maxDepth+1) || 0} أجيال</span><span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5 mr-2">مخطط شجرة كامل</span><span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5">${includePhotos ? 'بإرفاق الصور' : 'بدون صور'}</span>`;
+
+      const el = $('exportCanvas');
+      el.classList.remove('full-fast-sheet');
+      el.classList.add('full-diagram-sheet');
+      el.innerHTML = `
+        <div class="export-sheet-header">
+          <div><h1 class="export-title">${esc(data.title || 'المخطط الكامل للشجرة')}</h1><div class="export-subtitle">كل الأشخاص المسجلين داخل الشجرة التفاعلية كمخطط متصل — ${created}</div></div>
+          <div class="export-meta"><span>${data.personsCount || people.length || 0} فرد</span><span>${data.generationsCount || (maxDepth+1) || 0} جيل</span><span>${includePhotos ? 'مرفق بالصور' : 'بدون صور'}</span></div>
+        </div>
+        <div class="full-tree-diagram-wrap">
+          <div class="full-tree-diagram-info"><span>هذا مخطط كامل حقيقي: كل اسم داخل الشجرة يظهر في مكانه مع خطوط الأبناء، وليس قائمة أسماء.</span><span>${roots.length} أصل / فرع رئيسي</span></div>
+          <div class="full-tree-diagram" style="width:${diagramW}px;height:${diagramH}px">
+            <svg class="full-tree-connectors" viewBox="0 0 ${diagramW} ${diagramH}" preserveAspectRatio="none">${paths.join('')}</svg>
+            ${nodes || '<div class="empty-state">لا توجد أسماء داخل الشجرة.</div>'}
+          </div>
+        </div>`;
+      $('exportPdf').disabled = false;
+    }
+
+    function renderBranch(data){
+      if(data && data.mode === 'full_tree' && Array.isArray(data.persons)) {
+        renderFullTreeFast(data);
+        return;
+      }
+      $('exportCanvas').classList.remove('full-fast-sheet','full-diagram-sheet');
+      branchData = data;
+      const created = new Date().toLocaleDateString('ar-EG');
+      const extraBadge = data.mode === 'full_tree'
+        ? `<span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5 mr-2">${data.rootsCount || 0} أصل رئيسي</span>`
+        : `<span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5 mr-2">${data.ancestorsCount || 0} أجداد</span>`;
+      $('previewStats').innerHTML = `<span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5 mr-2">${data.personsCount || 0} أفراد</span><span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5 mr-2">${data.generationsCount || 0} أجيال</span>${extraBadge}<span class="font-bold text-gray-700 dark:text-gray-300 px-2 py-1 rounded bg-gray-100 dark:bg-white/5 text-[12px] border border-gray-200 dark:border-white/5">${data.options?.includePhotos ? 'بإرفاق الصور' : 'بدون صور'}</span>`;
       
       $('exportCanvas').innerHTML = `
         <div class="export-sheet-header">
@@ -617,14 +991,41 @@
     
     $('searchForm').addEventListener('submit', (e) => { e.preventDefault(); const q=$('personName').value.trim(); if(q) searchPeople(q); });
     
-    $('loadBranch').addEventListener('click', async () => {
+    
+    async function loadFullTreeData(autoPdf=false){
+      const btn = $('loadFullTree');
+      const printBtn = $('exportFullPdf');
+      const oldBtn = btn?.innerHTML;
+      const oldPrint = printBtn?.innerHTML;
+      if(btn) { btn.disabled = true; btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">refresh</span> جاري تجهيز مخطط كل الشجرة...'; }
+      if(printBtn && autoPdf) { printBtn.disabled = true; printBtn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">refresh</span> جاري تجهيز كل الشجرة للطباعة...'; }
+      try {
+        const photos = $('includePhotos').checked ? '1' : '0';
+        const r = await fetch(`/api/tree/export/full?photos=${photos}&compact=1`, {cache:'no-store'});
+        const data = await r.json();
+        if(!data.ok){ alert(data.error || 'تعذر تجهيز المخطط الكامل'); return false; }
+        selectedPerson = null;
+        renderBranch(data);
+        $('searchMessage').innerHTML = `<span class="text-primary dark:text-accent-gold font-bold">تم تجهيز المخطط الكامل للشجرة</span>`;
+        if(autoPdf){
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          await exportToPdf();
+        }
+        return true;
+      } finally {
+        if(btn) { btn.disabled = false; btn.innerHTML = oldBtn || '<span class="material-symbols-outlined text-[19px]">account_tree</span> معاينة كل الشجرة'; }
+        if(printBtn) { printBtn.disabled = false; printBtn.innerHTML = oldPrint || '<span class="material-symbols-outlined text-[19px]">print</span> طباعة كل الشجرة PDF'; }
+      }
+    }
+    
+$('loadBranch').addEventListener('click', async () => {
       if(!selectedPerson) return;
       $('loadBranch').innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">refresh</span> جاري التجهيز...';
       const gen = $('generations').value === 'all' ? 'all' : $('generations').value;
       const photos = $('includePhotos').checked ? '1' : '0';
       const r = await fetch(`/api/tree/export/branch/${selectedPerson.id}?generations=${encodeURIComponent(gen)}&photos=${photos}`, {cache:'no-store'});
       const data = await r.json();
-      $('loadBranch').innerHTML = 'تجهيز المعاينة مرة أخرى';
+      $('loadBranch').innerHTML = 'تجهيز مخطط الاسم مرة أخرى';
       if(!data.ok){ alert(data.error || 'تعذر تجهيز الفرع'); return; }
       renderBranch(data);
     });
@@ -637,13 +1038,16 @@
       const el = $('exportCanvas');
       
       // Ensures background remains white for PDF despite dark mode preference of user device.
+      const isFullTreePdf = branchData?.mode === 'full_tree';
+      const personCountForPdf = Number(branchData?.personsCount || 0);
+      const pdfScale = isFullTreePdf ? (personCountForPdf > 1800 ? 0.45 : personCountForPdf > 1000 ? 0.58 : personCountForPdf > 500 ? 0.75 : 1) : 2;
       const canvas = await html2canvas(el, {
-        scale: 2, 
+        scale: pdfScale,
         useCORS: true, 
         allowTaint: true, 
         backgroundColor: '#ffffff', 
         logging: false, 
-        windowWidth: el.scrollWidth, 
+        windowWidth: el.scrollWidth,
         windowHeight: el.scrollHeight
       });
       
@@ -668,12 +1072,15 @@
         pdf.addImage(img, 'PNG', margin, position, imgW, imgH, undefined, 'FAST');
         heightLeft -= usableH;
       }
-      const filename = `فرع-${(branchData.root?.name || 'الشجرة').replace(/[\\/:*?"<>|]/g,'-')}.pdf`;
+      const safeTitle = (branchData.title || branchData.root?.name || 'الشجرة').replace(/[\/:*?"<>|]/g,'-');
+      const filename = `${branchData.mode === 'full_tree' ? 'الشجرة-الكاملة' : 'مخطط'}-${safeTitle}.pdf`;
       pdf.save(filename);
-      fetch('/api/tree/export/log', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({person_id: branchData.root?.id, person_name: branchData.root?.name, export_title: branchData.title, persons_count: branchData.personsCount, generations_count: branchData.generationsCount, options: branchData.options})}).catch(()=>{});
-      btn.disabled = false; btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">picture_as_pdf</span> إصدار PDF';
+      fetch('/api/tree/export/log', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({person_id: branchData.mode === 'full_tree' ? null : branchData.root?.id, person_name: branchData.mode === 'full_tree' ? 'الشجرة كاملة' : branchData.root?.name, export_title: branchData.title, persons_count: branchData.personsCount, generations_count: branchData.generationsCount, options: {...(branchData.options || {}), mode: branchData.mode || 'branch'}})}).catch(()=>{});
+      btn.disabled = false; btn.innerHTML = '<span class="material-symbols-outlined text-[20px]">picture_as_pdf</span> إصدار PDF للمعاينة الحالية';
     }
     
+    $('loadFullTree').addEventListener('click', () => loadFullTreeData(false));
+    $('exportFullPdf').addEventListener('click', () => loadFullTreeData(true));
     $('exportPdf').addEventListener('click', exportToPdf);
     if(initialPersonId){ selectedPerson = {id: initialPersonId}; $('loadBranch').disabled=false; $('loadBranch').click(); }
   </script>

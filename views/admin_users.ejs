@@ -473,6 +473,9 @@
                         <% } else { %>
                           <form method="post" action="/admin/chats/users/<%= u.id %>/block" class="m-0" onsubmit="return confirm('حظر هذا المستخدم من الشات فقط؟')"><input type="hidden" name="reason" value="حظر مباشر من صفحة المستخدمين"><button class="w-full px-4 h-10 rounded-2xl bg-orange-600 text-white font-black text-xs">حظر من الشات</button></form>
                         <% } %>
+                        <form method="post" action="/admin/users/<%= u.id %>/delete" class="m-0" data-delete-confirm="true" data-delete-message="تحذير نهائي: سيتم حذف هذا الحساب نهائيًا من مركز الحسابات وإزالة بياناته المرتبطة. لن يستطيع المستخدم الدخول بهذا الحساب مرة أخرى، وإذا أراد العودة سيحتاج إنشاء حساب جديد. هل تريد المتابعة؟">
+                          <button class="w-full px-4 h-10 rounded-2xl bg-red-700 text-white font-black text-xs hover:bg-red-800 transition-colors">حذف الحساب</button>
+                        </form>
                       </div>
                     </td>
                   </tr>
@@ -677,7 +680,8 @@
       const action = form.getAttribute("action") || "";
       const isDelete = action.includes("/delete") || form.dataset.deleteConfirm === "true";
       if (!isDelete || form.dataset.confirmed === "true") return;
-      if (!confirm("هل أنت متأكد من الحذف؟ لا يمكن التراجع عن هذه العملية.")) {
+      const message = form.dataset.deleteMessage || "هل أنت متأكد من الحذف؟ لا يمكن التراجع عن هذه العملية.";
+      if (!confirm(message)) {
         e.preventDefault();
       }
     }, true);

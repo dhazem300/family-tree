@@ -384,9 +384,14 @@ fs.mkdirSync(pdfUploadsDir, { recursive: true });
 /* =========================
    Multer uploads
    ========================= */
-const MAX_IMAGE_UPLOAD_SIZE = Number(process.env.MAX_IMAGE_UPLOAD_SIZE || 5 * 1024 * 1024);
-const MAX_CHAT_UPLOAD_SIZE = Number(process.env.MAX_CHAT_UPLOAD_SIZE || 15 * 1024 * 1024);
-const MAX_PDF_UPLOAD_SIZE = Number(process.env.MAX_PDF_UPLOAD_SIZE || 25 * 1024 * 1024);
+// حدود رفع الصور.
+// ملاحظة: صور الحساب الشخصي لها حدود مستقلة أوضح من باقي صور الموقع.
+const MB = 1024 * 1024;
+const MAX_PROFILE_AVATAR_UPLOAD_SIZE = Number(process.env.MAX_PROFILE_AVATAR_UPLOAD_SIZE || 10 * MB); // الصورة الشخصية: 10MB افتراضيًا
+const MAX_PROFILE_COVER_UPLOAD_SIZE = Number(process.env.MAX_PROFILE_COVER_UPLOAD_SIZE || 20 * MB);   // صورة الغلاف: 20MB افتراضيًا
+const MAX_IMAGE_UPLOAD_SIZE = Number(process.env.MAX_IMAGE_UPLOAD_SIZE || 20 * MB);
+const MAX_CHAT_UPLOAD_SIZE = Number(process.env.MAX_CHAT_UPLOAD_SIZE || 15 * MB);
+const MAX_PDF_UPLOAD_SIZE = Number(process.env.MAX_PDF_UPLOAD_SIZE || 25 * MB);
 
 const ALLOWED_IMAGE_MIMES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ALLOWED_IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif"]);
@@ -430,6 +435,56 @@ const upload = multer({
   fileFilter: imageFileFilter,
   limits: { fileSize: MAX_IMAGE_UPLOAD_SIZE, files: 6 },
 });
+
+const profileImageUpload = multer({
+  storage,
+  fileFilter: imageFileFilter,
+  limits: {
+    fileSize: Math.max(MAX_PROFILE_AVATAR_UPLOAD_SIZE, MAX_PROFILE_COVER_UPLOAD_SIZE),
+    files: 3,
+  },
+});
+const profileImageUploadFields = profileImageUpload.fields([
+  { name: "avatar_file", maxCount: 1 },
+  { name: "avatar_file_alt", maxCount: 1 },
+  { name: "cover_file", maxCount: 1 },
+]);
+
+function formatBytesArabic(bytes) {
+  const mb = Number(bytes || 0) / MB;
+  return `${Number.isInteger(mb) ? mb : mb.toFixed(1)} ميجابايت`;
+}
+
+function profileImageLimitMessage(field = "") {
+  const isCover = field === "cover_file";
+  const limit = isCover ? MAX_PROFILE_COVER_UPLOAD_SIZE : MAX_PROFILE_AVATAR_UPLOAD_SIZE;
+  return isCover
+    ? `حجم صورة الغلاف كبير. الحد الأقصى لصورة الغلاف هو ${formatBytesArabic(limit)}.`
+    : `حجم الصورة الشخصية كبير. الحد الأقصى للصورة الشخصية هو ${formatBytesArabic(limit)}.`;
+}
+
+function profileImageUploadHandler(fallbackPath = "/account") {
+  return function (req, res, next) {
+    profileImageUploadFields(req, res, function (err) {
+      if (!err) return next();
+      const message = err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE"
+        ? profileImageLimitMessage(err.field)
+        : (err.message || "تعذر رفع الصورة. تأكد من النوع والحجم.");
+      const url = `${fallbackPath}?error=${encodeURIComponent(message)}`;
+      return res.redirect(url);
+    });
+  };
+}
+
+function validateProfileImageSizes(files = {}) {
+  const avatarFiles = [files?.avatar_file?.[0], files?.avatar_file_alt?.[0]].filter(Boolean);
+  const coverFile = files?.cover_file?.[0] || null;
+  for (const file of avatarFiles) {
+    if (Number(file.size || 0) > MAX_PROFILE_AVATAR_UPLOAD_SIZE) return profileImageLimitMessage("avatar_file");
+  }
+  if (coverFile && Number(coverFile.size || 0) > MAX_PROFILE_COVER_UPLOAD_SIZE) return profileImageLimitMessage("cover_file");
+  return "";
+}
 
 const chatUploadsDir = path.join(__dirname, "public", "uploads", "chat");
 fs.mkdirSync(chatUploadsDir, { recursive: true });
@@ -2582,24 +2637,46 @@ function safeExportDepth(value) {
   return Math.min(Math.max(Math.floor(n), 1), 12);
 }
 
-function buildBranchExportTree(root, rows, options = {}) {
-  const maxDepth = safeExportDepth(options.maxDepth || options.generations || 99);
-  const includePhotos = options.includePhotos !== false;
+
+function makeExportChildrenIndex(rows, mode = "both") {
   const byParent = new Map();
 
+  function add(parentId, child) {
+    const pid = Number(parentId || 0);
+    if (!pid) return;
+    if (!byParent.has(pid)) byParent.set(pid, []);
+    byParent.get(pid).push(child);
+  }
+
   for (const p of rows || []) {
-    for (const parentId of [p.father_id, p.mother_id]) {
-      const pid = Number(parentId || 0);
-      if (!pid) continue;
-      if (!byParent.has(pid)) byParent.set(pid, []);
-      byParent.get(pid).push(p);
+    if (mode === "primary") {
+      // في المخطط الكامل نضع الشخص مرة واحدة فقط تحت الأب إن وجد، وإلا تحت الأم.
+      add(p.father_id || p.mother_id, p);
+    } else {
+      // في إصدار فرع شخص معيّن نسمح بظهور الأبناء سواء كان الشخص أبًا أو أمًا.
+      add(p.father_id, p);
+      add(p.mother_id, p);
     }
   }
 
   for (const list of byParent.values()) {
     list.sort((a, b) => Number(a.id || 0) - Number(b.id || 0));
   }
+  return byParent;
+}
 
+function prepareExportNode(person, depth, includePhotos) {
+  const payload = publicPersonForExport(person);
+  if (!includePhotos) payload.photo_url = "";
+  payload.level = depth;
+  return payload;
+}
+
+function buildBranchExportTree(root, rows, options = {}) {
+  // السلوك الاحتياطي القديم: الشخص + ذريته فقط.
+  const maxDepth = safeExportDepth(options.maxDepth || options.generations || 99);
+  const includePhotos = options.includePhotos !== false;
+  const byParent = makeExportChildrenIndex(rows, "both");
   const seen = new Set();
   let count = 0;
   let maxLevel = 0;
@@ -2607,21 +2684,11 @@ function buildBranchExportTree(root, rows, options = {}) {
   function walk(person, depth) {
     const id = Number(person?.id || 0);
     if (!person || !id || seen.has(id) || depth > maxDepth) return null;
-
     seen.add(id);
     count += 1;
     maxLevel = Math.max(maxLevel, depth);
-
-    const payload = publicPersonForExport(person);
-    if (!includePhotos) payload.photo_url = "";
-    payload.level = depth;
-
-    const children = depth >= maxDepth
-      ? []
-      : (byParent.get(id) || [])
-          .map((child) => walk(child, depth + 1))
-          .filter(Boolean);
-
+    const payload = prepareExportNode(person, depth, includePhotos);
+    const children = depth >= maxDepth ? [] : (byParent.get(id) || []).map((child) => walk(child, depth + 1)).filter(Boolean);
     payload.children = children;
     payload.children_count = children.length;
     return payload;
@@ -2629,6 +2696,161 @@ function buildBranchExportTree(root, rows, options = {}) {
 
   const tree = walk(root, 0);
   return { tree, count, generations: maxLevel + 1 };
+}
+
+function buildLineageBranchExportTree(root, rows, options = {}) {
+  // المطلوب عند إصدار اسم محدد: آخر جد ← الأجداد ← الأب ← الشخص ← كل ذريته حسب اختيار الأجيال.
+  const maxDescendantDepth = safeExportDepth(options.maxDepth || options.generations || 99);
+  const includePhotos = options.includePhotos !== false;
+  const byId = new Map((rows || []).map((r) => [Number(r.id), { ...r, id: Number(r.id) }]));
+  const byParent = makeExportChildrenIndex(rows, "both");
+  const lineage = [];
+  const seenLineage = new Set();
+
+  let current = root;
+  while (current && current.id && !seenLineage.has(Number(current.id))) {
+    lineage.unshift(current);
+    seenLineage.add(Number(current.id));
+    current = current.father_id ? byId.get(Number(current.father_id)) : null;
+  }
+
+  if (!lineage.length) lineage.push(root);
+
+  const seen = new Set();
+  let count = 0;
+  let maxLevel = 0;
+
+  function register(person, absoluteDepth) {
+    const id = Number(person?.id || 0);
+    if (!person || !id || seen.has(id)) return null;
+    seen.add(id);
+    count += 1;
+    maxLevel = Math.max(maxLevel, absoluteDepth);
+    return prepareExportNode(person, absoluteDepth, includePhotos);
+  }
+
+  function buildDescendants(person, absoluteDepth, descendantDepth) {
+    const payload = register(person, absoluteDepth);
+    if (!payload) return null;
+    const id = Number(person.id);
+    const children = descendantDepth >= maxDescendantDepth
+      ? []
+      : (byParent.get(id) || [])
+          .map((child) => buildDescendants(child, absoluteDepth + 1, descendantDepth + 1))
+          .filter(Boolean);
+    payload.children = children;
+    payload.children_count = children.length;
+    return payload;
+  }
+
+  function buildLineageAt(index, absoluteDepth) {
+    const person = lineage[index];
+    const payload = register(person, absoluteDepth);
+    if (!payload) return null;
+
+    let children = [];
+    if (index < lineage.length - 1) {
+      const next = buildLineageAt(index + 1, absoluteDepth + 1);
+      if (next) children.push(next);
+    } else {
+      const id = Number(person.id);
+      children = (byParent.get(id) || [])
+        .map((child) => buildDescendants(child, absoluteDepth + 1, 1))
+        .filter(Boolean);
+    }
+
+    payload.children = children;
+    payload.children_count = children.length;
+    return payload;
+  }
+
+  const tree = buildLineageAt(0, 0);
+  return { tree, count, generations: maxLevel + 1, ancestorsCount: lineage.length - 1 };
+}
+
+function buildFullTreeExport(rows, options = {}) {
+  // إصدار الشجرة كاملة يعني كل فرد موجود في جدول persons بلا استثناء.
+  // تحسين الأداء: نرجع أيضًا قائمة مسطحة flatPersons لاستخدامها في المعاينة والطباعة السريعة، بدل رسم UL متداخل ضخم جدًا.
+  const includePhotos = options.includePhotos !== false;
+  const normalizedRows = (rows || []).map((r) => ({ ...r, id: Number(r.id) })).filter((r) => Number(r.id));
+  const byId = new Map(normalizedRows.map((r) => [Number(r.id), r]));
+  const byParent = makeExportChildrenIndex(normalizedRows, "primary");
+  const seen = new Set();
+  const flatPersons = [];
+  let maxLevel = 0;
+
+  function primaryParentId(person) {
+    const fatherId = Number(person?.father_id || 0);
+    const motherId = Number(person?.mother_id || 0);
+    if (fatherId && byId.has(fatherId)) return fatherId;
+    if (motherId && byId.has(motherId)) return motherId;
+    return 0;
+  }
+
+  let roots = normalizedRows.filter((p) => !primaryParentId(p));
+  roots.sort((a, b) => Number(a.id || 0) - Number(b.id || 0));
+
+  function flatPayload(person, depth) {
+    const id = Number(person?.id || 0);
+    const rawChildren = byParent.get(id) || [];
+    const payload = prepareExportNode(person, depth, includePhotos);
+    payload.primary_parent_id = primaryParentId(person) || null;
+    payload.children_count = rawChildren.length;
+    payload.has_photo = Boolean(payload.photo_url);
+    return payload;
+  }
+
+  function walk(person, depth) {
+    const id = Number(person?.id || 0);
+    if (!person || !id || seen.has(id)) return null;
+    seen.add(id);
+    maxLevel = Math.max(maxLevel, depth);
+    flatPersons.push(flatPayload(person, depth));
+
+    const payload = prepareExportNode(person, depth, includePhotos);
+    const children = (byParent.get(id) || []).map((child) => walk(child, depth + 1)).filter(Boolean);
+    payload.children = children;
+    payload.children_count = children.length;
+    return payload;
+  }
+
+  const forest = roots.map((root) => walk(root, 0)).filter(Boolean);
+
+  // ضمان إدراج أي أفراد لم يظهروا بسبب دورات/علاقات أبوة غير سليمة/بيانات منفصلة.
+  const detached = normalizedRows
+    .filter((person) => !seen.has(Number(person.id)))
+    .sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
+    .map((person) => walk(person, 0))
+    .filter(Boolean);
+
+  flatPersons.sort((a, b) => Number(a.level || 0) - Number(b.level || 0) || Number(a.id || 0) - Number(b.id || 0));
+
+  const allRoots = [...forest, ...detached];
+  const tree = {
+    id: 0,
+    name: "الشجرة كاملة",
+    father_id: null,
+    mother_id: null,
+    gender: "",
+    photo_url: "",
+    job: "",
+    birth_date: "",
+    lineage_label: "كل الأسماء المسجلة داخل الشجرة التفاعلية",
+    level: 0,
+    is_virtual_root: true,
+    children: allRoots,
+    children_count: allRoots.length,
+  };
+
+  return {
+    tree,
+    persons: flatPersons,
+    count: normalizedRows.length,
+    generations: maxLevel + 1,
+    rootsCount: allRoots.length,
+    includedAllPersons: true,
+    detachedRootsCount: detached.length,
+  };
 }
 
 async function findExportPersonCandidates(query) {
@@ -5126,14 +5348,21 @@ app.get("/register", (req, res) => {
   renderUserAuth(res, { mode: "register", error: req.query.error || null, nextUrl: req.query.next || "/" });
 });
 
-app.post("/register", loginLimiter, upload.fields([{ name: "avatar_file", maxCount: 1 }, { name: "cover_file", maxCount: 1 }]), async (req, res) => {
+app.post("/register", loginLimiter, profileImageUploadHandler("/register"), async (req, res) => {
   try {
     const fields = extractSiteUserProfileFields(req.body);
     const password = String(req.body.password || "");
     const nextUrl = safeRedirectUrl(req.body.next || "/account");
     const inviteCheck = await verifyInviteCode(req.body.invite_code || "");
     if (!inviteCheck.ok) {
+      await removeUploadedFilesFromRequest(req.files);
       return renderUserAuth(res, { mode: "register", error: inviteCheck.message, nextUrl, values: fields });
+    }
+
+    const profileImageSizeError = validateProfileImageSizes(req.files);
+    if (profileImageSizeError) {
+      await removeUploadedFilesFromRequest(req.files);
+      return renderUserAuth(res, { mode: "register", error: profileImageSizeError, nextUrl, values: fields });
     }
 
     const avatarFile = req.files?.avatar_file?.[0] || null;
@@ -5142,6 +5371,7 @@ app.post("/register", loginLimiter, upload.fields([{ name: "avatar_file", maxCou
     const coverUrl = coverFile ? `/uploads/${coverFile.filename}` : "";
 
     if (!fields.full_name || !fields.father_name || !isValidEmail(fields.email) || !fields.phone || password.length < 6) {
+      await removeUploadedFilesFromRequest(req.files);
       return renderUserAuth(res, {
         mode: "register",
         error: "البيانات الإجبارية: الاسم، اسم الأب، البريد الإلكتروني، رقم الجوال، وكلمة مرور لا تقل عن ٦ أحرف.",
@@ -5152,6 +5382,7 @@ app.post("/register", loginLimiter, upload.fields([{ name: "avatar_file", maxCou
 
     const exists = await getSiteUserByEmail(fields.email);
     if (exists) {
+      await removeUploadedFilesFromRequest(req.files);
       return renderUserAuth(res, {
         mode: "register",
         error: "هذا البريد مسجل بالفعل. جرّب تسجيل الدخول بدل إنشاء حساب جديد.",
@@ -5184,6 +5415,7 @@ app.post("/register", loginLimiter, upload.fields([{ name: "avatar_file", maxCou
     await logSiteUserActivity(req, "إنشاء حساب", { email: fields.email });
     return res.redirect((user.approval_status || "approved") === "approved" ? "/account" : "/account-pending");
   } catch (e) {
+    await removeUploadedFilesFromRequest(req.files);
     console.error(e);
     return renderUserAuth(res, { mode: "register", error: "حدث خطأ أثناء إنشاء الحساب. تأكد أن البريد غير مستخدم.", values: req.body || {} });
   }
@@ -5306,17 +5538,19 @@ app.get("/account", async (req, res) => {
 
 app.post(
   "/account",
-  upload.fields([
-    { name: "avatar_file", maxCount: 1 },
-    { name: "avatar_file_alt", maxCount: 1 },
-    { name: "cover_file", maxCount: 1 },
-  ]),
+  profileImageUploadHandler("/account"),
   async (req, res) => {
     try {
       const current = await getSiteUserById(req.session.siteUser.id);
       if (!current) {
         await removeUploadedFilesFromRequest(req.files);
         return res.redirect("/login");
+      }
+
+      const profileImageSizeError = validateProfileImageSizes(req.files);
+      if (profileImageSizeError) {
+        await removeUploadedFilesFromRequest(req.files);
+        return res.redirect("/account?error=" + encodeURIComponent(profileImageSizeError));
       }
 
       const fields = extractSiteUserProfileFields(req.body);
@@ -6616,20 +6850,57 @@ app.get("/api/tree/export/branch/:personId", async (req, res) => {
     const root = byId.get(personId);
     if (!root) return res.status(404).json({ ok: false, error: "الشخص غير موجود في الشجرة." });
 
-    const branch = buildBranchExportTree(root, rows, { maxDepth, includePhotos });
+    const branch = buildLineageBranchExportTree(root, rows, { maxDepth, includePhotos });
     return res.json({
       ok: true,
+      mode: "lineage_branch",
       root: publicPersonForExport(root),
       tree: branch.tree,
       personsCount: branch.count,
       generationsCount: branch.generations,
-      options: { includePhotos, maxDepth: maxDepth >= 99 ? "all" : maxDepth },
-      title: `فرع ${root.name}`,
+      ancestorsCount: branch.ancestorsCount || 0,
+      options: { includePhotos, maxDepth: maxDepth >= 99 ? "all" : maxDepth, includeAncestors: true },
+      title: `مخطط ${root.name} والأصول والذرية`,
       createdAt: new Date().toISOString(),
     });
   } catch (e) {
     console.error("tree export branch error:", e);
     res.status(500).json({ ok: false, error: "حدث خطأ أثناء تجهيز الفرع." });
+  }
+});
+
+app.get("/api/tree/export/full", async (req, res) => {
+  try {
+    const includePhotos = String(req.query.photos ?? "1") !== "0";
+    // compact=1 هو الوضع الافتراضي السريع: لا نرسل شجرة متداخلة ضخمة، بل قائمة مسطحة بكل الأشخاص.
+    // هذا يقلل حجم الاستجابة وتسريع المعاينة والطباعة عند وجود مئات/آلاف الأسماء.
+    const compact = String(req.query.compact ?? "1") !== "0";
+    const rows = await all(`
+      SELECT id, name, father_id, mother_id, gender, birth_date, photo_url, job
+      FROM persons
+      ORDER BY id ASC
+    `);
+
+    const full = buildFullTreeExport(rows, { includePhotos });
+    return res.json({
+      ok: true,
+      mode: "full_tree",
+      root: { id: null, name: "الشجرة كاملة" },
+      tree: compact ? null : full.tree,
+      persons: full.persons || [],
+      personsCount: full.count,
+      generationsCount: full.generations,
+      rootsCount: full.rootsCount || 0,
+      detachedRootsCount: full.detachedRootsCount || 0,
+      includedAllPersons: true,
+      compact: compact ? 1 : 0,
+      options: { includePhotos, maxDepth: "all", fullTree: true, includeEveryPerson: true, compact },
+      title: "المخطط الكامل لكل أسماء شجرة العائلة",
+      createdAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("tree export full error:", e);
+    res.status(500).json({ ok: false, error: "حدث خطأ أثناء تجهيز المخطط الكامل." });
   }
 });
 
@@ -8659,6 +8930,7 @@ app.post("/admin/users/:id/toggle", isAuthed, requirePermission("users"), async 
 });
 
 
+// حذف حساب مستخدم من مركز الحسابات بالكامل. بعد الحذف لن يستطيع الدخول بالحساب القديم، ويمكنه التسجيل من جديد كحساب جديد.
 app.post("/admin/users/:id/delete", isAuthed, requirePermission("users"), async (req, res) => {
   try {
     const userId = Number(req.params.id || 0);
@@ -8975,6 +9247,8 @@ app.get("/admin/backups/download", isAuthed, requirePermission("backups"), async
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError || /يسمح|Only PDF|File too large|حجم الملف/i.test(String(err?.message || ""))) {
     const message = err.code === "LIMIT_FILE_SIZE" ? "حجم الملف أكبر من الحد المسموح." : (err.message || "نوع الملف غير مسموح.");
+    if (req.path === "/account") return res.redirect("/account?error=" + encodeURIComponent(message));
+    if (req.path === "/register") return res.redirect("/register?error=" + encodeURIComponent(message));
     if (req.path.startsWith("/api/")) return res.status(400).json({ ok:false, message });
     const back = req.headers.referer || "/";
     const safeMessage = String(message).replace(/[<>&]/g, "");
