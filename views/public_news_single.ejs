@@ -349,7 +349,7 @@
       <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-events">مناسبات العائلة</a>
       <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/chat">الشات العام</a>
       <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/notifications">الإشعارات</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/account">حسابي</a>
+      <%- include('partials/user_profile_chip', { siteUser }) %>
       <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/support">الدعم</a>
     </nav>
     <div class="p-6 border-t border-gray-100 dark:border-white/5 bg-white/50 dark:bg-black/20">
@@ -389,7 +389,7 @@
         <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/submit-person">إضافة بياناتك</a>
         <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/family-members">أعضاء العائلة</a>
         <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/chat">الشات العام</a>
-        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/account">حسابي</a>
+        <%- include('partials/user_profile_chip', { siteUser }) %>
       </nav>
 
       <div class="flex items-center justify-end gap-2 shrink-0">

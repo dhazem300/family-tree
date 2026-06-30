@@ -1,0 +1,1220 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>شجرة العائلة | Family Tree</title>
+
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/styles.css" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Tajawal:wght@400;500;700;800&family=Amiri:wght@400;700&family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries,line-clamp"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            primary: "#005A2B",
+            primaryDark: "#003D1D",
+            accent: "#E5B869",
+            "accent-gold": "#E5B869",
+            "background-light": "#F8F8F6",
+            "background-dark": "#050505",
+            "bg-charcoal": "#050505",
+            "bg-card": "#0A0A0A",
+            "text-cream": "#FAFAFA",
+            "text-dark": "#111827",
+            "text-muted": "#71717A",
+            "muted-slate": "#71717A",
+            "accent-gold-dark": "#D4A353",
+            wood: "#7A542F",
+            "leaf-green": "#4CAF50"
+          },
+          fontFamily: {
+            display: ["'Aref Ruqaa'", "serif"],
+            sans: ["Tajawal", "sans-serif"],
+            amiri: ["Amiri", "serif"],
+            cairo: ["Cairo", "sans-serif"]
+          },
+          backgroundImage: {
+            "islamic-pattern": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
+            "islamic-pattern-dark": "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23E5B869' fill-opacity='0.02'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")"
+          },
+          boxShadow: {
+            'luxury': '0 20px 40px -10px rgba(0,0,0,0.05), 0 0 20px rgba(229,184,105,0.03)',
+            'luxury-dark': '0 20px 40px -10px rgba(0,0,0,0.4), 0 0 20px rgba(229,184,105,0.05)',
+            'glow': '0 0 15px rgba(229, 184, 105, 0.4)',
+          }
+        }
+      }
+    };
+  </script>
+
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .glass-panel {
+        @apply bg-white/85 dark:bg-[#080808]/85 backdrop-blur-xl border border-accent-gold/20 shadow-luxury dark:shadow-luxury-dark;
+      }
+    }
+  </style>
+
+  <style>
+    :root { --gold-glow: rgba(229, 184, 105, 0.25); }
+
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(229, 184, 105, 0.4); border-radius: 999px; transition: background 0.3s; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(229, 184, 105, 0.8); }
+
+    /* ===== Tree Engine Elements ===== */
+    .tree-container { position: relative; width: 100%; height: 100%; margin: 0 auto; }
+    .branch-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+
+    .node-portrait {
+      width: 100px;
+      height: 100px;
+      border-radius: 14px;
+      border: 1.5px solid rgba(229, 184, 105, 0.5);
+      background: #ffffff;
+      overflow: hidden;
+      position: relative;
+      z-index: 10;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 8px 20px -4px rgba(0,0,0,0.08);
+    }
+
+    .node-portrait:hover {
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 14px 28px -6px rgba(0,0,0,0.12), 0 0 15px rgba(229, 184, 105, 0.2);
+      border-color: #E5B869;
+    }
+
+    .node-portrait.male { border-bottom: 3px solid #005A2B; }
+    .node-portrait.female { border-bottom: 3px solid #E5B869; }
+
+    .node-portrait img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
+    .node-portrait:hover img { transform: scale(1.05); }
+
+    .name-box {
+      background-color: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(229,184,105,0.3);
+      padding: 6px 14px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+      margin-top: -10px;
+      position: relative;
+      z-index: 20;
+      min-width: 110px;
+      text-align: center;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .name-box:hover {
+      border-color: #E5B869;
+      box-shadow: 0 6px 16px rgba(229,184,105,0.15);
+      transform: translateY(-2px);
+    }
+
+    .node-label-text {
+      font-family: 'Amiri', serif;
+      color: #111827;
+      font-weight: 700;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .leaf { fill: #4CAF50; opacity: 0.8; transition: opacity 0.3s ease; }
+
+    /* Dark Mode Tree Elements */
+    html.dark .node-portrait {
+      background: #0A0A0A;
+      border-color: rgba(229, 184, 105, 0.3);
+      box-shadow: 0 8px 20px -4px rgba(0,0,0,0.4);
+    }
+    html.dark .node-portrait:hover {
+      box-shadow: 0 14px 28px -6px rgba(0,0,0,0.6), 0 0 20px rgba(229, 184, 105, 0.15);
+      border-color: #E5B869;
+    }
+    html.dark .node-portrait.male { border-bottom-color: #005A2B; }
+    html.dark .node-portrait.female { border-bottom-color: #E5B869; }
+
+    html.dark .name-box {
+      background-color: rgba(10, 10, 10, 0.95);
+      border-color: rgba(229,184,105,0.25);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    html.dark .name-box:hover {
+      border-color: #E5B869;
+      box-shadow: 0 6px 16px rgba(229,184,105,0.2);
+    }
+    html.dark .node-label-text { color: #FAFAFA; }
+    html.dark .leaf { fill: #E5B869; opacity: 0.4; }
+    html.dark .glowing-branch { stroke: rgba(229,184,105,0.4); }
+
+    .family-chart-container { width: 100%; height: 100%; }
+    .family-chart-container svg { display: block; width: 100%; height: 100%; transform: translateZ(0); backface-visibility: hidden; will-change: transform; cursor: grab; }
+    .family-chart-container svg:active { cursor: grabbing; }
+
+    foreignObject div {
+      all: initial;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    foreignObject .node-portrait, foreignObject .name-box { all: revert; }
+
+    @supports (height: 100dvh) { .tree-viewport { height: clamp(620px, 75dvh, 940px); } }
+    @supports not (height: 100dvh) { .tree-viewport { height: clamp(620px, 75vh, 940px); } }
+
+    .tree-stage {
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+    }
+    #tree { width: 100%; height: 100%; min-height: 620px; }
+
+    .tree-loading { display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; }
+    .tree-loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 2px solid rgba(0,90,43,.1);
+      border-radius: 50%;
+      border-top-color: #005A2B;
+      animation: spin 0.8s linear infinite;
+    }
+    html.dark .tree-loading-spinner { border-color: rgba(229,184,105,.1); border-top-color: #E5B869; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .family-chart-highlight { filter: drop-shadow(0 0 12px rgba(229,184,105,0.6)); }
+
+    /* ===== Premium Structure & Elements ===== */
+    .family-hero { position: relative; overflow: hidden; }
+    .family-hero-watermark {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: min(700px, 90vw);
+      transform: translate(-50%, -50%);
+      opacity: 0.02;
+      pointer-events: none;
+      mix-blend-mode: multiply;
+    }
+    html.dark .family-hero-watermark { opacity: 0.02; mix-blend-mode: screen; }
+
+    .royal-control-panel {
+      position: relative;
+      border-radius: 20px;
+      border: 1px solid rgba(229,184,105,0.2);
+      background: rgba(255,255,255,0.85);
+      box-shadow: 0 10px 30px -10px rgba(0,0,0,0.05);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+    html.dark .royal-control-panel {
+      background: rgba(8,8,8,0.85);
+      border-color: rgba(229,184,105,0.15);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+
+    .royal-search {
+      background: transparent !important;
+      border: 0 !important;
+      border-bottom: 1px solid rgba(229,184,105,0.3) !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      font-family: "Tajawal", sans-serif;
+      font-weight: 500;
+      transition: border-color 0.3s ease;
+    }
+    .royal-search:focus { border-bottom-color: #E5B869 !important; box-shadow: none !important; }
+
+    .royal-action {
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: "Tajawal", sans-serif;
+    }
+    .royal-action:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.06); }
+    .royal-action:active { transform: translateY(0) scale(0.97); }
+
+    .tree-royal-frame {
+      position: relative;
+      overflow: hidden;
+      border-radius: 24px;
+      border: 1px solid rgba(229,184,105,0.2);
+      background: #FDFDFD;
+      box-shadow: 0 20px 40px -10px rgba(0,0,0,0.04);
+    }
+    html.dark .tree-royal-frame {
+      background: #0A0A0A;
+      border-color: rgba(229,184,105,0.15);
+      box-shadow: 0 24px 50px -10px rgba(0,0,0,0.5);
+    }
+
+    .tree-hint-strip {
+      position: relative;
+      z-index: 10;
+      border-top: 1px solid rgba(229,184,105,0.15);
+      background: rgba(255,255,255,0.8);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      letter-spacing: 0.02em;
+    }
+    html.dark .tree-hint-strip {
+      background: rgba(10,10,10,0.8);
+      border-top-color: rgba(229,184,105,0.1);
+    }
+
+    .drawer-royal { background: #FAFAFA; }
+    html.dark .drawer-royal { background: #0A0A0A; }
+
+    /* Mobile Nav Independent Core Fixes */
+    #mobileNavOverlay.mobile-nav-hidden { display: none !important; }
+    #mobileNavOverlay:not(.mobile-nav-hidden) { display: block !important; }
+    #mobileNavDrawer {
+      right: 0 !important;
+      left: auto !important;
+      transform: translateX(110%);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      will-change: transform;
+      display: flex !important;
+      visibility: visible !important;
+    }
+    #mobileNavDrawer.isOpen { transform: translateX(0) !important; box-shadow: -20px 0 50px rgba(0,0,0,0.1); }
+    html.dark #mobileNavDrawer.isOpen { box-shadow: -20px 0 50px rgba(0,0,0,0.6); }
+    
+    #mobileNavDrawer nav { display: flex !important; flex-direction: column !important; gap: 0.5rem !important; }
+    #mobileNavDrawer nav a { display: block !important; visibility: visible !important; opacity: 1 !important; text-align: right !important; }
+    #mobileNavDrawer .mobile-login-link { display: flex !important; visibility: visible !important; opacity: 1 !important; }
+    #mobileNavBtn[data-open="true"] .ico-open { display: none !important; }
+    #mobileNavBtn[data-open="true"] .ico-close { display: inline !important; }
+    #mobileNavBtn[data-open="false"] .ico-open { display: inline !important; }
+    #mobileNavBtn[data-open="false"] .ico-close { display: none !important; }
+
+    @media (max-width: 1023px) {
+      #mobileNavBtn { display: flex !important; }
+      header nav[aria-label="التنقل الرئيسي"] { display: none !important; }
+    }
+    @media (min-width: 1024px) {
+      #mobileNavBtn, #mobileNavOverlay, #mobileNavDrawer { display: none !important; }
+      header nav[aria-label="التنقل الرئيسي"] { display: flex !important; }
+    }
+  </style>
+
+  <style id="mobile-menu-hard-fix-css">
+    @media (max-width: 1023px) {
+      #mobileNavBtn { display: inline-flex !important; position: relative !important; z-index: 120 !important; }
+      #mobileNavOverlay { position: fixed !important; inset: 0 !important; background: rgba(0,0,0,0.4) !important; backdrop-filter: blur(4px) !important; z-index: 100 !important; transition: opacity 0.3s; }
+      #mobileNavDrawer {
+        position: fixed !important; top: 0 !important; left: 0 !important; right: auto !important; bottom: 0 !important;
+        width: min(320px, 85vw) !important; height: 100vh !important; max-width: 85vw !important; z-index: 110 !important;
+        display: flex !important; flex-direction: column !important;
+        transform: translateX(-110%) !important; opacity: 1 !important; visibility: visible !important; pointer-events: none !important;
+        background: #FAFAFA !important; color: #111827 !important; border-right: 1px solid rgba(229,184,105,0.2) !important;
+      }
+      html.dark #mobileNavDrawer, html[data-theme="dark"] #mobileNavDrawer {
+        background: #080808 !important; color: #FAFAFA !important; border-right-color: rgba(229,184,105,0.1) !important;
+      }
+      #mobileNavDrawer.mobile-menu-open { transform: translateX(0) !important; pointer-events: auto !important; }
+      #mobileNavDrawer nav, #mobileNavDrawer .mobile-menu-links {
+        display: flex !important; flex-direction: column !important; gap: 6px !important; padding: 24px !important; flex: 1 1 auto !important;
+      }
+      #mobileNavDrawer nav a {
+        display: flex !important; align-items: center !important; min-height: 44px !important; padding: 10px 16px !important;
+        border-radius: 12px !important; font-size: 15px !important; font-weight: 700 !important; text-decoration: none !important;
+        color: #4B5563 !important; background: transparent !important; border-right: 2px solid transparent !important;
+        transition: all 0.2s ease !important;
+      }
+      #mobileNavDrawer nav a:hover { background: rgba(229,184,105,0.05) !important; color: #005A2B !important; }
+      html.dark #mobileNavDrawer nav a, html[data-theme="dark"] #mobileNavDrawer nav a { color: #9CA3AF !important; }
+      html.dark #mobileNavDrawer nav a:hover { background: rgba(229,184,105,0.05) !important; color: #E5B869 !important; }
+      
+      #mobileNavDrawer nav a:first-child { color: #005A2B !important; border-right-color: #E5B869 !important; background: rgba(229,184,105,0.08) !important; }
+      html.dark #mobileNavDrawer nav a:first-child, html[data-theme="dark"] #mobileNavDrawer nav a:first-child { color: #E5B869 !important; background: rgba(229,184,105,0.1) !important; }
+      
+      #mobileNavDrawer .mobile-login-link {
+        display: flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important;
+        min-height: 48px !important; font-weight: 700 !important; font-size: 15px !important;
+      }
+      body.mobile-menu-is-open { overflow: hidden !important; }
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/family-chart@0.9.0/dist/family-chart.min.js"></script>
+
+  <script>
+    (function syncThemeBeforePaint() {
+      const saved = localStorage.getItem("theme") || "dark";
+      document.documentElement.setAttribute("data-theme", saved);
+      document.documentElement.classList.toggle("dark", saved === "dark");
+
+      const obs = new MutationObserver(() => {
+        const t = document.documentElement.getAttribute("data-theme") || "dark";
+        document.documentElement.classList.toggle("dark", t === "dark");
+      });
+      obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    })();
+  </script>
+
+  <style id="family-tree-final-fixes">
+    html, body { background-color: var(--bg, #F8F8F6); transition: background-color 0.4s ease; }
+    html.dark body, html[data-theme="dark"] body { background-color: #050505; color: #FAFAFA; }
+    html:not(.dark) body, html[data-theme="light"] body { background-color: #F8F8F6; color: #111827; }
+
+    #publicStats { margin: 0 auto 40px !important; width: calc(100% - 2rem) !important; max-width: 90rem !important; padding: 32px !important; border-radius: 24px !important; border: 1px solid rgba(229,184,105,0.15) !important; clear: both !important; position: relative !important; overflow: hidden !important; font-family: "Tajawal", sans-serif !important; }
+    html[data-theme="light"] #publicStats, html:not(.dark) #publicStats { background: #FFFFFF !important; color: #111827 !important; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.03) !important; }
+    html[data-theme="dark"] #publicStats, html.dark #publicStats { background: #0A0A0A !important; color: #FAFAFA !important; border-color: rgba(229,184,105,0.15) !important; box-shadow: 0 20px 40px rgba(0,0,0,0.3) !important; }
+    
+    #publicStats .stats-title-row { position: relative; z-index: 2; display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 16px !important; flex-wrap: wrap !important; margin-bottom: 24px !important; }
+    #publicStats .stats-heading { font-family: "Aref Ruqaa", serif !important; font-weight: 700 !important; font-size: clamp(24px, 2.5vw, 36px) !important; color: #005A2B !important; line-height: 1.2 !important; }
+    html.dark #publicStats .stats-heading { color: #E5B869 !important; }
+    #publicStats .stats-subtitle { font-size: 14px !important; font-weight: 500 !important; color: #6B7280 !important; letter-spacing: 0.02em !important; }
+    
+    #publicStats .stats-grid { position: relative; z-index: 2; display: grid !important; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important; gap: 16px !important; }
+    #publicStats .stats-card { padding: 20px !important; border-radius: 16px !important; border: 1px solid rgba(229,184,105,0.1) !important; background: rgba(248,248,246,0.5) !important; transition: transform 0.3s ease !important; }
+    html.dark #publicStats .stats-card { background: rgba(20,20,20,0.5) !important; border-color: rgba(229,184,105,0.1) !important; }
+    #publicStats .stats-card:hover { transform: translateY(-3px) !important; }
+    
+    #publicStats .stats-card-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px !important; font-weight: 700 !important; color: #6B7280 !important; margin-bottom: 12px !important; }
+    #publicStats .stats-card-value { font-size: 32px !important; font-weight: 800 !important; color: #111827 !important; line-height: 1 !important; font-family: "Tajawal", sans-serif !important; }
+    html.dark #publicStats .stats-card-value { color: #F3F4F6 !important; }
+
+    #toggleDetails { background: #FFFFFF !important; color: #005A2B !important; border: 1px solid rgba(229,184,105,0.3) !important; border-radius: 99px !important; font-weight: 700 !important; padding: 10px 24px !important; }
+    html.dark #toggleDetails { background: #111 !important; color: #E5B869 !important; border-color: rgba(229,184,105,0.2) !important; }
+    #toggleDetails:hover { background: #F9F9F9 !important; border-color: #E5B869 !important; }
+    html.dark #toggleDetails:hover { background: #1A1A1A !important; }
+
+    #drawer { top: 0 !important; right: 0 !important; height: 100vh !important; max-height: 100vh !important; width: min(400px, 90vw) !important; border-left: 1px solid rgba(229,184,105,0.2) !important; box-shadow: -20px 0 60px rgba(0,0,0,0.1) !important; overflow: hidden !important; z-index: 90 !important; }
+    html[data-theme="light"] #drawer, html:not(.dark) #drawer { background: #FFFFFF !important; color: #111827 !important; }
+    html[data-theme="dark"] #drawer, html.dark #drawer { background: #0A0A0A !important; color: #FAFAFA !important; border-left-color: rgba(229,184,105,0.15) !important; box-shadow: -20px 0 60px rgba(0,0,0,0.6) !important; }
+    
+    #drawer > div:first-child, #drawer .drawerHeader { border-bottom: 1px solid rgba(229,184,105,0.15) !important; padding: 24px 24px 20px !important; background: transparent !important; }
+    #drawer .font-black, #drawer .drawerTitle { font-family: "Aref Ruqaa", serif !important; font-size: 26px !important; font-weight: 700 !important; color: #005A2B !important; }
+    html.dark #drawer .font-black, html.dark #drawer .drawerTitle { color: #E5B869 !important; }
+
+    #details { padding: 24px !important; max-height: calc(100vh - 85px) !important; overflow-y: auto !important; font-family: "Tajawal", sans-serif !important; font-size: 15px !important; line-height: 1.7 !important; }
+    #details > div { gap: 20px !important; }
+    #details img { border-radius: 12px !important; box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important; }
+    html.dark #details img { box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important; }
+    
+    #details .kvs { display: grid !important; gap: 12px !important; border: 0 !important; background: transparent !important; }
+    #details .kvs > div, #details div[style*="line-height:1.9"] > div { border: 1px solid rgba(229,184,105,0.15) !important; border-radius: 12px !important; padding: 14px 16px !important; background: #FDFDFD !important; transition: border-color 0.3s; }
+    #details .kvs > div:hover { border-color: rgba(229,184,105,0.4) !important; }
+    html.dark #details .kvs > div, html.dark #details div[style*="line-height:1.9"] > div { background: #111 !important; border-color: rgba(229,184,105,0.1) !important; }
+    
+    #details b { color: #005A2B !important; font-weight: 800 !important; display: inline-block; margin-bottom: 4px !important; }
+    html.dark #details b { color: #E5B869 !important; }
+    
+    #details .person-nav-btn, #details a[href^="/honor"] { background: #005A2B !important; color: #fff !important; border-radius: 99px !important; border: none !important; padding: 12px 24px !important; font-weight: 700 !important; text-decoration: none !important; text-align: center; display: block; transition: all 0.3s; box-shadow: 0 4px 12px rgba(0,90,43,0.2) !important; }
+    html.dark #details .person-nav-btn, html.dark #details a[href^="/honor"] { background: #E5B869 !important; color: #050505 !important; box-shadow: 0 4px 12px rgba(229,184,105,0.2) !important; }
+    #details .person-nav-btn:hover { transform: translateY(-2px); opacity: 0.95; }
+    
+    #closeDrawer { border: 1px solid rgba(229,184,105,0.2) !important; background: #FFFFFF !important; color: #6B7280 !important; transition: all 0.2s !important; }
+    html.dark #closeDrawer { background: #1A1A1A !important; border-color: rgba(229,184,105,0.2) !important; color: #9CA3AF !important; }
+    #closeDrawer:hover { color: #E5B869 !important; border-color: #E5B869 !important; }
+  </style>
+
+  <style id="mobile-svg-tree-and-menu-final-fix">
+    .nodeCard.nodeSelected .node-svg-namebox { stroke: #E5B869 !important; stroke-width: 2px !important; }
+    .nodeCard.nodeSelected .node-svg-portrait-bg { stroke: #E5B869 !important; stroke-width: 2px !important; }
+    .node-svg-photo { pointer-events: none; }
+    @media (max-width: 1023px) {
+      #mobileNavDrawer { height: 100dvh !important; max-height: 100dvh !important; }
+      #mobileNavDrawer nav { overflow-y: auto !important; padding-bottom: 20px !important; }
+      #mobileNavDrawer .mobile-login-inline { display: flex !important; margin-top: 12px !important; background: #005A2B !important; color: #fff !important; border: none !important; justify-content: center !important; padding: 12px !important; border-radius: 12px !important; font-weight: 700 !important; }
+      html.dark #mobileNavDrawer .mobile-login-inline { background: #E5B869 !important; color: #050505 !important; }
+      #mobileNavDrawer > div.border-t { position: sticky !important; bottom: 0 !important; background: inherit !important; z-index: 2 !important; padding: 20px 24px !important; border-top-color: rgba(229,184,105,0.1) !important; }
+    }
+  </style>
+</head>
+
+<body class="bg-background-light dark:bg-bg-charcoal text-gray-900 dark:text-text-cream font-sans min-h-screen flex flex-col relative overflow-x-hidden selection:bg-accent-gold/30 selection:text-gray-900 dark:selection:text-white transition-colors duration-400">
+  <%- include('partials/header', { active: 'tree', siteUser, pageTitle: 'شجرة العائلة', pageSubtitle: 'حفظ الأنساب' }) %>
+
+  <main class="flex-grow relative z-10">
+
+    <section class="family-hero pt-16 pb-12 px-6 max-w-[90rem] mx-auto text-center">
+      <div class="absolute inset-0 bg-islamic-pattern opacity-40 dark:opacity-10 pointer-events-none"></div>
+
+      <img src="/assets/logo-dark.svg" class="family-hero-watermark hidden dark:block" alt="">
+      <img src="/assets/logo-light.svg" class="family-hero-watermark block dark:hidden" alt="">
+
+      <div class="w-px h-10 bg-gradient-to-b from-transparent via-accent-gold to-transparent mx-auto mb-6 relative z-10"></div>
+
+      <h2 class="text-4xl md:text-6xl font-display leading-tight mb-5 relative z-10 font-bold">
+        <span class="text-primary dark:text-white transition-colors duration-300">شجرة</span>
+        <span class="text-accent-gold">العائلة</span>
+      </h2>
+
+      <p class="text-[15px] md:text-base font-sans text-gray-500 dark:text-gray-400 max-w-2xl mx-auto leading-relaxed relative z-10 font-medium">
+        استكشف روابط العائلة بطريقة تفاعلية، وابحث عن الأفراد، وكبّر أو صغّر الشجرة للوصول للتفاصيل بسهولة.
+      </p>
+    </section>
+
+    <section class="px-4 sm:px-6 lg:px-8 pb-6 max-w-[96rem] mx-auto relative z-20">
+      <div class="royal-control-panel p-3 md:p-4">
+        <div class="relative z-10 grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-4 items-center">
+
+          <label class="relative group flex-grow">
+            <div class="absolute inset-y-0 start-0 ps-4 flex items-center pointer-events-none">
+              <span class="material-symbols-outlined text-gray-400 group-focus-within:text-accent-gold transition-colors">search</span>
+            </div>
+
+            <input id="search"
+                   class="royal-search block w-full ps-12 pe-12 py-3 text-gray-900 dark:text-text-cream placeholder-gray-400 dark:placeholder-gray-600 text-[15px]"
+                   placeholder="ابحث عن أحد أفراد العائلة..."
+                   type="text"
+                   autocomplete="off" />
+            <button id="clearSearch" class="search-clear-btn absolute inset-y-0 end-0 pe-4 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hidden" type="button" aria-label="مسح البحث" title="مسح البحث">
+               <span class="material-symbols-outlined text-[20px]">close</span>
+            </button>
+            <div id="searchSuggestions" class="search-suggestions hidden" role="listbox" aria-label="نتائج البحث"></div>
+            <div id="searchEmptyMessage" class="search-empty-message hidden" role="status" aria-live="polite"></div>
+          </label>
+
+          <div class="flex flex-wrap gap-2 md:gap-3 justify-center xl:justify-end shrink-0">
+            <button id="resetView"
+                    class="royal-action flex items-center justify-center gap-2 bg-primary dark:bg-accent-gold text-white dark:text-[#050505] px-5 py-2.5 rounded-full font-bold text-sm shadow-md shadow-primary/10 dark:shadow-accent-gold/10 border border-transparent hover:border-primary/20 dark:hover:border-accent-gold/40"
+                    type="button">
+              <span class="material-symbols-outlined text-[18px]">account_tree</span>
+              <span>الشجرة الكاملة</span>
+            </button>
+
+            <button id="zoomOut" type="button"
+                    class="royal-action w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-accent-gold hover:text-accent-gold dark:hover:text-accent-gold bg-white dark:bg-[#111] flex items-center justify-center"
+                    title="تصغير">
+              <span class="material-symbols-outlined text-[20px]">zoom_out</span>
+            </button>
+
+            <button id="zoomIn" type="button"
+                    class="royal-action w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-accent-gold hover:text-accent-gold dark:hover:text-accent-gold bg-white dark:bg-[#111] flex items-center justify-center"
+                    title="تكبير">
+              <span class="material-symbols-outlined text-[20px]">zoom_in</span>
+            </button>
+
+            <button id="fit" type="button"
+                    class="royal-action px-5 py-2.5 rounded-full font-semibold text-sm border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 bg-white dark:bg-[#111] hover:border-accent-gold hover:text-primary dark:hover:text-accent-gold"
+                    title="ملاءمة">
+              ملاءمة
+            </button>
+
+            <button id="focusMode" type="button"
+                    class="royal-action px-5 py-2.5 rounded-full font-semibold text-sm border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 bg-white dark:bg-[#111] hover:border-accent-gold hover:text-primary dark:hover:text-accent-gold"
+                    title="وضع التركيز">
+              وضع التركيز
+            </button>
+
+            <button id="toggleDetails" type="button"
+                    class="royal-action px-5 py-2.5 rounded-full font-semibold text-sm"
+                    title="التفاصيل">
+              التفاصيل
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="px-4 sm:px-6 lg:px-8 pb-16 max-w-[96rem] mx-auto relative z-10">
+      <div class="tree-royal-frame tree-viewport">
+        <div class="absolute inset-0 bg-islamic-pattern opacity-20 dark:opacity-5 pointer-events-none"></div>
+
+        <div class="relative z-10 flex-grow flex items-center justify-center tree-stage h-full">
+          <div id="tree" class="family-chart-container">
+            <div class="tree-loading">
+              <div class="tree-loading-spinner"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tree-hint-strip px-6 py-3 text-[13px] text-gray-500 dark:text-gray-400 font-medium text-center">
+          تلميح: استخدم عجلة الماوس للتكبير/التصغير، واضغط في أي مساحة فارغة للعودة للشجرة كاملة.
+        </div>
+      </div>
+    </section>
+
+    <section id="treeExportCta" class="px-4 sm:px-6 lg:px-8 pb-16 max-w-[96rem] mx-auto relative z-10">
+      <div class="rounded-[28px] border border-accent-gold/20 bg-white/85 dark:bg-[#0A0A0A]/85 backdrop-blur-xl shadow-luxury dark:shadow-luxury-dark p-6 md:p-8 flex flex-col lg:flex-row items-center justify-between gap-5 overflow-hidden relative">
+        <div class="absolute inset-0 bg-islamic-pattern opacity-30 dark:opacity-10 pointer-events-none"></div>
+        <div class="relative z-10 text-center lg:text-right">
+          <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent-gold/10 text-primary dark:text-accent-gold font-bold text-xs mb-3">
+            <span class="material-symbols-outlined text-[17px]">account_tree</span>
+            تصدير مخصص
+          </div>
+          <h3 class="font-display text-2xl md:text-3xl font-bold text-primary dark:text-accent-gold mb-2">صدر فرعًا محددًا من الشجرة</h3>
+          <p class="text-sm md:text-base text-gray-500 dark:text-gray-400 leading-relaxed max-w-2xl">
+            ابحث بالاسم الثلاثي أو الرباعي، ثم اختر عدد الأجيال والصور وحجم الصفحة لإصدار ملف PDF للفرع المطلوب فقط.
+          </p>
+        </div>
+        <a href="/tree-export" class="relative z-10 inline-flex items-center justify-center gap-2 px-7 py-4 rounded-2xl bg-primary dark:bg-accent-gold text-white dark:text-[#050505] font-black shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-transform">
+          <span class="material-symbols-outlined text-[22px]">picture_as_pdf</span>
+          <span>تصدير فرع من الشجرة</span>
+        </a>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="bg-background-light dark:bg-[#050505] border-t border-gray-200 dark:border-white/5 mt-auto py-8 relative z-10">
+    <div class="max-w-[90rem] mx-auto px-6 text-center flex flex-col items-center gap-3">
+      <p class="text-[11px] font-sans font-semibold text-gray-400 dark:text-gray-600 uppercase tracking-widest">
+        © ٢٠٢٦ وقف عائلة خاشقجي. جميع الحقوق محفوظة. حفظ الأنساب والاحتفاء بالتراث.
+      </p>
+    </div>
+  </footer>
+
+  <aside id="drawer"
+         class="drawer-royal fixed top-0 right-0 h-full w-full sm:w-[400px] border-l border-gray-200 dark:border-white/5 shadow-2xl z-[60] translate-x-full transition-transform duration-400 ease-[cubic-bezier(0.16,1,0.3,1)]"
+         aria-label="تفاصيل الشخص">
+    <div class="h-1 w-full bg-gradient-to-r from-transparent via-accent-gold to-transparent opacity-80"></div>
+
+    <div class="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/5 bg-white/50 dark:bg-[#080808]/50 backdrop-blur-md">
+      <div>
+        <div class="font-display font-bold text-primary dark:text-accent-gold text-2xl">بيانات الشخص</div>
+        <div class="text-[13px] text-gray-400 dark:text-gray-500 font-medium mt-1">تفاصيل العضو المختار من الشجرة</div>
+      </div>
+      <button id="closeDrawer"
+              class="flex items-center justify-center w-9 h-9 rounded-full transition-colors"
+              type="button"
+              aria-label="إغلاق">
+        <span class="material-symbols-outlined text-[22px]">close</span>
+      </button>
+    </div>
+
+    <div id="details" class="p-6 text-[15px] text-gray-600 dark:text-gray-300 font-sans">
+      <div class="flex flex-col items-center justify-center h-full text-gray-400 opacity-70 mt-10">
+         <span class="material-symbols-outlined text-[48px] mb-3">touch_app</span>
+         <span>الرجاء اختيار شخص من الشجرة لعرض التفاصيل.</span>
+      </div>
+    </div>
+  </aside>
+
+  <div id="modal" class="fixed inset-0 z-[70] hidden" role="dialog" aria-modal="true">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" id="modalBackdrop"></div>
+    <div class="relative max-w-2xl mx-auto mt-12 sm:mt-20 bg-white dark:bg-[#0A0A0A] border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl p-5 sm:p-8">
+      <button id="closeModal"
+              class="absolute top-4 left-4 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 transition-colors"
+              aria-label="إغلاق"
+              type="button">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+      <div id="modalBody" class="text-gray-800 dark:text-gray-200 font-sans mt-2"></div>
+    </div>
+  </div>
+
+  <style>
+    #drawer.isOpen { transform: translateX(0); }
+    #modal.hidden { display: none; }
+    #modal:not(.hidden) { display: block; animation: modalFadeIn 0.3s ease; }
+    @keyframes modalFadeIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  </style>
+
+  <script src="/app.js"></script>
+  
+  <script>
+    (function initializeFamilyChart() {
+      // تم تعطيل محرك FamilyChart القديم لأن الشجرة الحالية تُرسم من /app.js بمحرك D3.
+      // تركه يعمل كان يسبب تضارباً خصوصاً على الهاتف ومحاولات تحميل مسار غير موجود /api/family-data.
+      if (window.__ENABLE_LEGACY_FAMILY_CHART !== true) return;
+
+      // Wait for DOM and data
+      document.addEventListener('DOMContentLoaded', async function() {
+        try {
+          // Fetch your family data from API
+          const response = await fetch('/api/family-data');
+          const data = await response.json();
+          
+          // Transform data to family-chart format
+          const familyData = transformFamilyData(data.persons, data.spouses);
+          
+          // Check if dark mode is active
+          const isDark = document.documentElement.classList.contains('dark');
+          
+          // Initialize chart
+          const chart = new FamilyChart.Chart({
+            container: '#tree',
+            data: familyData,
+            options: {
+              nodeWidth: 100,
+              nodeHeight: 100,
+              rtl: true,
+              orientation: 'horizontal',
+              generationsGap: 150,
+              siblingsGap: 30,
+              zoom: true,
+              pan: true,
+              fitToScreen: true,
+              duration: 750 // Animation duration in ms
+            },
+            card: {
+              darkMode: isDark,
+              template: (person) => `
+                <g transform="translate(0,0)" class="person-node-group" data-id="${person.id}">
+                  <foreignObject width="100" height="100">
+                    <div xmlns="http://www.w3.org/1999/xhtml" 
+                         class="node-portrait ${person.gender === 'M' ? 'male' : 'female'} person-node"
+                         data-id="${person.id}"
+                         style="width:100px; height:100px; overflow:hidden;">
+                      ${person.image 
+                        ? `<img src="${person.image}" style="width:100%; height:100%; object-fit:cover;">`
+                        : `<div style="width:100%; height:100%; background:${person.gender === 'M' ? 'rgba(0,90,43,0.05)' : 'rgba(229,184,105,0.1)'}; display:flex; align-items:center; justify-content:center;">
+                             <span class="material-symbols-outlined" style="font-size:36px; color:${person.gender === 'M' ? '#005A2B' : '#D4A353'}">person</span>
+                           </div>`
+                      }
+                    </div>
+                  </foreignObject>
+                  
+                  <foreignObject y="90" width="100" height="50">
+                    <div xmlns="http://www.w3.org/1999/xhtml" 
+                         class="name-box person-node"
+                         data-id="${person.id}"
+                         style="width:100%;">
+                      <div class="node-label-text" style="font-family:'Amiri',serif;">
+                        ${person.firstName} ${person.lastName}
+                      </div>
+                    </div>
+                  </foreignObject>
+                </g>
+              `,
+              onClick: (person) => {
+                openPersonDrawer(person.originalData);
+              }
+            }
+          });
+          
+          // Render the chart
+          chart.render();
+          
+          // Store chart instance globally for controls
+          window.familyChart = chart;
+          
+          // Remove loading spinner
+          const loadingSpinner = document.querySelector('.tree-loading');
+          if (loadingSpinner) {
+            loadingSpinner.style.display = 'none';
+          }
+          
+          // Initialize controls
+          initializeChartControls();
+          
+        } catch (error) {
+          console.error('Failed to initialize family chart:', error);
+          document.querySelector('.tree-loading').innerHTML = 
+            '<div class="text-red-500 font-bold text-sm">فشل تحميل الشجرة. يرجى المحاولة مرة أخرى.</div>';
+        }
+      });
+      
+      // Data transformation function
+      function transformFamilyData(persons, spouses) {
+        const familyData = {
+          persons: {},
+          relations: []
+        };
+
+        // Add all persons
+        persons.forEach(person => {
+          familyData.persons[person.id] = {
+            id: person.id,
+            firstName: person.name.split(' ')[0] || '',
+            lastName: person.name.split(' ').slice(1).join(' ') || '',
+            gender: person.gender || 'other',
+            birthDate: person.birth_date,
+            deathDate: person.death_date,
+            image: person.photo_url,
+            originalData: person
+          };
+        });
+
+        // Add spouse relationships
+        spouses.forEach(spouse => {
+          familyData.relations.push({
+            from: spouse.person1_id,
+            to: spouse.person2_id,
+            type: 'married'
+          });
+        });
+
+        // Add parent-child relationships (if you have this data)
+        if (window.childRelationships) {
+          window.childRelationships.forEach(child => {
+            if (child.father_id) {
+              familyData.relations.push({
+                from: child.father_id,
+                to: child.child_id,
+                type: 'parent'
+              });
+            }
+            if (child.mother_id) {
+              familyData.relations.push({
+                from: child.mother_id,
+                to: child.child_id,
+                type: 'parent'
+              });
+            }
+          });
+        }
+
+        return familyData;
+      }
+      
+      // Chart controls initialization
+      function initializeChartControls() {
+        // Zoom in
+        document.getElementById('zoomIn')?.addEventListener('click', () => {
+          if (window.familyChart) {
+            window.familyChart.zoom(1.2);
+          }
+        });
+        
+        // Zoom out
+        document.getElementById('zoomOut')?.addEventListener('click', () => {
+          if (window.familyChart) {
+            window.familyChart.zoom(0.8);
+          }
+        });
+        
+        // Fit to screen
+        document.getElementById('fit')?.addEventListener('click', () => {
+          if (window.familyChart) {
+            window.familyChart.fitToScreen();
+          }
+        });
+        
+        // Reset view (same as fit)
+        document.getElementById('resetView')?.addEventListener('click', () => {
+          if (window.familyChart) {
+            window.familyChart.fitToScreen();
+          }
+        });
+        
+        // Focus mode - center on selected person
+        document.getElementById('focusMode')?.addEventListener('click', () => {
+          if (window.familyChart && window.selectedPersonId) {
+            window.familyChart.focusOn(window.selectedPersonId);
+          }
+        });
+        
+        // Search functionality
+        document.getElementById('search')?.addEventListener('input', (e) => {
+          const searchTerm = e.target.value.toLowerCase().trim();
+          if (window.familyChart) {
+            if (searchTerm.length > 1) {
+              window.familyChart.search(searchTerm, (person) => {
+                return person.firstName.toLowerCase().includes(searchTerm) ||
+                       person.lastName.toLowerCase().includes(searchTerm);
+              });
+            } else {
+              window.familyChart.clearSearch();
+            }
+          }
+        });
+        
+        // Theme sync
+        document.getElementById('uiThemeBtn')?.addEventListener('click', () => {
+          setTimeout(() => {
+            if (window.familyChart) {
+              const isDark = document.documentElement.classList.contains('dark');
+              window.familyChart.updateOptions({
+                card: {
+                  darkMode: isDark,
+                  template: (person) => `
+                    <g transform="translate(0,0)" class="person-node-group" data-id="${person.id}">
+                      <foreignObject width="100" height="100">
+                        <div xmlns="http://www.w3.org/1999/xhtml" 
+                             class="node-portrait ${person.gender === 'M' ? 'male' : 'female'} person-node"
+                             data-id="${person.id}"
+                             style="width:100px; height:100px; overflow:hidden;">
+                          ${person.image 
+                            ? `<img src="${person.image}" style="width:100%; height:100%; object-fit:cover;">`
+                            : `<div style="width:100%; height:100%; background:${person.gender === 'M' ? 'rgba(0,90,43,0.05)' : 'rgba(229,184,105,0.1)'}; display:flex; align-items:center; justify-content:center;">
+                                 <span class="material-symbols-outlined" style="font-size:36px; color:${person.gender === 'M' ? '#005A2B' : '#D4A353'}">person</span>
+                               </div>`
+                          }
+                        </div>
+                      </foreignObject>
+                      
+                      <foreignObject y="90" width="100" height="50">
+                        <div xmlns="http://www.w3.org/1999/xhtml" 
+                             class="name-box person-node"
+                             data-id="${person.id}"
+                             style="width:100%;">
+                          <div class="node-label-text" style="font-family:'Amiri',serif;">
+                            ${person.firstName} ${person.lastName}
+                          </div>
+                        </div>
+                      </foreignObject>
+                    </g>
+                  `
+                }
+              });
+            }
+          }, 50);
+        });
+      }
+      
+      // Drawer functions
+      window.openPersonDrawer = async function(personData) {
+        const drawer = document.getElementById('drawer');
+        if (!personData || !personData.id) return;
+        window.selectedPersonId = personData.id;
+
+        // استخدم بيانات /api/person الكاملة حتى تظهر حالة الحساب المربوط وزر شاهد حسابي
+        try {
+          if (window.fetchPerson && window.showDetailsInSide) {
+            const fullPerson = await window.fetchPerson(personData.id);
+            window.showDetailsInSide(fullPerson);
+            drawer?.classList.add('isOpen');
+            return;
+          }
+        } catch (err) {
+          console.error('open person drawer full details error:', err);
+        }
+
+        const detailsDiv = document.getElementById('details');
+        if (!detailsDiv) return;
+        const linked = personData.site_profile || personData.linked_user || null;
+        const photo = personData.photo_url || '/images/default.png';
+        detailsDiv.innerHTML = `
+          <div class="space-y-5 text-center">
+            <div class="mx-auto w-36 h-36 rounded-full p-[3px] bg-gradient-to-br from-accent via-white to-primary shadow-lg">
+              <img src="${photo}" onerror="this.src='/images/default.png'" class="w-full h-full object-cover rounded-full border-4 border-white dark:border-[#111]">
+            </div>
+            <div>
+              <h2 class="text-2xl font-bold text-primary dark:text-accent font-display">${personData.name || ''}</h2>
+              ${personData.job ? `<p class="text-sm font-semibold text-gray-500 mt-2">${personData.job}</p>` : ''}
+            </div>
+            <div class="kvs text-right">
+              ${personData.birth_date ? `<div><b>الميلاد:</b> <span>${personData.birth_date}</span></div>` : ''}
+              ${personData.death_date ? `<div><b>الوفاة:</b> <span>${personData.death_date}</span></div>` : ''}
+              ${personData.lineage ? `<div><b>النسب:</b> <span>${personData.lineage}</span></div>` : ''}
+              ${personData.notes ? `<div><b>ملاحظات:</b> <span>${personData.notes}</span></div>` : ''}
+            </div>
+            ${linked?.id ? `<a href="/family-members/${linked.id}" class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-primary text-white dark:bg-accent dark:text-black font-black shadow-md">شاهد حسابي</a>` : ''}
+          </div>
+        `;
+        drawer?.classList.add('isOpen');
+      };      
+      // Close drawer handler
+      document.getElementById('closeDrawer')?.addEventListener('click', () => {
+        document.getElementById('drawer').classList.remove('isOpen');
+      });
+      
+      // Mobile navigation handlers
+      (function mobileNavInit(){
+        const btn = document.getElementById("mobileNavBtn");
+        const navDrawer = document.getElementById("mobileNavDrawer");
+        const overlay = document.getElementById("mobileNavOverlay");
+        const closeBtn = document.getElementById("mobileNavClose");
+
+        function setOpenState(isOpen){
+          btn?.setAttribute("data-open", isOpen ? "true" : "false");
+          btn?.setAttribute("aria-expanded", isOpen ? "true" : "false");
+        }
+
+        function openNav(){
+          overlay?.classList.remove("mobile-nav-hidden");
+          navDrawer?.classList.add("isOpen");
+          setOpenState(true);
+        }
+        
+        function closeNav(){
+          navDrawer?.classList.remove("isOpen");
+          overlay?.classList.add("mobile-nav-hidden");
+          setOpenState(false);
+        }
+
+        btn?.addEventListener("click", () => {
+          const open = btn.getAttribute("data-open") === "true";
+          open ? closeNav() : openNav();
+        });
+
+        closeBtn?.addEventListener("click", closeNav);
+        overlay?.addEventListener("click", closeNav);
+
+        navDrawer?.querySelectorAll("a").forEach(a => a.addEventListener("click", closeNav));
+
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") closeNav();
+        });
+
+        setOpenState(false);
+      })();
+      
+      // Modal backdrop click
+      (function modalBackdropClickFix() {
+        const modal = document.getElementById("modal");
+        const backdrop = document.getElementById("modalBackdrop");
+        backdrop?.addEventListener("click", () => modal?.classList.add("hidden"));
+      })();
+      
+    })();
+  </script>
+
+  <script id="family-tree-final-fixes-js">
+    (function familyTreeFinalFixes(){
+      function setTheme(next){
+        document.documentElement.setAttribute("data-theme", next);
+        document.documentElement.classList.toggle("dark", next === "dark");
+        localStorage.setItem("theme", next);
+        updateThemeButton();
+      }
+
+      function getTheme(){
+        return document.documentElement.getAttribute("data-theme")
+          || (document.documentElement.classList.contains("dark") ? "dark" : "light");
+      }
+
+      function updateThemeButton(){
+        const btn = document.getElementById("uiThemeBtn");
+        if (!btn) return;
+        const isDark = getTheme() === "dark";
+        btn.setAttribute("aria-pressed", String(isDark));
+        btn.title = isDark ? "تبديل إلى الوضع الفاتح" : "تبديل إلى الوضع الداكن";
+      }
+
+      const btn = document.getElementById("uiThemeBtn");
+      if (btn && !btn.dataset.finalThemeBound) {
+        btn.dataset.finalThemeBound = "1";
+        btn.addEventListener("click", function(e){
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          const current = getTheme();
+          setTheme(current === "dark" ? "light" : "dark");
+          window.dispatchEvent(new CustomEvent("family-theme-changed", { detail: { theme: getTheme() }}));
+        }, true);
+      }
+
+      setTheme(localStorage.getItem("theme") || getTheme() || "dark");
+
+      function normalizePublicStats(){
+        const boxes = Array.from(document.querySelectorAll("#publicStats"));
+        if (boxes.length > 1) {
+          boxes.slice(1).forEach(el => el.remove());
+        }
+
+        const box = document.getElementById("publicStats");
+        if (!box) return;
+
+        box.removeAttribute("style");
+
+        const titleRow = box.children[0];
+        if (titleRow) {
+          titleRow.removeAttribute("style");
+          titleRow.classList.add("stats-title-row");
+
+          const children = Array.from(titleRow.children);
+          if (children[0]) {
+            children[0].removeAttribute("style");
+            children[0].classList.add("stats-heading");
+          }
+          if (children[1]) {
+            children[1].removeAttribute("style");
+            children[1].classList.add("stats-subtitle");
+          }
+        }
+
+        const grid = box.children[1];
+        if (grid) {
+          grid.removeAttribute("style");
+          grid.classList.add("stats-grid");
+
+          Array.from(grid.children).forEach((card, index) => {
+            card.removeAttribute("style");
+            card.classList.add("stats-card");
+            const label = card.children[0];
+            const value = card.children[1];
+            if (label) {
+              label.removeAttribute("style");
+              label.classList.add("stats-card-label");
+
+              if (!label.querySelector(".material-symbols-outlined")) {
+                const icon = document.createElement("span");
+                icon.className = "material-symbols-outlined";
+                icon.style.fontSize = "20px";
+                icon.style.color = "#005A2B";
+                icon.textContent = index === 0 ? "male" : index === 1 ? "female" : "groups";
+                label.prepend(icon);
+              }
+            }
+            if (value) {
+              value.removeAttribute("style");
+              value.classList.add("stats-card-value");
+            }
+          });
+        }
+
+        // Remove accidental legacy/stat duplicate sections that do not have #publicStats
+        Array.from(document.querySelectorAll("main section")).forEach(sec => {
+          if (sec.id === "publicStats") return;
+          if (sec.dataset.keepStats === "1") return;
+          const txt = (sec.textContent || "").replace(/\s+/g, " ").trim();
+          const looksLikeDuplicate =
+            txt.includes("إحصائيات العائلة") &&
+            txt.includes("عدد الرجال") &&
+            txt.includes("عدد النساء") &&
+            txt.includes("إجمالي الأفراد");
+          if (looksLikeDuplicate) sec.remove();
+        });
+      }
+
+      function normalizeDetailsDrawer(){
+        const drawer = document.getElementById("drawer");
+        const details = document.getElementById("details");
+        if (drawer) {
+          drawer.classList.add("drawer-royal-final");
+        }
+        if (details) {
+          details.classList.add("details-royal-final");
+        }
+      }
+
+      normalizePublicStats();
+      normalizeDetailsDrawer();
+
+      const observer = new MutationObserver(() => {
+        normalizePublicStats();
+        normalizeDetailsDrawer();
+      });
+
+      observer.observe(document.body, { childList: true, subtree: true });
+    })();
+  </script>
+
+  <script id="mobile-menu-hard-fix-js">
+    (function(){
+      function initMobileMenu(){
+        var btn = document.getElementById('mobileNavBtn');
+        var drawer = document.getElementById('mobileNavDrawer');
+        var overlay = document.getElementById('mobileNavOverlay');
+        var closeBtn = document.getElementById('mobileNavClose');
+        if (!btn || !drawer || !overlay) return;
+
+        function forceLinksVisible(){
+          var links = drawer.querySelectorAll('nav a, .mobile-login-link');
+          links.forEach(function(a){
+            a.style.setProperty('display', a.classList.contains('mobile-login-link') ? 'flex' : 'flex', 'important');
+            a.style.setProperty('visibility', 'visible', 'important');
+            a.style.setProperty('opacity', '1', 'important');
+          });
+        }
+
+        function openMenu(e){
+          if (e) { e.preventDefault(); e.stopPropagation(); }
+          overlay.classList.remove('mobile-nav-hidden');
+          overlay.style.setProperty('display', 'block', 'important');
+          overlay.style.setProperty('visibility', 'visible', 'important');
+          drawer.classList.add('mobile-menu-open');
+          drawer.classList.add('isOpen');
+          drawer.style.setProperty('display', 'flex', 'important');
+          drawer.style.setProperty('visibility', 'visible', 'important');
+          drawer.style.setProperty('opacity', '1', 'important');
+          drawer.style.setProperty('transform', 'translateX(0)', 'important');
+          drawer.style.setProperty('pointer-events', 'auto', 'important');
+          btn.setAttribute('data-open', 'true');
+          btn.setAttribute('aria-expanded', 'true');
+          document.body.classList.add('mobile-menu-is-open');
+          forceLinksVisible();
+        }
+
+        function closeMenu(e){
+          if (e) { e.preventDefault(); e.stopPropagation(); }
+          drawer.classList.remove('mobile-menu-open');
+          drawer.classList.remove('isOpen');
+          drawer.style.setProperty('transform', 'translateX(-110%)', 'important');
+          drawer.style.setProperty('pointer-events', 'none', 'important');
+          overlay.classList.add('mobile-nav-hidden');
+          overlay.style.setProperty('display', 'none', 'important');
+          btn.setAttribute('data-open', 'false');
+          btn.setAttribute('aria-expanded', 'false');
+          document.body.classList.remove('mobile-menu-is-open');
+        }
+
+        btn.onclick = function(e){
+          var isOpen = btn.getAttribute('data-open') === 'true';
+          isOpen ? closeMenu(e) : openMenu(e);
+        };
+        if (closeBtn) closeBtn.onclick = closeMenu;
+        overlay.onclick = closeMenu;
+        drawer.querySelectorAll('a').forEach(function(a){
+          a.addEventListener('click', function(){
+            drawer.classList.remove('mobile-menu-open');
+            drawer.classList.remove('isOpen');
+            overlay.classList.add('mobile-nav-hidden');
+            overlay.style.setProperty('display', 'none', 'important');
+            btn.setAttribute('data-open', 'false');
+            btn.setAttribute('aria-expanded', 'false');
+            document.body.classList.remove('mobile-menu-is-open');
+          });
+        });
+        document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeMenu(e); });
+        closeMenu();
+      }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMobileMenu);
+      else initMobileMenu();
+    })();
+  </script>
+
+  <script src="/site-assistant.js"></script>
+<script>
+(function(){
+  if (window.__familyChatNotifyLoaded) return;
+  window.__familyChatNotifyLoaded = true;
+  function addBadge(link, unread){
+    if(!link || link.dataset.chatBadgeReady === '1') return;
+    link.dataset.chatBadgeReady = '1';
+    if(getComputedStyle(link).position === 'static') link.style.position = 'relative';
+    const badge = document.createElement('span');
+    badge.className = 'family-chat-unread-badge';
+    badge.style.cssText = 'position:absolute;top:-6px;left:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#dc2626;color:#fff;font-size:10px;font-weight:700;line-height:18px;text-align:center;box-shadow:0 4px 12px rgba(220,38,38,.4);z-index:10;display:none';
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    link.appendChild(badge);
+  }
+  function showToast(unread){
+    if(!unread || location.pathname.startsWith('/chat')) return;
+    const key = 'family-chat-unread-toast-count';
+    if(sessionStorage.getItem(key) === String(unread)) return;
+    sessionStorage.setItem(key, String(unread));
+    const toast = document.createElement('a');
+    toast.href = '/chat';
+    toast.textContent = `لديك ${unread} رسالة جديدة`;
+    toast.style.cssText = 'position:fixed;bottom:24px;left:24px;z-index:9999;background:#005A2B;color:#fff;padding:12px 20px;border-radius:14px;font-family:Tajawal,sans-serif;font-weight:700;box-shadow:0 12px 30px rgba(0,0,0,.15);text-decoration:none';
+    document.body.appendChild(toast);
+    setTimeout(()=>{ toast.style.opacity='0'; toast.style.transform='translateY(10px)'; toast.style.transition='all .3s ease'; setTimeout(()=>toast.remove(), 300); }, 6500);
+  }
+  async function refreshUnread(){
+    try{
+      const r = await fetch('/api/chat/unread-count', {cache:'no-store'});
+      const data = await r.json();
+      if(!data.ok) return;
+      const unread = Number(data.unread || 0);
+      document.querySelectorAll('a[href="/chat"]').forEach(link => addBadge(link, unread));
+      document.querySelectorAll('.family-chat-unread-badge').forEach(badge => {
+        badge.textContent = unread > 99 ? '99+' : String(unread);
+        badge.style.display = unread > 0 ? 'inline-block' : 'none';
+      });
+      showToast(unread);
+    }catch(e){}
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', refreshUnread); else refreshUnread();
+  setInterval(refreshUnread, 30000);
+})();
+</script>
+
+</body>
+</html>

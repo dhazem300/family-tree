@@ -211,6 +211,8 @@ function showDetailsInSide(person) {
     (person.notes && String(person.notes).trim())
   );
 
+  const siteProfile = person.site_profile || person.linked_user || person.profile_user || null;
+
   const ribbonHtml = Number(person.is_deceased || 0) === 1
     ? `<span style="position:absolute;top:8px;right:-28px;width:90px;height:20px;background:rgba(0,0,0,.88);transform:rotate(45deg);"></span>`
     : "";
@@ -218,14 +220,16 @@ function showDetailsInSide(person) {
   details.innerHTML = `
     <div style="display:grid;gap:14px;">
       <div style="display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;">
-        <div style="position:relative;width:116px;height:116px;border-radius:18px;overflow:hidden;border:1px solid rgba(0,0,0,.08);background:#f3f4f6;flex:0 0 auto;">
-          ${ribbonHtml}
-          <img
-            src="${escapeHtml(photo)}"
-            alt="${escapeHtml(person.name || "")}"
-            style="width:100%;height:100%;object-fit:cover;display:block;"
-            onerror="this.src='/images/default.png'"
-          />
+        <div style="position:relative;width:126px;height:126px;border-radius:999px;padding:3px;background:linear-gradient(135deg,#E5B869,#ffffff,#005A2B);box-shadow:0 12px 30px rgba(0,0,0,.12);flex:0 0 auto;">
+          <div style="width:100%;height:100%;border-radius:999px;overflow:hidden;border:4px solid #fff;background:#f3f4f6;position:relative;">
+            ${ribbonHtml}
+            <img
+              src="${escapeHtml(photo)}"
+              alt="${escapeHtml(person.name || "")}"
+              style="width:100%;height:100%;object-fit:cover;display:block;"
+              onerror="this.src='/images/default.png'"
+            />
+          </div>
         </div>
 
         <div style="flex:1;min-width:220px;">
@@ -276,15 +280,26 @@ function showDetailsInSide(person) {
       </div>
 
       ${
-        hasBio
+        (hasBio || siteProfile?.id)
           ? `
-            <div style="padding-top:8px;">
-              <a
-                href="/honor?personId=${encodeURIComponent(person.id)}"
-                style="display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;"
-              >
-                اقرأ النبذة
-              </a>
+            <div style="padding-top:8px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+              ${hasBio ? `
+                <a
+                  href="/honor?personId=${encodeURIComponent(person.id)}"
+                  style="display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:800;"
+                >
+                  اقرأ النبذة
+                </a>
+              ` : ""}
+              ${siteProfile?.id ? `
+                <a
+                  href="/family-members/${encodeURIComponent(siteProfile.id)}"
+                  style="display:inline-flex;align-items:center;gap:8px;justify-content:center;padding:10px 16px;border-radius:12px;background:#111827;color:#fff;text-decoration:none;font-weight:900;border:1px solid rgba(229,184,105,.35);"
+                >
+                  <span style="width:22px;height:22px;border-radius:999px;background-image:url('${escapeHtml(siteProfile.avatar_url || '/assets/default-avatar.svg')}');background-size:cover;background-position:center;border:1px solid rgba(255,255,255,.7);display:inline-block;"></span>
+                  شاهد حسابي
+                </a>
+              ` : ""}
             </div>
           `
           : ""
@@ -306,6 +321,10 @@ function showDetailsInSide(person) {
     });
   });
 }
+
+// إتاحة نفس منطق التبويبة لأي سكربت قديم داخل الصفحة الرئيسية
+window.fetchPerson = fetchPerson;
+window.showDetailsInSide = showDetailsInSide;
 
 /* ===== Frame (SVG) ===== */
 function starPath(cx, cy, outerR, innerR, points) {

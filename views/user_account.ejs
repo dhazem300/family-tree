@@ -135,7 +135,7 @@
       <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-events">مناسبات العائلة</a>
       <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/chat">الشات العام</a>
       <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/notifications">الإشعارات</a>
-      <a class="px-4 py-3 rounded-xl text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent" href="/account">حسابي</a>
+      <%- include('partials/user_profile_chip', { siteUser }) %>
       <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/support">الدعم</a>
     </nav>
     <div class="p-6 border-t border-gray-100 dark:border-white/5 bg-white/50 dark:bg-black/20">
@@ -173,7 +173,7 @@
         <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/submit-person">إضافة بياناتك</a>
         <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/family-members">أعضاء العائلة</a>
         <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/chat">الشات العام</a>
-        <a class="whitespace-nowrap shrink-0 text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1 transition-colors duration-200" href="/account">حسابي</a>
+        <%- include('partials/user_profile_chip', { siteUser }) %>
       </nav>
 
       <div class="flex items-center justify-end gap-2 shrink-0">
@@ -347,6 +347,10 @@
               <a href="/notifications" class="px-4 py-2.5 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 font-sans font-bold text-[13px] transition-all flex items-center justify-center gap-2" title="الإشعارات">
                 <span class="material-symbols-outlined text-[18px]">notifications</span>
                 <span class="hidden sm:inline">الإشعارات</span>
+              </a>
+              <a href="/logout" class="px-4 py-2.5 rounded-full bg-red-50 hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/20 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-300 font-sans font-bold text-[13px] transition-all flex items-center justify-center gap-2 shadow-sm" title="تسجيل الخروج">
+                <span class="material-symbols-outlined text-[18px]">logout</span>
+                <span class="hidden sm:inline">تسجيل الخروج</span>
               </a>
               <button type="submit" class="px-6 py-2.5 rounded-full bg-primary hover:bg-primaryDark text-white dark:bg-white dark:text-[#050505] dark:hover:bg-accent font-sans font-bold text-[13px] transition-all shadow-sm flex items-center justify-center gap-2 hover:shadow-md">
                 <span class="material-symbols-outlined text-[18px]">save</span> حفظ التعديلات
@@ -522,7 +526,7 @@
             <div class="flex flex-col gap-3">
               <% if(treePerson){ %>
                 <a href="/?focus=<%= treePerson.id %>" class="w-full px-5 py-3.5 rounded-xl bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-white/5 hover:border-primary dark:hover:border-accent text-primary dark:text-white font-sans font-bold text-[14px] transition-all flex items-center justify-between group shadow-sm hover:shadow-md">
-                  <span class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-accent">account_tree</span> موقعي في الشجرة</span>
+                  <span class="flex items-center gap-2"><span class="material-symbols-outlined text-[18px] text-accent">account_tree</span> شاهد موقعك في الشجرة</span>
                   <span class="material-symbols-outlined text-[16px] rtl:rotate-180 opacity-0 group-hover:opacity-100 transition-opacity">arrow_forward</span>
                 </a>
               <% } %>
@@ -548,11 +552,11 @@
             <% } else { %>
               <% if(pendingLink){ %>
                 <div class="p-4 mb-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 mt-2">
-                  <p class="text-[12px] text-amber-800 dark:text-amber-200 font-medium leading-relaxed">آخر طلب: <b class="font-bold"><%= pendingLink.status %></b> <br> <span class="opacity-80 mt-1 block"><%= pendingLink.person_name || pendingLink.lineage_text || '' %></span></p>
+                  <p class="text-[12px] text-amber-800 dark:text-amber-200 font-medium leading-relaxed">آخر طلب: <b class="font-bold"><%= pendingLink.status === 'pending' ? 'قيد المراجعة' : pendingLink.status === 'approved' ? 'تم الربط' : 'مرفوض' %></b> <br> <span class="opacity-80 mt-1 block"><%= pendingLink.person_name || pendingLink.lineage_text || '' %></span><% if(pendingLink.match_message){ %><span class="block mt-1"><%= pendingLink.match_message %></span><% } %></p>
                 </div>
               <% } %>
               <div class="flex flex-col gap-3 mt-2">
-                <input name="lineage_text" placeholder="اكتب الاسم الثلاثي كما في الشجرة" class="field !py-3 !text-[13px]">
+                <input name="lineage_text" placeholder="اكتب الاسم الثلاثي أو الرباعي كما تريد مراجعته" class="field !py-3 !text-[13px]">
                 <button formaction="/account/link-request" type="submit" class="w-full px-5 py-3 rounded-xl bg-primary hover:bg-primaryDark text-white dark:bg-white dark:text-[#050505] dark:hover:bg-accent font-sans font-bold text-[13px] transition-all shadow-sm flex items-center justify-center gap-2">
                   <span class="material-symbols-outlined text-[16px]">send</span> إرسال طلب ربط
                 </button>

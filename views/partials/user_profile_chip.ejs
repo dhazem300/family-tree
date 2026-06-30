@@ -1,0 +1,15 @@
+<%
+  const chipUser = (typeof siteUser !== "undefined" && siteUser) ? siteUser : null;
+  const chipAvatar = chipUser?.avatar_url || "/assets/default-avatar.svg";
+  const chipName = chipUser?.full_name || chipUser?.email || "حسابي";
+  const chipShortName = String(chipName).split(" ").slice(0, 2).join(" ");
+%>
+<% if (chipUser) { %>
+  <a href="/account" class="family-profile-chip inline-flex flex-col items-center justify-center gap-1 px-2 py-1.5 rounded-2xl hover:bg-primary/5 dark:hover:bg-accent/10 transition-all align-middle" title="حسابي">
+    <span class="relative block">
+      <img src="<%= chipAvatar %>" onerror="this.src='/assets/default-avatar.svg'" class="w-10 h-10 rounded-full object-cover border-2 border-white dark:border-[#111] ring-2 ring-primary/25 dark:ring-accent/40 shadow-md" alt="صورة الحساب">
+      <% if (chipUser.verification_status === 'verified' || chipUser.matched_person_id) { %><span class="absolute -bottom-0.5 -left-0.5 w-4 h-4 rounded-full bg-primary dark:bg-accent text-white dark:text-black border-2 border-white dark:border-[#111] flex items-center justify-center text-[8px]">✓</span><% } %>
+    </span>
+    <span class="max-w-[76px] truncate text-[10px] leading-none font-black text-primary dark:text-accent"><%= chipShortName %></span>
+  </a>
+<% } %>

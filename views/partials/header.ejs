@@ -1,3 +1,9 @@
+<%
+  const headerUser = (typeof siteUser !== "undefined" && siteUser) ? siteUser : null;
+  const headerAvatar = headerUser?.avatar_url || "/assets/default-avatar.svg";
+  const headerName = headerUser?.full_name || headerUser?.email || "حسابي";
+  const shortHeaderName = String(headerName).split(" ").slice(0, 2).join(" ");
+%>
 <!-- إعدادات وأنماط القائمة الجانبية (تعمل في كل الصفحات المضمنة) -->
 <style>
   #mobileNavDrawer {
@@ -11,6 +17,10 @@
   body.nav-open {
     overflow: hidden;
   }
+  .family-user-profile-pill img { object-fit: cover; }
+  .family-user-profile-pill:hover img { transform: scale(1.04); }
+  .family-user-profile-card { background: linear-gradient(135deg, rgba(255,255,255,.88), rgba(255,255,255,.64)); }
+  html.dark .family-user-profile-card { background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.03)); }
 </style>
 
 <!-- الخلفية المظللة للقائمة الجانبية (تظهر فقط في الجوال) -->
@@ -42,8 +52,17 @@
     <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'members' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/family-members">أعضاء العائلة</a>
     <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'chat' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/chat">الشات العام</a>
     
-    <% if (typeof siteUser !== "undefined" && siteUser) { %>
-      <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'account' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/account">حسابي</a>
+    <% if (headerUser) { %>
+      <a href="/account" class="family-user-profile-card px-4 py-4 rounded-2xl border border-primary/10 dark:border-accent/20 flex items-center gap-3 shadow-sm <%= typeof active !== 'undefined' && active === 'account' ? 'ring-2 ring-primary/20 dark:ring-accent/30' : '' %>">
+        <span class="relative shrink-0">
+          <img src="<%= headerAvatar %>" onerror="this.src='/assets/default-avatar.svg'" class="w-12 h-12 rounded-full object-cover border-2 border-white dark:border-[#111] ring-2 ring-primary/20 dark:ring-accent/40 shadow-md" alt="صورة الحساب">
+          <% if (headerUser.verification_status === 'verified' || headerUser.matched_person_id) { %><span class="absolute -bottom-1 -left-1 w-5 h-5 rounded-full bg-primary dark:bg-accent text-white dark:text-black border-2 border-white dark:border-[#111] flex items-center justify-center text-[10px]">✓</span><% } %>
+        </span>
+        <span class="min-w-0">
+          <span class="block text-[13px] font-black text-primary dark:text-accent truncate"><%= shortHeaderName %></span>
+          <span class="block text-[11px] text-gray-500 dark:text-gray-400 font-bold">مشاهدة حسابي</span>
+        </span>
+      </a>
     <% } %>
     
     <a class="px-4 py-3 rounded-xl transition-colors <%= typeof active !== 'undefined' && active === 'support' ? 'text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent' : 'hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent' %>" href="/support">الدعم</a>
@@ -88,9 +107,7 @@
       <a class="whitespace-nowrap shrink-0 transition-colors duration-200 hover:text-primary dark:hover:text-accent" href="/submit-person">إضافة بياناتك</a>
       <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'members' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/family-members">أعضاء العائلة</a>
       <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'chat' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/chat">الشات العام</a>
-      <% if (typeof siteUser !== "undefined" && siteUser) { %>
-        <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'account' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/account">حسابي</a>
-      <% } %>
+      <a class="whitespace-nowrap shrink-0 transition-colors duration-200 <%= typeof active !== 'undefined' && active === 'support' ? 'text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1' : 'hover:text-primary dark:hover:text-accent' %>" href="/support">الدعم</a>
     </nav>
 
     <!-- أزرار الإجراءات الجانبية -->
@@ -101,6 +118,16 @@
         <span class="material-symbols-outlined text-[22px] dark:hidden">dark_mode</span>
         <span class="material-symbols-outlined text-[22px] hidden dark:inline">light_mode</span>
       </button>
+
+      <% if (headerUser) { %>
+        <a href="/account" class="family-user-profile-pill hidden sm:flex flex-col items-center justify-center gap-0.5 min-w-[58px] px-1 py-1 rounded-2xl hover:bg-primary/5 dark:hover:bg-accent/10 transition-all" title="حسابي">
+          <span class="relative">
+            <img src="<%= headerAvatar %>" onerror="this.src='/assets/default-avatar.svg'" class="w-10 h-10 rounded-full border-2 border-white dark:border-[#111] ring-2 ring-primary/25 dark:ring-accent/40 shadow-md transition-transform" alt="صورة الحساب">
+            <% if (headerUser.verification_status === 'verified' || headerUser.matched_person_id) { %><span class="absolute -bottom-0.5 -left-0.5 w-4 h-4 rounded-full bg-primary dark:bg-accent text-white dark:text-black border-2 border-white dark:border-[#111] flex items-center justify-center text-[8px]">✓</span><% } %>
+          </span>
+          <span class="max-w-[64px] truncate text-[10px] leading-none font-black text-primary dark:text-accent"><%= shortHeaderName %></span>
+        </a>
+      <% } %>
 
       <a href="/admin/login" class="hidden sm:flex w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-accent hover:bg-primary/5 dark:hover:bg-accent/5 transition-all duration-300 items-center justify-center" title="لوحة الإدارة">
         <span class="material-symbols-outlined text-[22px]">admin_panel_settings</span>

@@ -493,7 +493,7 @@
       <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/submit-person">إضافة بياناتك</a>
       <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/family-members">أعضاء العائلة</a>
       <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/chat">الشات العام</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/account">حسابي</a>
+      <%- include('partials/user_profile_chip', { siteUser }) %>
       <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent-gold transition-colors" href="/support">الدعم</a>
     </nav>
 
@@ -540,7 +540,7 @@
         <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/submit-person">إضافة بياناتك</a>
         <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/family-members">أعضاء العائلة</a>
         <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/chat">الشات العام</a>
-        <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/account">حسابي</a>
+        <%- include('partials/user_profile_chip', { siteUser }) %>
         <a class="whitespace-nowrap hover:text-primary dark:hover:text-accent-gold transition-colors duration-200" href="/support">الدعم</a>
       </nav>
 

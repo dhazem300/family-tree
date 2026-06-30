@@ -42,7 +42,7 @@ app.disable("x-powered-by");
 
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("Permissions-Policy", "camera=(), geolocation=(), microphone=(self)");
   next();
@@ -153,6 +153,7 @@ app.use(async (req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname, "public"), {
+  index: false,
   etag: true,
   maxAge: "7d",
   setHeaders: (res, filePath) => {
@@ -285,12 +286,17 @@ function firstAllowedAdminPath(admin) {
   return first ? map[first] : "/admin/no-access";
 }
 
-function isAuthed(req, res, next) {
+async function isAuthed(req, res, next) {
   if (req.session?.admin) {
-    res.locals.admin = req.session.admin;
-    res.locals.userCan = (permission) => userCan(req.session.admin, permission);
-    res.locals.permissionGroups = PERMISSION_GROUPS;
-    return next();
+    try {
+      res.locals.admin = req.session.admin;
+      res.locals.userCan = (permission) => userCan(req.session.admin, permission);
+      res.locals.permissionGroups = PERMISSION_GROUPS;
+      res.locals.adminPendingCounts = await getAdminPendingCounts().catch(() => ({}));
+      return next();
+    } catch (e) {
+      return next(e);
+    }
   }
   return res.redirect("/admin/login");
 }
@@ -1775,6 +1781,8 @@ async function ensureFamilyPlatformTables() {
     )
   `);
   await run(`CREATE INDEX IF NOT EXISTS idx_tree_link_requests_status ON site_user_tree_link_requests(status, created_at)`).catch(() => {});
+  await ensureColumn("site_user_tree_link_requests", "match_status", "TEXT").catch(() => {});
+  await ensureColumn("site_user_tree_link_requests", "match_message", "TEXT").catch(() => {});
 
   await run(`
     CREATE TABLE IF NOT EXISTS site_notifications (
@@ -2255,6 +2263,32 @@ async function getFullDashboardData() {
     treeExportsTotal: Number(treeExportsTotalRow?.total || 0),
     pendingApprovalsTotal,
     maintenanceEnabled: String(maintenance?.value || "0") === "1",
+  };
+}
+
+async function getAdminPendingCounts() {
+  const [pendingUsers, linkRequests, reports, events, gallery, suggestions, support, personRequests] = await Promise.all([
+    get(`SELECT COUNT(*) AS total FROM site_users WHERE COALESCE(approval_status,'approved')='pending'`).catch(() => ({ total: 0 })),
+    get(`SELECT COUNT(*) AS total FROM site_user_tree_link_requests WHERE COALESCE(status,'pending')='pending'`).catch(() => ({ total: 0 })),
+    get(`SELECT COUNT(*) AS total FROM site_reports WHERE COALESCE(status,'pending')='pending'`).catch(() => ({ total: 0 })),
+    get(`SELECT COUNT(*) AS total FROM family_events WHERE COALESCE(status,'pending')='pending'`).catch(() => ({ total: 0 })),
+    get(`SELECT COUNT(*) AS total FROM family_gallery_items WHERE COALESCE(status,'pending')='pending'`).catch(() => ({ total: 0 })),
+    get(`SELECT COUNT(*) AS total FROM tree_edit_suggestions WHERE COALESCE(status,'pending')='pending'`).catch(() => ({ total: 0 })),
+    get(`SELECT COUNT(*) AS total FROM support_messages`).catch(() => ({ total: 0 })),
+    get(`SELECT COUNT(*) AS total FROM person_requests WHERE COALESCE(status,'pending')='pending'`).catch(() => ({ total: 0 })),
+  ]);
+  const approvalsTotal = [pendingUsers, linkRequests, reports, events, gallery, suggestions]
+    .reduce((sum, row) => sum + Number(row?.total || 0), 0);
+  return {
+    pendingUsers: Number(pendingUsers?.total || 0),
+    linkRequests: Number(linkRequests?.total || 0),
+    reports: Number(reports?.total || 0),
+    events: Number(events?.total || 0),
+    gallery: Number(gallery?.total || 0),
+    suggestions: Number(suggestions?.total || 0),
+    support: Number(support?.total || 0),
+    personRequests: Number(personRequests?.total || 0),
+    approvalsTotal,
   };
 }
 
@@ -5973,7 +6007,7 @@ app.post("/api/chat/messages/:messageId/report", async (req, res) => {
    ========================= */
 
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.render("home", { active: "tree", siteUser: req.session.siteUser });
 });
 
 
@@ -6949,7 +6983,7 @@ app.get("/admin/tree-exports", isAuthed, requireAnyPermission(["users", "backups
 
 app.get("/api/tree", async (req, res) => {
   try {
-    const rows = await all(`
+    let rows = await all(`
       SELECT
         id, name, father_id, mother_id, birth_date, birth_place,
         death_date, death_place, is_deceased, gender, job, education_level, lineage,
@@ -6957,6 +6991,29 @@ app.get("/api/tree", async (req, res) => {
       FROM persons
       ORDER BY id ASC
     `);
+
+    const linkedUsers = await all(`
+      SELECT id, full_name, avatar_url, verification_status, matched_person_id
+      FROM site_users
+      WHERE matched_person_id IS NOT NULL
+        AND COALESCE(is_active,1)=1
+        AND COALESCE(approval_status,'approved')='approved'
+        AND COALESCE(profile_visibility,'members') <> 'private'
+      ORDER BY id ASC
+    `).catch(() => []);
+    const profileByPersonId = new Map();
+    for (const u of linkedUsers) {
+      const pid = Number(u.matched_person_id || 0);
+      if (!pid || profileByPersonId.has(pid)) continue;
+      profileByPersonId.set(pid, {
+        id: u.id,
+        full_name: u.full_name || '',
+        avatar_url: u.avatar_url || '',
+        verification_status: u.verification_status || 'verified'
+      });
+    }
+    rows = rows.map((row) => ({ ...row, site_profile: profileByPersonId.get(Number(row.id)) || null }));
+
     const root = buildTree(rows);
     res.json(root || null);
   } catch (e) {
@@ -6994,9 +7051,20 @@ app.get("/api/person/:id", async (req, res) => {
     );
 
     const spouses = await getSpouseNames(row.id);
+    const linkedUser = await get(
+      `SELECT id, full_name, avatar_url, verification_status
+       FROM site_users
+       WHERE CAST(matched_person_id AS INTEGER) = ?
+         AND COALESCE(is_active,1)=1
+         AND COALESCE(approval_status,'approved')='approved'
+         AND COALESCE(profile_visibility,'members') <> 'private'
+       ORDER BY id ASC LIMIT 1`,
+      [Number(row.id)]
+    ).catch(() => null);
 
     res.json({
       ...row,
+      site_profile: linkedUser ? { id: linkedUser.id, full_name: linkedUser.full_name || '', avatar_url: linkedUser.avatar_url || '', verification_status: linkedUser.verification_status || '' } : null,
       father,
       mother,
       children,
@@ -9075,13 +9143,32 @@ app.post("/account/link-request", async (req, res) => {
   try {
     const userId = Number(req.session.siteUser.id);
     const lineage = cleanText(req.body.lineage_text || "", 220);
-    const resolved = await resolvePersonByThreePartLineage(lineage);
-    if (!resolved.ok) return res.redirect("/account?error=" + encodeURIComponent(resolved.message || "لم يتم العثور على الشخص داخل الشجرة"));
+    if (!lineage || namePartsForMatch(lineage).length < 3) {
+      return res.redirect("/account?error=" + encodeURIComponent("اكتب الاسم الثلاثي أو الرباعي كما تريد مراجعته من الإدارة."));
+    }
     const exists = await get(`SELECT id FROM site_user_tree_link_requests WHERE user_id=? AND status='pending' LIMIT 1`, [userId]).catch(() => null);
     if (exists) return res.redirect("/account?error=" + encodeURIComponent("لديك طلب ربط قيد المراجعة بالفعل."));
-    await run(`INSERT INTO site_user_tree_link_requests (user_id, requested_person_id, lineage_text, status, created_at, updated_at) VALUES (?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, [userId, resolved.id, lineage]);
-    await logSiteUserActivity(req, "طلب ربط الحساب بالشجرة", { personId: resolved.id, lineage });
-    res.redirect("/account?success=" + encodeURIComponent("تم إرسال طلب ربط الحساب للإدارة."));
+
+    const resolved = await resolvePersonByThreePartLineage(lineage).catch(() => ({ ok:false, id:null, status:"error", message:"تعذر الاستعلام عن الاسم" }));
+    const inserted = await run(
+      `INSERT INTO site_user_tree_link_requests
+       (user_id, requested_person_id, lineage_text, match_status, match_message, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      [userId, resolved.ok ? resolved.id : null, lineage, resolved.status || (resolved.ok ? "matched" : "not_found"), resolved.ok ? "الاسم موجود في الشجرة ويمكن ربطه" : (resolved.message || "الاسم غير موجود أو به خطأ" )]
+    );
+    const requestId = inserted?.lastID || null;
+    await createNotification(
+      userId,
+      "تم إرسال طلب ربط الحساب بالشجرة",
+      resolved.ok
+        ? "وصل طلبك للإدارة، والاسم موجود داخل الشجرة ويمكن ربطه بعد اعتماد المسؤول."
+        : "وصل طلبك للإدارة، وسيتم مراجعته حتى لو ظهر أن الاسم غير موجود أو يحتاج تصحيح.",
+      "/account",
+      "tree_link_request"
+    );
+    await logSiteUserActivity(req, "طلب ربط الحساب بالشجرة", { requestId, personId: resolved.ok ? resolved.id : null, lineage, matchStatus: resolved.status });
+    await logAdminAction(req, "طلب ربط حساب بالشجرة", "site_user_tree_link_request", requestId || userId, { lineage, matchStatus: resolved.status, userId }).catch(() => {});
+    res.redirect("/account?success=" + encodeURIComponent("تم إرسال طلب الربط للإدارة. ستصلك نتيجة المراجعة في الإشعارات."));
   } catch(e) { console.error(e); res.redirect("/account?error=" + encodeURIComponent("تعذر إرسال طلب الربط")); }
 });
 
@@ -9149,7 +9236,7 @@ app.get("/family-books/:id", async (req, res) => {
 app.get("/admin/approvals", isAuthed, requireAnyPermission(["approvals", "users", "events", "gallery", "reports"]), async (req, res) => {
   try {
     const pendingUsers = await all(`SELECT * FROM site_users WHERE approval_status='pending' ORDER BY id DESC LIMIT 100`).catch(() => []);
-    const linkRequests = await all(`SELECT r.*, u.full_name, u.email, p.name AS person_name FROM site_user_tree_link_requests r LEFT JOIN site_users u ON u.id=r.user_id LEFT JOIN persons p ON p.id=r.requested_person_id WHERE r.status='pending' ORDER BY r.id DESC LIMIT 100`).catch(() => []);
+    const linkRequests = await all(`SELECT r.*, u.full_name, u.email, u.phone, p.name AS person_name FROM site_user_tree_link_requests r LEFT JOIN site_users u ON u.id=r.user_id LEFT JOIN persons p ON p.id=r.requested_person_id WHERE r.status='pending' ORDER BY r.id DESC LIMIT 100`).catch(() => []);
     const reports = await all(`SELECT r.*, u.full_name AS reporter_name FROM site_reports r LEFT JOIN site_users u ON u.id=r.reporter_user_id WHERE r.status='pending' ORDER BY r.id DESC LIMIT 100`).catch(() => []);
     const events = await all(`SELECT e.*, u.full_name AS submitter_name FROM family_events e LEFT JOIN site_users u ON u.id=e.submitted_by_user_id WHERE e.status='pending' ORDER BY e.id DESC LIMIT 100`).catch(() => []);
     const gallery = await all(`SELECT g.*, u.full_name AS submitter_name FROM family_gallery_items g LEFT JOIN site_users u ON u.id=g.submitted_by_user_id WHERE g.status='pending' ORDER BY g.id DESC LIMIT 100`).catch(() => []);
@@ -9177,13 +9264,17 @@ app.post("/admin/link-requests/:id/review", isAuthed, requireAnyPermission(["app
     const action = String(req.body.action || "");
     const r = await get(`SELECT * FROM site_user_tree_link_requests WHERE id=?`, [id]);
     if (r) {
-      const status = action === "approve" ? "approved" : "rejected";
-      await run(`UPDATE site_user_tree_link_requests SET status=?, admin_note=?, reviewed_by_admin_id=?, reviewed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [status, cleanText(req.body.admin_note,500), req.session.admin?.id || null, id]);
+      let status = action === "approve" ? "approved" : "rejected";
+      if (status === "approved" && !Number(r.requested_person_id || 0)) status = "rejected";
+      const adminNote = cleanText(req.body.admin_note, 500);
+      await run(`UPDATE site_user_tree_link_requests SET status=?, admin_note=?, reviewed_by_admin_id=?, reviewed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [status, adminNote, req.session.admin?.id || null, id]);
       if (status === "approved") {
         await run(`UPDATE site_users SET matched_person_id=?, verification_status='verified', updated_at=CURRENT_TIMESTAMP WHERE id=?`, [r.requested_person_id, r.user_id]);
-        await createNotification(r.user_id, "تم توثيق حسابك داخل الشجرة", "وافقت الإدارة على ربط حسابك بفرد داخل الشجرة.", "/account", "tree_link");
+        await createNotification(r.user_id, "تم ربط اسمك في الشجرة التفاعلية", "تم ربط حسابك ببطاقتك داخل الشجرة. يمكنك الآن الضغط على شاهد موقعك في الشجرة من صفحة حسابك.", `/?focus=${encodeURIComponent(r.requested_person_id)}`, "tree_link");
+        await logAdminAction(req, "قبول وربط حساب بالشجرة", "site_user_tree_link_request", id, { personId: r.requested_person_id });
       } else {
-        await createNotification(r.user_id, "تم رفض طلب ربط الحساب", cleanText(req.body.admin_note,500) || "راجع الإدارة إذا كنت ترى أن القرار غير صحيح.", "/account", "tree_link");
+        await createNotification(r.user_id, "لم يتم ربط الاسم بالشجرة", adminNote || "للأسف لم يتم ربط الاسم لعدم وجوده في الشجرة أو لوجود خطأ في الاسم. يرجى إضافة البيانات من صفحة إضافة بياناتك ثم إعادة محاولة الربط. شكراً.", "/submit-person", "tree_link");
+        await logAdminAction(req, "رفض طلب ربط حساب بالشجرة", "site_user_tree_link_request", id, { reason: adminNote });
       }
     }
     res.redirect(req.headers.referer || "/admin/approvals");

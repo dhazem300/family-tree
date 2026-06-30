@@ -83,19 +83,6 @@
       transition: transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
       will-change: transform;
     }
-
-    #mobileNavOverlay.hidden { display: none; }
-    #mobileNavOverlay { display: block; }
-    #mobileNavDrawer {
-      transform: translateX(-110%);
-      transition: transform .3s cubic-bezier(.2,.9,.2,1);
-      will-change: transform;
-    }
-    #mobileNavDrawer.isOpen { transform: translateX(0); }
-    #mobileNavBtn[data-open="true"] .ico-open { display: none; }
-    #mobileNavBtn[data-open="true"] .ico-close { display: inline; }
-    #mobileNavBtn[data-open="false"] .ico-open { display: inline; }
-    #mobileNavBtn[data-open="false"] .ico-close { display: none; }
   </style>
 
   <script>
@@ -117,96 +104,12 @@
 
   <% const pdfUrl = (page && page.pdf_url) ? page.pdf_url : ""; %>
 
-  <div id="mobileNavOverlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[80] hidden" aria-hidden="true"></div>
-  <aside id="mobileNavDrawer" class="fixed top-0 left-0 h-full w-[320px] max-w-[85vw] bg-white dark:bg-bg-charcoal border-r border-gray-100 dark:border-white/5 shadow-2xl z-[90] flex flex-col">
-    <div class="h-1.5 w-full bg-gradient-to-r from-gray-300 via-accent to-gray-300 dark:from-gray-800 dark:via-accent dark:to-gray-800"></div>
-    <div class="flex items-center justify-between p-6 border-b border-gray-100 dark:border-white/5">
-      <img class="h-10 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
-      <img class="h-10 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
-      <button id="mobileNavClose" class="text-gray-400 hover:text-accent transition-colors" type="button" aria-label="إغلاق القائمة">
-        <span class="material-symbols-outlined text-[26px]">close</span>
-      </button>
-    </div>
-
-    <nav class="p-6 flex flex-col gap-2 text-base font-semibold flex-grow text-gray-600 dark:text-gray-400 overflow-y-auto" aria-label="قائمة الجوال">
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/">الشجرة</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/about">نبذة عن العائلة</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/honor">السير الذاتية</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/news">أخبار العائلة</a>
-      <a class="px-4 py-3 rounded-xl text-primary dark:text-accent bg-primary/5 dark:bg-accent/10 border-r-2 border-primary dark:border-accent" href="/tree-pdf">المشجرة</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/kinship">صلة القرابة</a>
-      
-      <div class="my-3 h-px bg-gray-100 dark:bg-white/5"></div>
-      
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/submit-person">إضافة بياناتك</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-members">أعضاء العائلة</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-books">كتب العائلة</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-gallery">معرض العائلة</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/family-events">مناسبات العائلة</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/chat">الشات العام</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/notifications">الإشعارات</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/account">حسابي</a>
-      <a class="px-4 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 hover:text-primary dark:hover:text-accent transition-colors" href="/support">الدعم</a>
-    </nav>
-
-    <div class="p-6 border-t border-gray-100 dark:border-white/5 bg-white/50 dark:bg-black/20">
-      <div class="grid grid-cols-1 gap-3">
-        <a href="/admin/login" class="flex items-center justify-center gap-2 py-3 bg-primary text-white dark:bg-white dark:text-primary rounded-xl hover:opacity-90 transition-all shadow-sm font-bold text-sm" title="لوحة الإدارة">
-          <span class="material-symbols-outlined text-[20px]">admin_panel_settings</span>
-          <span>لوحة الإدارة</span>
-        </a>
-      </div>
-    </div>
-  </aside>
-
-  <header class="sticky top-0 z-50 w-full glass-panel border-b-0 transition-colors duration-400">
-    <div class="max-w-[90rem] mx-auto px-4 sm:px-8 py-3 flex justify-between items-center h-20 md:h-24">
-      
-      <div class="flex items-center gap-3 xl:gap-4 shrink-0">
-        <a href="/" class="block shrink-0 transition-transform hover:scale-105 duration-300">
-          <img class="h-10 md:h-12 w-auto hidden dark:block drop-shadow-[0_0_2px_rgba(255,255,255,0.5)] brightness-110" src="/assets/logo-dark.svg" alt="شعار العائلة" />
-          <img class="h-10 md:h-12 w-auto block dark:hidden" src="/assets/logo-light.svg" alt="شعار العائلة" />
-        </a>
-        
-        <div class="h-7 w-px bg-gray-200 dark:bg-white/10 hidden sm:block"></div>
-        
-        <div class="hidden sm:flex flex-col justify-center min-w-0">
-           <h1 class="text-lg md:text-xl font-display text-primary dark:text-accent font-bold leading-tight pt-1">شجرة العائلة</h1>
-           <span class="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mt-0.5 truncate">حفظ الأنساب</span>
-        </div>
-      </div>
-
-      <nav class="hidden lg:flex flex-1 justify-center gap-2 lg:gap-3 xl:gap-5 items-center font-sans font-semibold text-[11px] xl:text-[13px] tracking-wide text-gray-500 dark:text-gray-400 overflow-x-auto scrollbar-hide px-2 xl:px-4 flex-nowrap" aria-label="التنقل الرئيسي">
-        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/">الشجرة</a>
-        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/about">نبذة عن العائلة</a>
-        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/honor">السير الذاتية</a>
-        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/news">أخبار العائلة</a>
-        <a class="whitespace-nowrap shrink-0 text-primary dark:text-accent border-b-[1.5px] border-primary dark:border-accent pb-1 transition-colors duration-200" href="/tree-pdf">المشجرة</a>
-        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/kinship">صلة القرابة</a>
-        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/submit-person">إضافة بياناتك</a>
-        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/family-members">أعضاء العائلة</a>
-        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/chat">الشات العام</a>
-        <a class="whitespace-nowrap shrink-0 hover:text-primary dark:hover:text-accent transition-colors duration-200" href="/account">حسابي</a>
-      </nav>
-
-      <div class="flex items-center justify-end gap-2 shrink-0">
-        <button id="uiThemeBtn" aria-label="تبديل المظهر" class="flex items-center justify-center w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-accent dark:hover:text-accent hover:bg-accent/5 transition-all duration-300" type="button" title="تبديل المظهر">
-          <span class="material-symbols-outlined text-[22px] dark-toggle-icon-moon">dark_mode</span>
-          <span class="material-symbols-outlined text-[22px] hidden dark:inline text-accent">light_mode</span>
-        </button>
-
-        <a href="/admin/login" class="hidden sm:flex w-10 h-10 rounded-full border border-transparent text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-accent hover:bg-primary/5 dark:hover:bg-accent/5 transition-all duration-300 items-center justify-center" title="لوحة الإدارة">
-          <span class="material-symbols-outlined text-[22px]">admin_panel_settings</span>
-        </a>
-
-        <button id="mobileNavBtn" data-open="false" class="lg:hidden flex items-center justify-center w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 text-primary dark:text-accent hover:bg-gray-50 dark:hover:bg-white/5 transition-all duration-200" type="button" aria-label="فتح القائمة">
-          <span class="material-symbols-outlined text-[24px] ico-open">menu</span>
-          <span class="material-symbols-outlined text-[24px] ico-close hidden">close</span>
-        </button>
-      </div>
-
-    </div>
-  </header>
+  <%- include('partials/header', {
+    active: 'tree-pdf',
+    siteUser,
+    pageTitle: page?.title || 'مشجرة العائلة',
+    pageSubtitle: 'النسخة الرسمية'
+  }) %>
 
   <main class="flex-grow relative">
 
@@ -285,63 +188,7 @@
       </p>
     </div>
   </footer>
-
-  <script>
-    (function () {
-      const btn = document.getElementById("uiThemeBtn");
-      function applyTheme(next) {
-        document.documentElement.setAttribute("data-theme", next);
-        document.documentElement.classList.toggle("dark", next === "dark");
-        localStorage.setItem("theme", next);
-      }
-      btn?.addEventListener("click", () => {
-        const current = document.documentElement.getAttribute("data-theme") || "dark";
-        applyTheme(current === "dark" ? "light" : "dark");
-      });
-      applyTheme(localStorage.getItem("theme") || "dark");
-    })();
-
-    (function mobileNavInit(){
-      const btn = document.getElementById("mobileNavBtn");
-      const navDrawer = document.getElementById("mobileNavDrawer");
-      const overlay = document.getElementById("mobileNavOverlay");
-      const closeBtn = document.getElementById("mobileNavClose");
-
-      function setOpenState(isOpen){
-        btn?.setAttribute("data-open", isOpen ? "true" : "false");
-        btn?.setAttribute("aria-expanded", isOpen ? "true" : "false");
-      }
-
-      function openNav(){
-        overlay?.classList.remove("hidden");
-        overlay?.style.setProperty('display', 'block', 'important');
-        navDrawer?.classList.add("isOpen");
-        setOpenState(true);
-        document.body.classList.add('overflow-hidden');
-      }
-      function closeNav(){
-        navDrawer?.classList.remove("isOpen");
-        overlay?.classList.add("hidden");
-        overlay?.style.setProperty('display', 'none', 'important');
-        setOpenState(false);
-        document.body.classList.remove('overflow-hidden');
-      }
-
-      btn?.addEventListener("click", () => {
-        const open = btn.getAttribute("data-open") === "true";
-        open ? closeNav() : openNav();
-      });
-
-      closeBtn?.addEventListener("click", closeNav);
-      overlay?.addEventListener("click", closeNav);
-      navDrawer?.querySelectorAll("a").forEach(a => a.addEventListener("click", closeNav));
-      window.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNav(); });
-
-      setOpenState(false);
-    })();
-  </script>
-
-  <script>
+<script>
     (function(){
       const inner = document.getElementById("pdfInner");
       const canvas = document.getElementById("pdfCanvas");
