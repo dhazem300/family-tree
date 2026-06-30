@@ -421,14 +421,16 @@
     <div class="flex-1 overflow-y-auto custom-scrollbar px-4 lg:px-8 pb-12">
       <div class="max-w-[100rem] mx-auto space-y-8">
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-          
-          <div class="lg:col-span-2 bg-card-light dark:bg-card-dark glass-panel rounded-[2rem] border border-border-light dark:border-border-dark p-2 pl-4 flex items-center shadow-sm">
+        <div class="sticky top-0 z-40 -mx-4 lg:-mx-8 px-4 lg:px-8 pt-2 pb-3 bg-bg-light/90 dark:bg-bg-dark/90 backdrop-blur-xl border-b border-border-light/60 dark:border-border-dark/60">
+          <div class="bg-card-light dark:bg-card-dark glass-panel rounded-[2rem] border border-border-light dark:border-border-dark p-2 pl-4 flex items-center shadow-sm">
             <span class="material-symbols-outlined text-gray-400 mr-4 ml-2 text-[26px]">search</span>
             <input id="searchInput" type="text" placeholder="ابحث بالاسم، الأب، الزوج، الـ ID..." 
               class="search-input w-full h-14 bg-transparent border-none text-gray-900 dark:text-white placeholder-gray-400 font-sans font-bold text-base focus:ring-0 px-2"/>
           </div>
+        </div>
 
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+          
           <div class="bg-card-light dark:bg-card-dark glass-panel rounded-[2rem] border border-border-light dark:border-border-dark p-5 flex items-center gap-4 shadow-sm group">
             <div class="w-14 h-14 rounded-2xl bg-primary/10 dark:bg-accent/10 flex items-center justify-center text-primary dark:text-accent group-hover:scale-110 transition-transform">
               <span class="material-symbols-outlined text-[28px]">groups</span>
